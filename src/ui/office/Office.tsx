@@ -4,7 +4,8 @@ import {
 } from '../../engine';
 import type { Dispatch } from '../App';
 import { money, num, tierLabel } from '../format';
-import { ClubTab } from './ClubTab';
+import { CoachTab } from './CoachTab';
+import { FinanceTab } from './FinanceTab';
 import { MarketTab } from './MarketTab';
 import { OverviewTab } from './OverviewTab';
 import { SquadTab } from './SquadTab';
@@ -14,17 +15,18 @@ import { TrophyRoom } from '../TrophyRoom';
 import { NewsTab } from './NewsTab';
 import { Crest } from '../Crest';
 
-export type TabId = 'painel' | 'elenco' | 'base' | 'mercado' | 'estadio' | 'clube' | 'noticias' | 'trofeus';
+export type TabId = 'painel' | 'elenco' | 'base' | 'mercado' | 'comissao' | 'estadio' | 'financas' | 'noticias' | 'trofeus';
 
-const TABS: { id: TabId; label: string }[] = [
-  { id: 'painel', label: 'Painel' },
-  { id: 'elenco', label: 'Elenco' },
-  { id: 'base', label: 'Base' },
-  { id: 'mercado', label: 'Mercado' },
-  { id: 'estadio', label: 'Estádio' },
-  { id: 'clube', label: 'Clube' },
-  { id: 'noticias', label: 'Notícias' },
-  { id: 'trofeus', label: 'Troféus' },
+const TABS: { id: TabId; label: string; icon: string }[] = [
+  { id: 'painel', label: 'Início', icon: '🏠' },
+  { id: 'elenco', label: 'Elenco', icon: '👕' },
+  { id: 'base', label: 'Base', icon: '🌱' },
+  { id: 'mercado', label: 'Mercado', icon: '🤝' },
+  { id: 'comissao', label: 'Comissão', icon: '📋' },
+  { id: 'estadio', label: 'Estrutura', icon: '🏟️' },
+  { id: 'financas', label: 'Finanças', icon: '💰' },
+  { id: 'noticias', label: 'Notícias', icon: '📰' },
+  { id: 'trofeus', label: 'Troféus', icon: '🏆' },
 ];
 
 export interface TabProps {
@@ -46,11 +48,15 @@ export function Office({ state, dispatch, onFast }: { state: GameState; dispatch
 
       <nav className="tabs" aria-label="Escritório do presidente">
         {TABS.map((t) => (
-          <button key={t.id} type="button" className={`tab${tab === t.id ? ' is-on' : ''}`} onClick={() => setTab(t.id)}>
-            {t.label}
+          <button key={t.id} type="button" className={`tab${tab === t.id ? ' is-on' : ''}`} onClick={() => setTab(t.id)} aria-current={tab === t.id ? 'page' : undefined}>
+            <span className="tab-icon" aria-hidden="true">
+              {t.icon}
+            </span>
+            <span className="tab-label">{t.label}</span>
             {t.id === 'painel' && eventPending && <span className="dot" aria-label="evento pendente" />}
             {t.id === 'base' && p.youth.length > 0 && <span className="count">{p.youth.length}</span>}
             {t.id === 'elenco' && o.offers.some(Boolean) && <span className="dot dot-offer" aria-label="propostas recebidas" />}
+            {t.id === 'comissao' && o.request && <span className="dot dot-offer" aria-label="pedido do técnico" />}
           </button>
         ))}
       </nav>
@@ -61,7 +67,8 @@ export function Office({ state, dispatch, onFast }: { state: GameState; dispatch
         {tab === 'base' && <YouthTab {...props} />}
         {tab === 'mercado' && <MarketTab {...props} />}
         {tab === 'estadio' && <StadiumTab {...props} />}
-        {tab === 'clube' && <ClubTab {...props} />}
+        {tab === 'comissao' && <CoachTab {...props} />}
+        {tab === 'financas' && <FinanceTab {...props} />}
         {tab === 'noticias' && <NewsTab {...props} />}
         {tab === 'trofeus' && <TrophyRoom state={state} />}
       </div>

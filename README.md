@@ -21,19 +21,18 @@ npm run balance    # probe de balanceamento com bots (não roda no npm test)
 
 ## Como se joga
 
-A cada temporada você abre o **Escritório do Presidente**:
+A cada temporada você abre o **Escritório do Presidente** (abas em grade, nada escondido):
 
-- **Painel:** evento da temporada, oportunidades (propostas opcionais), alertas e orçamento previsto.
-- **Elenco:** jogadores com overall, potencial (faixa lida pelo olheiro), idade, salário, contrato e valor. No começo da janela cada jogador mostra a intenção para o fim da temporada (renova, pede aumento, quer sair, vai para um clube maior, vai se aposentar); dá para renovar antes ou tentar convencer, e nada acontece de surpresa. Venda, dispense, empreste jovens e aceite propostas de outros clubes.
-- **Base:** garotos que surgem todo ano (mais e melhores com a base investida) e a peneira (1 por temporada).
-- **Mercado:** a janela (12 jogadores livres ou à venda), a **busca** de qualquer jogador do mundo e o **elenco de qualquer clube**. Proposta com taxa, salário e anos: o clube aceita, recusa (com dica de valor) ou faz contraproposta, e o jogador decide o salário (não gosta de descer de divisão). Até 3 rodadas por jogador em cada janela.
-- **Estádio:** ampliações (ficam prontas no fim da temporada e contam na vistoria do acesso), preço do ingresso e estrutura (CT, base, departamento médico).
-- **Clube:** comissão técnica, patrocínios, empréstimos e identidade.
-- **Troféus:** sala de troféus e recordes do clube.
+- **Início:** evento, metas, torcedômetro, propostas recebidas, oportunidades, alertas e identidade do clube.
+- **Elenco:** jogadores com overall, potencial (faixa lida pelo olheiro), idade, salário, contrato, valor e a intenção de cada um para o fim da temporada. Renovar, convencer, vender, liberar ou emprestar.
+- **Base:** garotos que surgem todo ano, empréstimos e a peneira.
+- **Mercado:** a janela, a busca de qualquer jogador do mundo e o elenco de qualquer clube, com negociação (taxa, salário e anos; contraproposta; o jogador decide).
+- **Comissão:** o técnico (esquema tático que define o time titular, estilo, moral, contrato e pedidos), os técnicos disponíveis, os diretores (delegar áreas) e o staff.
+- **Estrutura:** estádio (obras para a vistoria do acesso), CT, base, departamento médico e comércio local.
+- **Finanças:** caixa, orçamento previsto, preço do ingresso, patrocínios e banco.
+- **Notícias** do mundo da bola e **Troféus** (sala de troféus, conquistas e recordes).
 
-A carreira é salva automaticamente no navegador (até 5 em andamento); runs terminadas vão para o Hall da fama.
-
-O botão **Assistente decide** faz uma gestão conservadora por você, e **Rápido** deixa o assistente gerir e jogar até algo decisivo acontecer. Na aba Clube dá para **delegar** áreas (contratos, base, mercado, estádio) a diretores que cuidam delas sozinhos.
+O botão **Assistente decide** faz uma gestão conservadora por você, e **Rápido** deixa o assistente gerir e jogar até algo decisivo acontecer.
 
 O calendário é o brasileiro: **Estadual** no 1º semestre e **série nacional** no 2º (Séries A e B em pontos corridos, Série C com quadrangulares, Série D com grupos e mata-mata). As vagas na Série D saem do Estadual. Há ainda a **Copa do Estado**, a **Copa Nacional** (o pequeno joga em casa nas fases iniciais), a **Copa Continental** (top 6 da Série A e campeão da Copa Nacional), a **Copa Sul** e o **Mundial de Clubes**. Finais, playoff, última rodada decisiva, zebra na copa e clássico são mostrados **ao vivo**, com narração.
 

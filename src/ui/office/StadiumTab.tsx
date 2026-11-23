@@ -1,5 +1,5 @@
 import {
-  BUSINESSES, expectedHomeGames, FACILITY_COST, SEAT_PACKS, TICKET_POLICY, TIERS, attendance, commerce, seatsFor, stadiumAllows, type Facility, type Tier,
+  BUSINESSES, expectedHomeGames, FACILITY_COST, SEAT_PACKS, TIERS, attendance, commerce, seatsFor, stadiumAllows, type Facility, type Tier,
 } from '../../engine';
 import { money, num } from '../format';
 import type { TabProps } from './Office';
@@ -77,18 +77,6 @@ export function StadiumTab({ state, dispatch }: TabProps) {
         {o.built.seats && <p className="muted">Já há uma obra no estádio nesta temporada.</p>}
       </Section>
 
-      <Section title="Preço do ingresso" note="Mais caro rende mais por torcedor, mas enche menos o estádio e esfria a torcida. Mais barato faz a torcida crescer e aquece a alma.">
-        <div className="seg">
-          {TICKET_POLICY.map((t, i) => (
-            <button key={t.label} type="button" className={`seg-btn${p.ticket === i ? ' is-on' : ''}`} onClick={() => dispatch({ t: 'ticket', level: i as 0 | 1 | 2 })}>
-              <strong>{t.label}</strong>
-              <small>
-                preço x{t.price} · público x{t.demand}
-              </small>
-            </button>
-          ))}
-        </div>
-      </Section>
 
       <Section title="Estrutura" note={`Uma obra de estrutura por temporada. Cada nível custa manutenção anual de 10% do investido.${o.built.facility ? ' A obra desta temporada já foi feita.' : ''}`}>
         <ul className="facilities">

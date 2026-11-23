@@ -168,6 +168,22 @@ export function SeasonSummary({ result: r, state, onNext, onFast, fast }: Props)
           )}
         </div>
         <div className="box">
+          <h3>Técnico</h3>
+          <p>
+            {r.coachReport.name} · moral {r.coachReport.morale}{' '}
+            <span className={r.coachReport.moraleDelta >= 0 ? 'good' : 'bad'}>
+              ({r.coachReport.moraleDelta >= 0 ? '+' : ''}
+              {r.coachReport.moraleDelta})
+            </span>
+          </p>
+          {r.coachReport.request && (
+            <p className={r.coachReport.met ? 'good' : 'bad'}>
+              {r.coachReport.met ? '✔' : '✘'} Pedido: {r.coachReport.request.text}
+            </p>
+          )}
+          {r.coachReport.left && <p className="bad">{r.coachReport.left}</p>}
+        </div>
+        <div className="box">
           <h3>Artilheiro</h3>
           <p>{r.topScorer && r.topScorer.goals > 0 ? `${r.topScorer.name} — ${r.topScorer.goals} gols` : '—'}</p>
           <p className="muted">Força do time: {r.strength.toFixed(1)} (média do nível {TIERS[r.tier].meanStrength})</p>

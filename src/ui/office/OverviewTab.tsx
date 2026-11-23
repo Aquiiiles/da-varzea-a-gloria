@@ -1,7 +1,7 @@
 import {
-  SQUAD_MAX, SQUAD_MIN, TIERS, YOUTH_AGE_LIMIT, effectsCashCost, marketValue, moodLabel, projectFinance, renewWage, stadiumAllows, type Tier,
+  ORIGINS, SQUAD_MAX, SQUAD_MIN, TIERS, YOUTH_AGE_LIMIT, effectsCashCost, marketValue, moodLabel, projectFinance, renewWage, stadiumAllows, type Tier,
 } from '../../engine';
-import { money } from '../format';
+import { money, num } from '../format';
 import type { TabProps } from './Office';
 import { Chips, Section } from './common';
 
@@ -28,7 +28,7 @@ export function OverviewTab({ state, dispatch, goTo }: TabProps) {
   if (p.tier > 1 && !stadiumAllows(p.capacity + p.capacityBuilding, (p.tier - 1) as Tier)) {
     alerts.push({ text: `O estádio não comporta a ${TIERS[(p.tier - 1) as Tier].name} (${TIERS[(p.tier - 1) as Tier].minStadium.toLocaleString('pt-BR')} lugares). Se for campeão, não sobe.`, tab: 'estadio' });
   }
-  if (p.cash + proj.net < 0) alerts.push({ text: `Pela projeção, o caixa fecha a temporada em ${money(p.cash + proj.net)}.`, tab: 'clube' });
+  if (p.cash + proj.net < 0) alerts.push({ text: `Pela projeção, o caixa fecha a temporada em ${money(p.cash + proj.net)}.`, tab: 'financas' });
   if (p.squad.length >= SQUAD_MAX) alerts.push({ text: 'Elenco cheio: venda ou dispense antes de contratar.', tab: 'elenco' });
   if (p.fans > p.capacity * 1.2) alerts.push({ text: 'A torcida não cabe no estádio: você está perdendo bilheteria.', tab: 'estadio' });
 
@@ -149,16 +149,15 @@ export function OverviewTab({ state, dispatch, goTo }: TabProps) {
         </Section>
       )}
 
-      <Section title="Orçamento da temporada" note="Projeção para uma campanha de meio de tabela. A premiação muda com a posição final.">
+      <Section title="Identidade do clube">
         <dl className="budget">
-          <div><dt>Bilheteria</dt><dd className="good">{money(proj.tickets)}</dd></div>
-          <div><dt>TV e premiação</dt><dd className="good">{money(proj.tv)}</dd></div>
-          <div><dt>Patrocínios</dt><dd className={proj.sponsors >= 0 ? 'good' : 'bad'}>{money(proj.sponsors)}</dd></div>
-          <div><dt>Comércio local</dt><dd className="good">{money(proj.commerce)}</dd></div>
-          <div><dt>Salários</dt><dd className="bad">-{money(proj.wages)}</dd></div>
-          <div><dt>Staff</dt><dd className="bad">-{money(proj.staff)}</dd></div>
-          <div><dt>Manutenção</dt><dd className="bad">-{money(proj.upkeep)}</dd></div>
-          <div className="budget-total"><dt>Saldo</dt><dd className={proj.net >= 0 ? 'good' : 'bad'}>{money(proj.net)}</dd></div>
+          <div><dt>Origem</dt><dd>{ORIGINS[p.origin].label}</dd></div>
+          <div><dt>Torcedômetro</dt><dd>{p.mood}/100 · {moodLabel(p.mood)}</dd></div>
+          <div><dt>Alma do clube</dt><dd className={p.soul < 30 ? 'bad' : ''}>{Math.round(p.soul)}/100</dd></div>
+          <div><dt>Hype</dt><dd>{Math.round(p.hype)}/100</dd></div>
+          <div><dt>Torcida</dt><dd>{num(p.fans)}</dd></div>
+          <div><dt>Clássico (V-E-D)</dt><dd>{p.derby.w}-{p.derby.d}-{p.derby.l}</dd></div>
+          <div><dt>Ódio do clássico</dt><dd>{Math.round(p.rivalHatred)}/100</dd></div>
         </dl>
       </Section>
     </div>

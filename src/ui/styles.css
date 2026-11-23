@@ -462,3 +462,21 @@ h3 { font: 700 14px/1.2 var(--font-display); text-transform: uppercase; letter-s
 .pl-actions .nego { padding-top: 4px; }
 @media (min-width: 640px) { .filter-row { grid-template-columns: repeat(3, 1fr); } .nego-fields { grid-template-columns: repeat(3, 1fr); } .nego-fields label { flex-direction: column; align-items: stretch; } }
 .toast-ok { background: #123d25; border-color: var(--good); }
+
+/* ------------------------------ PR 3: navegação em grade e técnico ------------------------------ */
+.tabs { display: grid; grid-template-columns: repeat(5, 1fr); gap: 4px; overflow: visible; border-bottom: none; }
+.tab { display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 8px 2px; border: 1px solid var(--line); border-radius: 8px; background: var(--panel); font-size: 11px; letter-spacing: 0.03em; }
+.tab.is-on { background: var(--panel-2); border-color: var(--accent); color: var(--text); }
+.tab-icon { font-size: 18px; line-height: 1; }
+.tab-label { white-space: nowrap; }
+.tab .dot { top: 4px; right: 6px; }
+.tab .count { position: absolute; top: 2px; right: 2px; margin: 0; }
+@media (min-width: 640px) { .tabs { grid-template-columns: repeat(9, 1fr); } .tab { font-size: 12px; } }
+.request { margin-top: 10px; background: #2a2410; border: 1px solid var(--warn); border-radius: 8px; padding: 10px 12px; }
+.request-label { font: 700 11px var(--font-display); text-transform: uppercase; letter-spacing: 0.08em; color: var(--warn); }
+.request p { margin: 4px 0 0; font-weight: 600; }
+.formation-seg { grid-template-columns: repeat(4, 1fr); }
+.formation-seg .seg-btn strong { font: 700 16px var(--font-display); }
+.cash-big { margin: 0; font: 700 32px var(--font-display); }
+.coaches li { list-style: none; }
+.coach-card + .moodbar { margin-top: 10px; }

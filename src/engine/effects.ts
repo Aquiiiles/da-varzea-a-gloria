@@ -6,11 +6,7 @@ import { clamp } from './util';
 import type { Club, Effect, GameState } from './types';
 
 export function findClub(state: GameState, id: string): Club | undefined {
-  for (const tier of [1, 2, 3, 4, 5, 6, 7, 8] as const) {
-    const c = state.world[tier].find((x) => x.id === id);
-    if (c) return c;
-  }
-  return undefined;
+  return state.clubs.find((x) => x.id === id);
 }
 
 export function nextId(state: GameState): number {
@@ -63,6 +59,7 @@ export function applyEffects(state: GameState, effects: readonly Effect[], rng: 
           scout: p.staff.scout,
           season: state.season,
           contract: e.age[0] >= 33 ? 1 : 2,
+          names: new Set([...p.squad, ...p.youth, ...p.alumni].map((x) => x.name)),
         });
         p.squad.push(f);
         notes.push(`${f.name} (${f.pos}, ${f.ovr}) chega ao clube`);
@@ -75,7 +72,7 @@ export function applyEffects(state: GameState, effects: readonly Effect[], rng: 
           p.squad = p.squad.filter((x) => x.id !== star.id);
           p.alumni.push(star);
           p.cash += fee;
-          notes.push(`${star.name} é vendido por £ ${fee} mil`);
+          notes.push(`${star.name} é vendido por R$ ${fee} mil`);
         }
         break;
       }

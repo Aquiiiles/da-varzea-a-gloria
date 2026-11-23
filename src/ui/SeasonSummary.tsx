@@ -1,15 +1,6 @@
-import { PLAYER_ID, TIERS, type GameState, type SeasonResult, type Tier } from '../engine';
+import { useState } from 'react';
+import { PLAYER_ID, TIERS, moodLabel, type CompResult, type CupMatch, type GameState, type SeasonResult, type Tier } from '../engine';
 import { money, OUTCOME_LABEL } from './format';
-import { moodLabel } from '../engine';
-
-function zone(tier: Tier, pos: number, size: number): string {
-  const r = TIERS[tier];
-  if (tier > 1 && pos <= r.autoUp) return 'up';
-  if (r.playoff && pos >= r.playoff[0] && pos <= r.playoff[1]) return 'po';
-  if (tier === 1 && pos <= 4) return 'up';
-  if (pos > size - r.down) return 'down';
-  return '';
-}
 
 interface Props {
   result: SeasonResult;
@@ -19,25 +10,113 @@ interface Props {
   fast: boolean;
 }
 
+function score(m: CupMatch): string {
+  const mine = m.home ? m.result.hg : m.result.ag;
+  const theirs = m.home ? m.result.ag : m.result.hg;
+  const pens = m.result.pens ? (m.home ? m.result.pens : [m.result.pens[1], m.result.pens[0]]) : null;
+  return `${mine}-${theirs}${pens ? ` (${pens[0]}-${pens[1]} pên.)` : m.result.extraTime ? ' (prorr.)' : ''}`;
+}
+
+export function TieList({ matches }: { matches: CupMatch[] }) {
+  return (
+    <ul className="tie-list">
+      {matches.map((m, i) => (
+        <li key={i} className={m.advanced === null ? (m.won ? 'good' : 'muted') : m.advanced ? 'good' : 'bad'}>
+          <span className="cup-round">{m.round}</span>
+          <span>
+            {m.home ? 'x' : '@'} {m.opponent}
+            {m.opponentTier ? ` (${TIERS[m.opponentTier].short})` : ''}
+          </span>
+          <b>{score(m)}</b>
+          {m.giantKill && <em className="tag-offer">zebra</em>}
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+/** Uma competição de liga do jogador: tabela(s) + mata-mata. */
+export function CompView({ comp, clubName, open: openDefault }: { comp: CompResult; clubName: string; open?: boolean }) {
+  const [tab, setTab] = useState(0);
+  const table = comp.tables[tab];
+  const name = (id: string) => (id === PLAYER_ID ? clubName : comp.clubNames[id] ?? id);
+  return (
+    <details className="comp" open={openDefault}>
+      <summary>
+        <span className="comp-name">{comp.name}</span>
+        <span className={`comp-finish${comp.won ? ' good' : ''}`}>{comp.finish}</span>
+      </summary>
+      {comp.tables.length > 1 && (
+        <div className="seg seg-compact comp-tabs">
+          {comp.tables.map((t, i) => (
+            <button key={t.name} type="button" className={`seg-btn${tab === i ? ' is-on' : ''}`} onClick={() => setTab(i)}>
+              {t.name}
+            </button>
+          ))}
+        </div>
+      )}
+      {table && (
+        <table className="table">
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>{table.name}</th>
+              <th>J</th>
+              <th>SG</th>
+              <th>Pts</th>
+            </tr>
+          </thead>
+          <tbody>
+            {table.rows.map((row, i) => (
+              <tr key={row.clubId} className={row.clubId === PLAYER_ID ? 'me' : ''}>
+                <td>{i + 1}</td>
+                <td>{name(row.clubId)}</td>
+                <td>{row.played}</td>
+                <td>{row.gf - row.ga}</td>
+                <td>
+                  {row.points}
+                  {row.deduction > 0 ? '*' : ''}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+      {comp.ties.length > 0 && (
+        <>
+          <h4>Mata-mata</h4>
+          <TieList matches={comp.ties} />
+        </>
+      )}
+      {!comp.won && <p className="muted">Campeão: {comp.champion}</p>}
+    </details>
+  );
+}
+
 export function SeasonSummary({ result: r, state, onNext, onFast, fast }: Props) {
   const clubName = state.player.name;
   const tone = r.outcome === 'queda' || r.outcome === 'falencia' || r.outcome === 'barrado_estadio' ? 'bad' : r.outcome === 'fica' ? 'neutral' : 'good';
   const f = r.finance;
-  const po = r.playoff;
-  const name = (id: string) => (id === PLAYER_ID ? clubName : r.clubNames[id] ?? id);
+  const main = r.comps[r.comps.length - 1];
   return (
     <section className="panel summary">
       <p className="kicker">Fim da temporada {r.year}</p>
       <div className={`banner banner-${tone}`}>
         <span className="banner-label">{OUTCOME_LABEL[r.outcome]}</span>
         <span className="banner-pos">
-          {r.position}º · {r.points} pts
+          {main?.name}: {main?.finish}
         </span>
       </div>
+      {r.outcome !== 'fica' && r.nextTier !== r.tier && (
+        <p className="next-tier">
+          Próxima temporada: <strong>{TIERS[r.nextTier].name}</strong>
+          {r.nextTier <= 4 ? ' (e o Estadual no 1º semestre)' : ''}
+        </p>
+      )}
       {r.outcome === 'barrado_estadio' && (
         <p className="alert">
-          Ganhou em campo, perdeu no regulamento: a {TIERS[(r.tier - 1) as Tier].name} exige estádio para{' '}
-          {r.stadiumRequired?.toLocaleString('pt-BR')} pessoas. A vaga foi para outro clube.
+          Ganhou em campo, perdeu no regulamento: a {TIERS[(r.tier - 1) as Tier].name} exige estádio para {r.stadiumRequired?.toLocaleString('pt-BR')} pessoas. A
+          vaga foi para outro clube.
         </p>
       )}
       <ul className="headlines">
@@ -46,33 +125,19 @@ export function SeasonSummary({ result: r, state, onNext, onFast, fast }: Props)
         ))}
       </ul>
 
+      <div className="comps">
+        {r.comps.map((c, i) => (
+          <CompView key={c.id} comp={c} clubName={clubName} open={i === r.comps.length - 1} />
+        ))}
+      </div>
+
       {r.cups.map((c) => (
         <div key={c.id} className={`cup-run${c.champion ? ' is-champ' : ''}`}>
           <h3>
             {c.name} · <span>{c.reached}</span>
             {c.prize > 0 && <small> · prêmio {money(c.prize)}</small>}
           </h3>
-          <ul>
-            {c.matches.map((m, i) => {
-              const mine = m.home ? m.result.hg : m.result.ag;
-              const theirs = m.home ? m.result.ag : m.result.hg;
-              const pens = m.result.pens ? (m.home ? m.result.pens : ([m.result.pens[1], m.result.pens[0]] as const)) : null;
-              return (
-                <li key={i} className={m.won ? 'good' : 'bad'}>
-                  <span className="cup-round">{m.round}</span>
-                  <span>
-                    {m.home ? 'x' : '@'} {m.opponent}
-                    {m.opponentTier ? ` (${m.opponentTier}ª div.)` : ' (estrangeiro)'}
-                  </span>
-                  <b>
-                    {mine}-{theirs}
-                    {pens ? ` (${pens[0]}-${pens[1]} pên.)` : m.result.extraTime ? ' (prorr.)' : ''}
-                  </b>
-                  {m.giantKill && <em className="tag-offer">zebra</em>}
-                </li>
-              );
-            })}
-          </ul>
+          <TieList matches={c.matches} />
         </div>
       ))}
 
@@ -102,29 +167,10 @@ export function SeasonSummary({ result: r, state, onNext, onFast, fast }: Props)
             </p>
           )}
         </div>
-      </div>
-
-      {po && (
-        <div className="playoff">
-          <h3>Playoff de acesso</h3>
-          {[...po.semis, po.final].map((m, i) => (
-            <p key={i} className={m.home === PLAYER_ID || m.away === PLAYER_ID ? 'me' : ''}>
-              {i === 2 ? 'Final: ' : 'Semi: '}
-              {name(m.home)} {m.hg} x {m.ag} {name(m.away)}
-              {m.pens ? ` (pên. ${m.pens[0]}-${m.pens[1]})` : m.extraTime ? ' (prorr.)' : ''}
-            </p>
-          ))}
-        </div>
-      )}
-
-      <div className="summary-grid">
         <div className="box">
           <h3>Artilheiro</h3>
           <p>{r.topScorer && r.topScorer.goals > 0 ? `${r.topScorer.name} — ${r.topScorer.goals} gols` : '—'}</p>
-        </div>
-        <div className="box">
-          <h3>Força do time</h3>
-          <p>{r.strength.toFixed(1)} (média da divisão {TIERS[r.tier].meanStrength})</p>
+          <p className="muted">Força do time: {r.strength.toFixed(1)} (média do nível {TIERS[r.tier].meanStrength})</p>
         </div>
         <div className="box">
           <h3>Finanças</h3>
@@ -134,7 +180,7 @@ export function SeasonSummary({ result: r, state, onNext, onFast, fast }: Props)
           <p className="muted">
             Público médio {f.attendance.toLocaleString('pt-BR')}
             {f.commerce > 0 ? ` · comércio ${money(f.commerce)}` : ''}
-            {f.prizes > 0 ? ` · prêmios ${money(f.prizes)}` : ''}
+            {f.prizes > 0 ? ` · prêmios e cotas ${money(f.prizes)}` : ''}
           </p>
           <p className={f.net < 0 ? 'bad' : 'good'}>
             Saldo {money(f.net)} → caixa {money(f.cashEnd)}
@@ -152,7 +198,6 @@ export function SeasonSummary({ result: r, state, onNext, onFast, fast }: Props)
           </ul>
         </div>
       )}
-
       {r.departures.length > 0 && (
         <div className="box departures">
           <h3>Movimentação do elenco</h3>
@@ -163,35 +208,6 @@ export function SeasonSummary({ result: r, state, onNext, onFast, fast }: Props)
           </ul>
         </div>
       )}
-
-      <details className="table-wrap" open>
-        <summary>Classificação — {TIERS[r.tier].name}</summary>
-        <table className="table">
-          <thead>
-            <tr>
-              <th>#</th>
-              <th>Clube</th>
-              <th>J</th>
-              <th>SG</th>
-              <th>Pts</th>
-            </tr>
-          </thead>
-          <tbody>
-            {r.table.map((row, i) => (
-              <tr key={row.clubId} className={`${zone(r.tier, i + 1, r.table.length)}${row.clubId === PLAYER_ID ? ' me' : ''}`}>
-                <td>{i + 1}</td>
-                <td>{name(row.clubId)}</td>
-                <td>{row.played}</td>
-                <td>{row.gf - row.ga}</td>
-                <td>
-                  {row.points}
-                  {row.deduction > 0 ? '*' : ''}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </details>
 
       <div className="actions">
         <button type="button" className="btn btn-primary" onClick={onNext}>

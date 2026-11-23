@@ -1,12 +1,12 @@
 import { EVENTS, EVENT_CHANCE } from '../data/events';
 import { OPPORTUNITIES } from '../data/opportunities';
-import { ALL_TIERS, FACILITY_COST, LOAN_AGE_LIMIT, MAX_LOANS, MAX_SEASONS, SQUAD_MAX, SQUAD_MIN, STAFF_WAGE, TIERS, YOUTH_MAX } from '../data/pyramid';
+import { FACILITY_COST, LOAN_AGE_LIMIT, MAX_LOANS, MAX_SEASONS, SQUAD_MAX, SQUAD_MIN, STAFF_WAGE, TIERS, YOUTH_MAX } from '../data/pyramid';
 import { generateWorld, initials } from './clubs';
 import { applyEffects, nextId } from './effects';
 import { foundingSquad, incomingOffers, marketListings, marketWage, round1, tryoutCandidates, tryoutCost, youthIntake } from './footballers';
 import { deriveRng } from './rng';
 import { PLAYER_ID, simulateSeason, teamStrength } from './season';
-import type { Action, DelegateArea, Foundation, GameEvent, GameState, Opportunity, Origin, PlayerClub, Tier } from './types';
+import type { Action, Club, DelegateArea, Foundation, GameEvent, GameState, Opportunity, Origin, PlayerClub, Tier } from './types';
 import { runAssistant } from './assistant';
 import { BUSINESSES } from '../data/club';
 import { coachCandidates, coachSeverance, expectedRank, seasonObjectives, startingCoach } from './clubops';
@@ -28,17 +28,17 @@ interface OriginPreset {
 
 export const ORIGINS: Record<Origin, OriginPreset> = {
   pub: {
-    label: 'Time de pub', blurb: 'Torcida e alma altas, pouco dinheiro.',
-    cash: 25, fans: 320, soul: 85, hype: 10, squadMean: 46.5, capacity: 400,
+    label: 'Time de boteco', blurb: 'Nasceu na mesa do bar: torcida e alma altas, pouco dinheiro.',
+    cash: 70, fans: 320, soul: 85, hype: 10, squadMean: 44.5, capacity: 400,
   },
   fabrica: {
     label: 'Time de fábrica', blurb: 'Patrocinador fixo (renda estável), torcida pequena.',
-    cash: 35, fans: 150, soul: 65, hype: 5, squadMean: 47.5, capacity: 500,
-    sponsor: { name: 'Metalúrgica Aurora', perSeason: 45 },
+    cash: 95, fans: 150, soul: 65, hype: 5, squadMean: 45.5, capacity: 500,
+    sponsor: { name: 'Metalúrgica Aurora', perSeason: 120 },
   },
   youtuber: {
     label: 'Time de YouTuber', blurb: 'Hype e dinheiro altos, moral instável, rivais com bônus contra você.',
-    cash: 110, fans: 260, soul: 45, hype: 85, squadMean: 47.5, capacity: 400,
+    cash: 300, fans: 260, soul: 45, hype: 85, squadMean: 45.5, capacity: 400,
   },
 };
 
@@ -54,10 +54,10 @@ export function newGame(seed: number, foundation: Foundation): GameState {
   const f: Foundation = { ...foundation, name: sanitizeName(foundation.name) };
   const rng = deriveRng(seedU, 'world');
   const taken = new Set<string>([f.name]);
-  const { world, serial } = generateWorld(rng, taken);
+  const { clubs, serial } = generateWorld(rng, taken);
   const preset = ORIGINS[f.origin];
-  const rival = rng.pick(world[8]);
-  const squad = foundingSquad(deriveRng(seedU, 'squad'), preset.squadMean, 1);
+  const rival = rng.pick(clubs.filter((c) => c.stateDiv === 'V'));
+  const squad = foundingSquad(deriveRng(seedU, 'squad'), preset.squadMean, 1, new Set<string>());
 
   const player: PlayerClub = {
     id: PLAYER_ID,
@@ -65,7 +65,10 @@ export function newGame(seed: number, foundation: Foundation): GameState {
     short: initials(f.name),
     colors: f.colors,
     strength: 0,
-    tier: 8,
+    tier: 7,
+    national: null,
+    stateDiv: 'V',
+    copaSpot: false,
     origin: f.origin,
     cash: preset.cash,
     negativeSeasons: 0,
@@ -96,18 +99,18 @@ export function newGame(seed: number, foundation: Foundation): GameState {
   };
 
   const state: GameState = {
-    version: 2,
+    version: 3,
     seed: seedU,
     foundation: f,
     season: 1,
     actions: [],
     phase: 'office',
     player,
-    world,
+    clubs,
     office: emptyOffice(),
     seenOnce: [],
     history: [],
-    news: [`Nasce o ${f.name}: clube de bairro se inscreve na ${TIERS[8].name}`, `${rival.name} será o grande rival`],
+    news: [`Nasce o ${f.name}: time de bairro se inscreve na ${TIERS[7].name}`, `${rival.name} será o grande rival`],
     over: null,
     serial: Math.max(serial, 1000) + squad.length + 1,
   };
@@ -120,7 +123,7 @@ function emptyOffice(): GameState['office'] {
 }
 
 function tierAllowed(tier: Tier, item: { minTier?: Tier; maxTier?: Tier }): boolean {
-  // minTier 6 = só do nível 6 para cima (6..1); maxTier 4 = só do nível 4 para baixo (4..8)
+  // minTier 6 = só do nível 6 para cima (6..1); maxTier 4 = só do nível 4 para baixo (4..7)
   if (item.minTier !== undefined && tier > item.minTier) return false;
   if (item.maxTier !== undefined && tier < item.maxTier) return false;
   return true;
@@ -133,17 +136,18 @@ function startSeason(state: GameState): void {
   const office = emptyOffice();
   const ids = () => nextId(state);
 
-  const names = ALL_TIERS.flatMap((t) => state.world[t].map((c) => c.name));
-  office.market = marketListings(deriveRng(state.seed, s, 'market'), p.tier, p.staff.scout, ids, s, names);
-  const buyers = ALL_TIERS.filter((t) => t <= p.tier && t >= p.tier - 2).flatMap((t) => state.world[t].map((c) => ({ name: c.name, tier: t })));
+  const usedNames = usedPlayerNames(state);
+  const near = state.clubs.filter((c) => Math.abs(c.tier - p.tier) <= 1).map((c) => c.name);
+  office.market = marketListings(deriveRng(state.seed, s, 'market'), p.tier, p.staff.scout, ids, s, near, usedNames);
+  const buyers = state.clubs.filter((c) => c.tier <= p.tier && c.tier >= p.tier - 2).map((c) => ({ name: c.name, tier: c.tier }));
   const offers = incomingOffers(deriveRng(state.seed, s, 'offers'), p.squad, p.tier, buyers);
   office.offers = offers;
   for (const of of offers) {
     const f = p.squad.find((x) => x.id === of.playerId)!;
-    state.news.push(`${of.club} faz proposta de £ ${of.fee} mil por ${f.name}`);
+    state.news.push(`${of.club} faz proposta de R$ ${of.fee} mil por ${f.name}`);
   }
 
-  const intake = youthIntake(deriveRng(state.seed, s, 'youth'), p.facilities.academy, p.staff.scout, p.tier, ids, s);
+  const intake = youthIntake(deriveRng(state.seed, s, 'youth'), p.facilities.academy, p.staff.scout, p.tier, ids, s, usedNames);
   for (const y of intake) if (p.youth.length < YOUTH_MAX) p.youth.push(y);
   if (intake.length > 0) state.news.push(`${intake.length} garoto(s) aparecem nas categorias de base`);
 
@@ -158,10 +162,23 @@ function startSeason(state: GameState): void {
 
   office.event = drawEvent(state);
   office.coaches = coachCandidates(deriveRng(state.seed, s, 'coaches'), p.tier);
-  const rival = state.world[p.tier].find((c) => c.id === p.rivalId);
-  const expected = expectedRank(teamStrength(state), state.world[p.tier].map((c) => c.strength));
+  const comp = mainCompClubs(state);
+  const rival = comp.find((c) => c.id === p.rivalId) ?? state.clubs.find((c) => c.id === p.rivalId && c.stateDiv === p.stateDiv && c.stateDiv !== null);
+  const expected = expectedRank(teamStrength(state), comp.map((c) => c.strength));
   office.objectives = seasonObjectives(deriveRng(state.seed, s, 'objectives'), p.tier, expected, !!rival);
   state.office = office;
+}
+
+/** Clubes da competição principal do jogador (série nacional ou divisão estadual). */
+export function mainCompClubs(state: GameState): Club[] {
+  const p = state.player;
+  return p.national !== null ? state.clubs.filter((c) => c.national === p.national) : state.clubs.filter((c) => c.stateDiv === p.stateDiv);
+}
+
+/** Nomes de jogadores já em uso no clube (evita repetição em base, mercado e peneira). */
+export function usedPlayerNames(state: GameState): Set<string> {
+  const p = state.player;
+  return new Set([...p.squad, ...p.youth, ...p.onLoan, ...p.alumni].map((f) => f.name));
 }
 
 function drawEvent(state: GameState): GameEvent | null {
@@ -230,7 +247,7 @@ export function applyMut(state: GameState, a: Action): void {
       p.squad.push({ ...l.player, joined: state.season });
       o.market[a.idx] = null;
       o.signings++;
-      state.news.push(`${p.name} contrata ${l.player.name} (${l.player.pos}, ${l.player.ovr})${l.fee > 0 ? ` por £ ${l.fee} mil` : ' sem custo de transferência'}`);
+      state.news.push(`${p.name} contrata ${l.player.name} (${l.player.pos}, ${l.player.ovr})${l.fee > 0 ? ` por R$ ${l.fee} mil` : ' sem custo de transferência'}`);
       return;
     }
     case 'sell': {
@@ -245,7 +262,7 @@ export function applyMut(state: GameState, a: Action): void {
         p.soul = Math.max(0, p.soul - 1);
         o.soldHomegrown++;
       }
-      state.news.push(`${f.name} é vendido por £ ${fee} mil`);
+      state.news.push(`${f.name} é vendido por R$ ${fee} mil`);
       return;
     }
     case 'release': {
@@ -279,7 +296,7 @@ export function applyMut(state: GameState, a: Action): void {
         o.soldHomegrown++;
       }
       o.offers[a.idx] = null;
-      state.news.push(`${f.name} é vendido ao ${of.club} por £ ${of.fee} mil`);
+      state.news.push(`${f.name} é vendido ao ${of.club} por R$ ${of.fee} mil`);
       return;
     }
     case 'lend': {
@@ -316,7 +333,7 @@ export function applyMut(state: GameState, a: Action): void {
       const cost = tryoutCost(p.tier);
       if (p.cash < cost) fail('caixa insuficiente');
       p.cash -= cost;
-      o.tryout = tryoutCandidates(deriveRng(state.seed, state.season, 'tryout'), p.tier, p.staff.scout, () => nextId(state), state.season);
+      o.tryout = tryoutCandidates(deriveRng(state.seed, state.season, 'tryout'), p.tier, p.staff.scout, () => nextId(state), state.season, usedPlayerNames(state));
       state.news.push(`${p.name} abre peneira: centenas de garotos no campo do bairro`);
       return;
     }
@@ -367,7 +384,7 @@ export function applyMut(state: GameState, a: Action): void {
       const c = o.coaches[a.idx];
       if (!c) fail('candidato indisponível');
       const fee = coachSeverance(p.coach);
-      if (p.cash < fee) fail(`caixa insuficiente para a multa do técnico atual (£ ${fee} mil)`);
+      if (p.cash < fee) fail(`caixa insuficiente para a multa do técnico atual (R$ ${fee} mil)`);
       p.cash -= fee;
       o.coaches[a.idx] = null;
       state.news.push(`${p.name} anuncia ${c.name} como novo técnico (${c.style})`);

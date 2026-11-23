@@ -158,8 +158,8 @@ export function drawCard(canvas: HTMLCanvasElement, state: GameState, url: strin
   text(ctx, 'TRAJETÓRIA', 60, 450, `700 30px ${DISPLAY}`, '#8a99ab');
   ctx.strokeStyle = '#263243';
   ctx.lineWidth = 2;
-  for (let t = 1; t <= 8; t++) {
-    const y = gy + ((t - 1) / 7) * gh;
+  for (let t = 1; t <= 7; t++) {
+    const y = gy + ((t - 1) / 6) * gh;
     ctx.beginPath();
     ctx.moveTo(gx, y);
     ctx.lineTo(gx + gw, y);
@@ -169,7 +169,7 @@ export function drawCard(canvas: HTMLCanvasElement, state: GameState, url: strin
   const h = state.history;
   const n = Math.max(2, h.length);
   const px = (i: number) => gx + (i / (n - 1)) * gw;
-  const py = (t: Tier) => gy + ((t - 1) / 7) * gh;
+  const py = (t: Tier) => gy + ((t - 1) / 6) * gh;
   if (h.length > 0) {
     // área sob a linha
     const grad = ctx.createLinearGradient(0, gy, 0, gy + gh);

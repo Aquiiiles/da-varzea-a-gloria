@@ -5,7 +5,7 @@ describe('sala de troféus e recordes', () => {
   const s = playRun(4); // o assistente costuma ganhar títulos nesta seed
 
   it('cada título de liga do histórico vira troféu com o ano', () => {
-    const titles = s.history.filter((r) => r.position === 1);
+    const titles = s.history.flatMap((r) => r.comps.filter((c) => c.won));
     const fromTrophies = trophies(s)
       .filter((t) => t.id.startsWith('liga-'))
       .reduce((n, t) => n + t.years.length, 0);

@@ -1,7 +1,7 @@
 import { apply, canApply, newGame, replay, tryApply } from '../../src/engine/game';
 import { decodeAction, decodeRun, encodeAction, encodeRun } from '../../src/engine/codec';
 import { simulateSeason, PLAYER_ID } from '../../src/engine/season';
-import { MAX_SEASONS, TIERS, ALL_TIERS, SQUAD_MIN, YOUTH_AGE_LIMIT } from '../../src/data/pyramid';
+import { MAX_SEASONS, TIERS, SIZES, SQUAD_MIN, YOUTH_AGE_LIMIT } from '../../src/data/pyramid';
 import type { Action, Footballer, GameState } from '../../src/engine/types';
 import { FOUNDATION, mixed, playRun } from './helpers';
 
@@ -74,11 +74,14 @@ describe('URL da run', () => {
 });
 
 describe('fluxo da run', () => {
-  it('começa na Liga Regional com elenco, mercado e oportunidades', () => {
+  it('começa na Várzea com elenco, mercado e oportunidades', () => {
     const s = newGame(1, FOUNDATION);
-    expect(s.player.tier).toBe(8);
+    expect(s.player.tier).toBe(7);
+    expect(s.player.stateDiv).toBe('V');
+    expect(s.player.national).toBeNull();
     expect(s.phase).toBe('office');
     expect(s.player.squad.length).toBeGreaterThanOrEqual(SQUAD_MIN);
+    expect(new Set(s.player.squad.map((f) => f.name)).size).toBe(s.player.squad.length);
     expect(s.office.market).toHaveLength(12);
     expect(new Set(s.office.market.map((l) => l!.profile))).toEqual(new Set(['promessa', 'pronto', 'veterano', 'livre']));
     expect(s.office.opportunities.length).toBeGreaterThanOrEqual(1);
@@ -93,12 +96,20 @@ describe('fluxo da run', () => {
     }
   });
 
-  it('a pirâmide mantém o tamanho de todas as divisões', () => {
+  it('todas as competições mantêm o tamanho, temporada após temporada', () => {
     let s = newGame(99, FOUNDATION);
-    for (let i = 0; i < 10 && s.phase !== 'over'; i++) {
+    const count = (st: GameState, f: (c: { national: number | null; stateDiv: string | null }) => boolean) =>
+      st.clubs.filter(f).length + (f(st.player) ? 1 : 0);
+    for (let i = 0; i < 12 && s.phase !== 'over'; i++) {
       s = apply(s, { t: 'auto' });
       s = apply(s, { t: 'play' });
-      for (const t of ALL_TIERS) expect(s.world[t]).toHaveLength(TIERS[t].size - (s.player.tier === t ? 1 : 0));
+      expect(count(s, (c) => c.national === 1)).toBe(SIZES.serieA);
+      expect(count(s, (c) => c.national === 2)).toBe(SIZES.serieB);
+      expect(count(s, (c) => c.national === 3)).toBe(SIZES.serieC);
+      expect(count(s, (c) => c.national === 4)).toBe(SIZES.serieD);
+      expect(count(s, (c) => c.stateDiv === 'A')).toBe(SIZES.estadualA);
+      expect(count(s, (c) => c.stateDiv === 'B')).toBe(SIZES.estadualB);
+      expect(count(s, (c) => c.stateDiv === 'V')).toBe(SIZES.varzea);
       if (s.phase === 'summary') s = apply(s, { t: 'next' });
     }
   });
@@ -231,20 +242,32 @@ describe('mercado e elenco', () => {
   });
 });
 
+/** Coloca o jogador numa divisão nacional, mandando um clube de lá para a lista de outros estados. */
+function moveToNational(s: GameState, d: 1 | 2 | 3 | 4) {
+  const swap = s.clubs.find((c) => c.national === d && c.stateDiv === null)!;
+  swap.national = null;
+  swap.tier = 5;
+  const toV = s.clubs.find((c) => c.stateDiv === 'A' && c.national === null)!;
+  // o jogador ocupa a vaga dele no Estadual; ele desce para a Várzea para manter os tamanhos
+  toV.stateDiv = 'V';
+  toV.tier = 7;
+  s.player.national = d;
+  s.player.stateDiv = 'A';
+  s.player.tier = d;
+}
+
 describe('estádio e trava de acesso', () => {
-  it('campeão SEM estádio é barrado e não sobe', () => {
+  it('campeão da Várzea SEM estádio é barrado e não sobe', () => {
     const s = setup((s) => {
       superSquad(s, 85);
-      s.player.capacity = 300; // Liga Regional Premier exige 800
+      s.player.capacity = 300; // Estadual Série B exige 500
     });
     const r = simulateSeason(s);
-    expect(r.position).toBe(1);
+    expect(r.comps[0].won).toBe(true);
     expect(r.outcome).toBe('barrado_estadio');
-    expect(r.nextTier).toBe(8);
-    expect(r.stadiumRequired).toBe(TIERS[7].minStadium);
-    const second = r.table[1].clubId;
-    expect(s.world[7].map((c) => c.id)).toContain(second);
-    expect(r.playoff).toBeUndefined();
+    expect(r.nextTier).toBe(7);
+    expect(r.stadiumRequired).toBe(TIERS[6].minStadium);
+    expect(s.player.stateDiv).toBe('V');
   });
 
   it('obra em andamento conta na vistoria do fim da temporada', () => {
@@ -255,6 +278,7 @@ describe('estádio e trava de acesso', () => {
     });
     const r = simulateSeason(s);
     expect(r.outcome).toBe('campeao');
+    expect(r.nextTier).toBe(6);
     expect(s.player.capacity).toBe(900);
     expect(s.player.capacityBuilding).toBe(0);
   });
@@ -267,25 +291,52 @@ describe('estádio e trava de acesso', () => {
     expect(canApply(after, { t: 'seats', size: 1 })).toBe(false);
   });
 
-  it('time fraco numa divisão alta cai', () => {
+  it('Estadual forte com estádio garante vaga na Série D', () => {
     const s = setup((s) => {
-      const swap = s.world[4].pop()!;
-      swap.tier = 8;
-      s.world[8].push(swap);
-      s.player.tier = 4;
-      s.player.capacity = 20000;
+      const swap = s.clubs.find((c) => c.stateDiv === 'A' && c.national === null)!;
+      swap.stateDiv = 'V';
+      swap.tier = 7;
+      s.player.stateDiv = 'A';
+      s.player.tier = 5;
+      s.player.capacity = 10000;
+      superSquad(s, 90);
+    });
+    const r = simulateSeason(s);
+    expect(r.outcome === 'acesso' || r.outcome === 'campeao').toBe(true);
+    expect(r.nextTier).toBe(4);
+    expect(s.player.national).toBe(4);
+    expect(s.player.stateDiv).toBe('A'); // continua jogando o Estadual
+  });
+
+  it('time fraco na Série B cai para a Série C', () => {
+    const s = setup((s) => {
+      moveToNational(s, 2);
+      s.player.capacity = 30000;
       superSquad(s, 40);
     });
     const r = simulateSeason(s);
+    expect(r.comps.map((c) => c.id)).toEqual(['estadual_a', 'serie_b']);
     expect(r.outcome).toBe('queda');
-    expect(r.nextTier).toBe(5);
+    expect(r.nextTier).toBe(3);
   });
 
-  it('o clube do jogador não sai da pirâmide mesmo sendo lanterna', () => {
+  it('na Série D, quem não sobe nem se classifica pelo Estadual volta só para o Estadual', () => {
+    const s = setup((s) => {
+      moveToNational(s, 4);
+      s.player.capacity = 30000;
+      superSquad(s, 35);
+    });
+    const r = simulateSeason(s);
+    expect(r.outcome).toBe('queda');
+    expect(s.player.national).toBeNull();
+    expect(r.nextTier).toBeGreaterThanOrEqual(5);
+  });
+
+  it('o clube do jogador não sai da pirâmide mesmo sendo lanterna da Várzea', () => {
     const s = setup((s) => superSquad(s, 25));
     const r = simulateSeason(s);
-    expect(r.position).toBe(TIERS[8].size);
-    expect(r.nextTier).toBe(8);
+    expect(r.nextTier).toBe(7);
+    expect(s.player.stateDiv).toBe('V');
     expect(r.table.some((row) => row.clubId === PLAYER_ID)).toBe(true);
   });
 });

@@ -11,9 +11,10 @@ import { SquadTab } from './SquadTab';
 import { StadiumTab } from './StadiumTab';
 import { YouthTab } from './YouthTab';
 import { TrophyRoom } from '../TrophyRoom';
+import { NewsTab } from './NewsTab';
 import { Crest } from '../Crest';
 
-export type TabId = 'painel' | 'elenco' | 'base' | 'mercado' | 'estadio' | 'clube' | 'trofeus';
+export type TabId = 'painel' | 'elenco' | 'base' | 'mercado' | 'estadio' | 'clube' | 'noticias' | 'trofeus';
 
 const TABS: { id: TabId; label: string }[] = [
   { id: 'painel', label: 'Painel' },
@@ -22,6 +23,7 @@ const TABS: { id: TabId; label: string }[] = [
   { id: 'mercado', label: 'Mercado' },
   { id: 'estadio', label: 'Estádio' },
   { id: 'clube', label: 'Clube' },
+  { id: 'noticias', label: 'Notícias' },
   { id: 'trofeus', label: 'Troféus' },
 ];
 
@@ -60,6 +62,7 @@ export function Office({ state, dispatch, onFast }: { state: GameState; dispatch
         {tab === 'mercado' && <MarketTab {...props} />}
         {tab === 'estadio' && <StadiumTab {...props} />}
         {tab === 'clube' && <ClubTab {...props} />}
+        {tab === 'noticias' && <NewsTab {...props} />}
         {tab === 'trofeus' && <TrophyRoom state={state} />}
       </div>
 
@@ -111,7 +114,7 @@ function StatusBar({ state }: { state: GameState }) {
         <Stat
           label="Estádio"
           value={num(p.capacity)}
-          hint={p.tier === 1 ? (p.capacityBuilding > 0 ? `+${num(p.capacityBuilding)} em obras` : 'Premier') : `${num(needs)} p/ subir${p.capacityBuilding > 0 ? ` · +${num(p.capacityBuilding)} em obras` : ''}`}
+          hint={p.tier === 1 ? (p.capacityBuilding > 0 ? `+${num(p.capacityBuilding)} em obras` : 'Série A') : `${num(needs)} p/ subir${p.capacityBuilding > 0 ? ` · +${num(p.capacityBuilding)} em obras` : ''}`}
           tone={ok ? 'good' : 'bad'}
         />
       </dl>

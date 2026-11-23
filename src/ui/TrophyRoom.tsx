@@ -83,7 +83,7 @@ export function TrophyRoom({ state }: { state: GameState }) {
           <>
             <h3>Temporadas por divisão</h3>
             <ul className="tier-years">
-              {([1, 2, 3, 4, 5, 6, 7, 8] as Tier[])
+              {([1, 2, 3, 4, 5, 6, 7] as Tier[])
                 .filter((t) => rec.seasonsByTier[t])
                 .map((t) => (
                   <li key={t}>

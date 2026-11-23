@@ -1,51 +1,110 @@
-/** Peças para gerar nomes fictícios. Nenhum clube ou jogador real. */
-
-export const TOWN_PREFIX = [
-  'Ash', 'Bram', 'Brook', 'Cald', 'Cole', 'Crane', 'Dun', 'Elm', 'Fen', 'Fern',
-  'Glen', 'Gor', 'Hal', 'Har', 'Hollin', 'Ivy', 'Kel', 'Kings', 'Lang', 'Lark',
-  'Marsh', 'Mill', 'Nor', 'Oak', 'Orm', 'Pen', 'Quarry', 'Raven', 'Red', 'Rook',
-  'Salt', 'Stan', 'Stone', 'Tarn', 'Thorn', 'Ul', 'Vale', 'Wey', 'Whit', 'Wolds',
-  'Yarn', 'Bex', 'Copper', 'Dray', 'Ember', 'Frost', 'Grey', 'Hazel', 'Iron', 'Juniper',
-];
-
-export const TOWN_SUFFIX = [
-  'bury', 'ford', 'ham', 'ley', 'mouth', 'stead', 'wick', 'ton', 'field', 'gate',
-  'moor', 'bridge', 'well', 'by', 'thorpe', 'combe', 'den', 'holm', 'mere', 'worth',
-];
-
-export const CLUB_TYPE = [
-  'Town', 'United', 'Rovers', 'Athletic', 'Wanderers', 'FC', 'City', 'Borough',
-  'Rangers', 'Harriers', 'Celtic', 'Sporting', 'Villa', 'Dynamos', 'Olympic',
-];
+/** Peças para gerar nomes fictícios brasileiros. Nenhum clube ou jogador real. */
 
 export const FIRST_NAMES = [
-  'Alfie', 'Billy', 'Callum', 'Danny', 'Eddie', 'Finn', 'George', 'Harry', 'Isaac', 'Jack',
-  'Kieran', 'Lewis', 'Mason', 'Nathan', 'Ollie', 'Paddy', 'Reece', 'Sam', 'Tommy', 'Zak',
-  'Tiago', 'Rafa', 'Diego', 'Kofi', 'Mateo', 'Yusuf', 'Bruno', 'Luca', 'Sven', 'Andrés',
+  'Lucas', 'Gabriel', 'Matheus', 'Pedro', 'Rafael', 'Guilherme', 'Felipe', 'Bruno', 'Thiago', 'Gustavo',
+  'Leonardo', 'Rodrigo', 'Diego', 'Vinícius', 'Eduardo', 'André', 'Marcelo', 'Fábio', 'Renato', 'Alex',
+  'Caio', 'Kaio', 'Ruan', 'Wesley', 'Wellington', 'Willian', 'Jefferson', 'Anderson', 'Everton', 'Emerson',
+  'Douglas', 'Robson', 'Cleiton', 'Cleber', 'Edson', 'Gilberto', 'Reinaldo', 'Valdir', 'Adriano', 'Fernando',
+  'Hugo', 'Igor', 'Jonas', 'Kauã', 'Luan', 'Marlon', 'Nathan', 'Otávio', 'Patrick', 'Raul',
+  'Samuel', 'Tiago', 'Ulisses', 'Vitor', 'Yago', 'Arthur', 'Bernardo', 'Davi', 'Enzo', 'Heitor',
+  'Isaac', 'Joaquim', 'Lorenzo', 'Miguel', 'Nicolas', 'Rian', 'Thalles', 'Wagner', 'Jean', 'Paulo',
+  'Marcos', 'Carlos', 'Antônio', 'Francisco', 'José', 'João', 'Luiz', 'Sérgio', 'Roberto', 'Ronaldo',
+  'Alisson', 'Jhonatan', 'Erick', 'Kelvin', 'Maicon', 'Railson', 'Wanderson', 'Juan', 'Alan', 'Ramon',
+  'Fagner', 'Jadson', 'Elias', 'Ítalo', 'Murilo', 'Nilson', 'Osvaldo', 'Pablo', 'Ricardo', 'Silvio',
+  'Breno', 'Danilo', 'Emanuel', 'Geovane', 'Iago', 'Jonathan', 'Lindomar', 'Mauro', 'Nei', 'Rogério',
 ];
 
 export const LAST_NAMES = [
-  'Ashworth', 'Barlow', 'Cotter', 'Dunmore', 'Ellery', 'Fairhurst', 'Gidley', 'Hobbs',
-  'Inskip', 'Jagger', 'Kettle', 'Lowther', 'Moxley', 'Nuttall', 'Oddie', 'Pennock',
-  'Quigg', 'Rudd', 'Shorrock', 'Thwaite', 'Upton', 'Varley', 'Wragg', 'Yardley',
-  'Machado', 'Okafor', 'Brandão', 'Sorensen', 'Kovač', 'Lindqvist', 'Mendonça', 'Adeyemi',
+  'Silva', 'Santos', 'Oliveira', 'Souza', 'Rodrigues', 'Ferreira', 'Alves', 'Pereira', 'Lima', 'Gomes',
+  'Costa', 'Ribeiro', 'Martins', 'Carvalho', 'Almeida', 'Lopes', 'Soares', 'Fernandes', 'Vieira', 'Barbosa',
+  'Rocha', 'Dias', 'Nascimento', 'Andrade', 'Moreira', 'Nunes', 'Marques', 'Machado', 'Mendes', 'Freitas',
+  'Cardoso', 'Ramos', 'Gonçalves', 'Santana', 'Teixeira', 'Moura', 'Correia', 'Araújo', 'Cavalcanti', 'Pinto',
+  'Monteiro', 'Barros', 'Batista', 'Campos', 'Cunha', 'Farias', 'Fonseca', 'Guimarães', 'Jesus', 'Leite',
+  'Macedo', 'Medeiros', 'Miranda', 'Nogueira', 'Pacheco', 'Peixoto', 'Prado', 'Queiroz', 'Rezende', 'Sales',
+  'Siqueira', 'Tavares', 'Toledo', 'Valente', 'Xavier', 'Aguiar', 'Bezerra', 'Brandão', 'Brito', 'Caldeira',
+  'Diniz', 'Esteves', 'Falcão', 'Figueiredo', 'Galvão', 'Holanda', 'Lacerda', 'Lins', 'Magalhães', 'Matos',
+  'Neves', 'Pimentel', 'Porto', 'Quintana', 'Sampaio', 'Serra', 'Tenório', 'Uchôa', 'Viana', 'Zanetti',
+  'Bittencourt', 'Coutinho', 'Damasceno', 'Fagundes', 'Gusmão', 'Loureiro', 'Mattos', 'Paixão', 'Rangel', 'Sobral',
 ];
 
-/** Pares de cores para clubes da IA. */
+/** Apelidos de boleiro (sozinhos ou com sobrenome). */
+export const NICKNAMES = [
+  'Tiquinho', 'Dudu', 'Juninho', 'Marquinhos', 'Neném', 'Fumaça', 'Bolinha', 'Pitoco', 'Tatu', 'Baixinho',
+  'Cafu', 'Didi', 'Tinga', 'Zinho', 'Biro', 'Dinho', 'Nenê', 'Cacau', 'Pirulito', 'Toró',
+  'Paulinho', 'Ronaldinho', 'Carlinhos', 'Joãozinho', 'Pedrinho', 'Luizinho', 'Robinho', 'Fabinho', 'Diguinho', 'Guga',
+  'Bebeto', 'Dedé', 'Kaká', 'Lelê', 'Mimi', 'Nando', 'Pepê', 'Tuta', 'Vavá', 'Zé Love',
+  'Canhoto', 'Foguinho', 'Galo', 'Jacaré', 'Lambreta', 'Moleque', 'Pantera', 'Ratinho', 'Sabiá', 'Tanque',
+  'Bigode', 'Chicão', 'Duda', 'Esquerdinha', 'Formiga', 'Gordinho', 'Indio', 'Jajá', 'Kiko', 'Lula',
+  'Magrão', 'Nino', 'Pelado', 'Quinho', 'Russo', 'Tchê', 'Velho', 'Xuxa', 'Zezinho', 'Bruninho',
+  'Thiaguinho', 'Gabigol', 'Vitinho', 'Matheuzinho', 'Lucão', 'Felipão', 'Zé Rafael', 'Rafinha', 'Edinho', 'Lázaro',
+];
+
+/** Gentílicos usados como sobrenome de boleiro ("Gabriel Baiano"). */
+export const REGIONAL = [
+  'Baiano', 'Paraíba', 'Mineiro', 'Goiano', 'Gaúcho', 'Paulista', 'Carioca', 'Capixaba', 'Potiguar', 'Cearense',
+  'Maranhão', 'Sergipano', 'Pernambuco', 'Paraense', 'Alagoano', 'Catarinense', 'Mato Grosso', 'Tocantins', 'Acreano', 'Piauí',
+];
+
+/** Prefixos curtos ("Zé Ribeiro", "Léo Santana"). */
+export const SHORT_PREFIX = ['Zé', 'Léo', 'Gui', 'Rafa', 'Dani', 'Bia', 'Tom', 'Fê', 'Juca', 'Nando', 'Ney', 'Thi', 'Biel', 'Caíque'];
+
+/* ------------------------------ clubes ------------------------------ */
+
+/** Cidades fictícias: partes em português e partes de origem tupi. */
+export const CITY_MASC = ['Porto', 'Campo', 'Morro', 'Rio', 'Ribeirão', 'Cerro', 'Vale', 'Arraial', 'Sítio', 'Brejo'];
+export const CITY_FEM = ['Vila', 'Serra', 'Pedra', 'Lagoa', 'Barra', 'Ponte', 'Cachoeira', 'Várzea', 'Chapada', 'Ilha', 'Fazenda', 'Colina'];
+/** Adjetivos [masculino, feminino]. */
+export const CITY_ADJ: [string, string][] = [
+  ['Dourado', 'Dourada'], ['Alto', 'Alta'], ['Bonito', 'Bonita'], ['Novo', 'Nova'], ['Claro', 'Clara'], ['Fundo', 'Funda'],
+  ['Sereno', 'Serena'], ['Formoso', 'Formosa'], ['Escuro', 'Escura'], ['Seco', 'Seca'], ['Largo', 'Larga'], ['Manso', 'Mansa'],
+  ['da Esperança', 'da Esperança'], ['do Sul', 'do Sul'], ['do Norte', 'do Norte'], ['do Campo', 'do Campo'], ['da Mata', 'da Mata'],
+  ['das Flores', 'das Flores'], ['do Oeste', 'do Oeste'], ['das Pedras', 'das Pedras'], ['do Sossego', 'do Sossego'], ['Azul', 'Azul'],
+];
+/** Combinações que são cidades reais conhecidas (evitadas). */
+export const CITY_AVOID = ['Porto Alegre', 'Campo Grande', 'Rio Grande', 'Porto Velho', 'Vila Velha', 'Rio Branco', 'Rio Verde', 'Vila Nova', 'Campo Largo', 'Porto Seguro', 'Rio Claro', 'Vale do Sul', 'Barra Mansa', 'Ponte Nova', 'Campo Bonito'];
+export const TUPI_A = ['Ita', 'Ibi', 'Ara', 'Jaca', 'Pira', 'Guara', 'Tamba', 'Caru', 'Mira', 'Ubá', 'Juru', 'Aty', 'Tapi', 'Mbo', 'Cuia', 'Jeri'];
+export const TUPI_B = ['porã', 'tiba', 'quara', 'una', 'juba', 'tinga', 'merim', 'guaçu', 'pema', 'rana', 'poca', 'nema', 'cica', 'baré', 'taia', 'ruá'];
+
+export const CLUB_PREFIX = [
+  'Esporte Clube', 'Associação Atlética', 'Sociedade Esportiva', 'Grêmio Esportivo', 'Clube Atlético', 'União Esportiva',
+  'Associação Desportiva', 'Clube Esportivo', 'Associação Esportiva', 'Ferroviário', 'Operário', 'Independente',
+  'Comercial', 'Industrial', 'Aliança', 'Estrela',
+];
+export const CLUB_SUFFIX = ['Futebol Clube', 'Esporte Clube', 'Atlético Clube', 'Sport Club', 'Esporte Clube', 'Futebol Clube'];
+
+/** Times de várzea: nomes de bairro. */
+export const NEIGHBORHOODS = [
+  'Jardim Primavera', 'Vila Operária', 'Morro do Cruzeiro', 'Parque das Flores', 'Baixada', 'Beco do Sapo', 'Campo do Gato',
+  'Vila Mariana do Sul', 'Jardim Esperança', 'Conjunto Sol Nascente', 'Morro do Céu', 'Vila Rica', 'Alto da Boa Vista',
+  'Cidade Nova', 'Jardim das Rosas', 'Vila Brasil', 'Morro Verde', 'Parque São Jorge', 'Vila Sapo', 'Pau Grande',
+  'Jardim Ipê', 'Vila Paraíso', 'Largo do Bonde', 'Buraco Quente', 'Vila Caju', 'Jardim Tropical', 'Ladeira Azul',
+];
+export const VARZEA_PREFIX = ['Unidos do', 'Juventude do', 'Estrela do', 'Tabajara do', 'Flor do', 'Real do', 'Aliança do', 'Grêmio do', 'Esporte do', 'Leões do'];
+
 export const PALETTE = [
   '#c8102e', '#1d428a', '#fdb913', '#00843d', '#ffffff', '#111111', '#6c1d45',
   '#ef7d00', '#7a263a', '#0057b8', '#9bcbeb', '#d71920', '#2e2e2e', '#f2e600',
 ];
 
-export const SPONSOR_NAMES = [
-  'Pastelaria do Zé', 'Auto Peças Trovão', 'Cervejaria Bigode', 'Metalúrgica Aurora',
-  'Bet Relâmpago', 'Construtora Pilar', 'Fintech Kripto9', 'Supermercado Bom Preço',
+/* ------------------------------ estrangeiros ------------------------------ */
+
+/** Clubes sul-americanos fictícios (Copa Continental e Copa Sul). */
+export const SA_PREFIX = ['Club Atlético', 'Deportivo', 'Club Sportivo', 'Universidad de', 'Club Social y Deportivo', 'Club Nacional de', 'Atlético', 'Unión', 'Racing de'];
+export const SA_CITY = [
+  'San Martín del Valle', 'Puerto Esmeralda', 'Villa Serena', 'Ciudad Arena', 'Río Blanco', 'Santa Lucía del Monte', 'Las Piedras Altas',
+  'Valle Hermoso', 'Mar Dulce', 'Cerro Azul', 'Laguna Seca', 'Monte Claro', 'Pampa Grande', 'Bahía Roja', 'Altiplano', 'Quebrada Honda',
+  'Tierra Firme', 'Los Andes Viejos', 'Puerto Sol', 'Valle de la Luna',
 ];
 
-/** Clubes estrangeiros fictícios para as copas internacionais. */
-export const FOREIGN_PREFIX = ['Deportivo', 'Olympique', 'Dínamo', 'Sporting', 'Atlético', 'Racing', 'Unión', 'Athletic', 'Estrela', 'Inter', 'Lokomotiv', 'Royal', 'Juventude', 'Academica'];
+/** Clubes de outros continentes (Mundial). */
+export const FOREIGN_PREFIX = ['Olympique', 'Dínamo', 'Sporting', 'Racing', 'Athletic', 'Inter', 'Lokomotiv', 'Royal', 'Academica', 'United'];
 export const FOREIGN_CITY = [
-  'Valmira', 'Castelbruna', 'Norvik', 'Altamonte', 'Bellagra', 'Kostrava', 'Porto Azul', 'Lemberg', 'Silvara', 'Monterrio',
-  'Dravnik', 'Velaria', 'Ostrova', 'Sanmarc', 'Torvalla', 'Aranjo', 'Brennholm', 'Calvera', 'Duravia', 'Esmeralda',
+  'Valmira', 'Castelbruna', 'Norvik', 'Altamonte', 'Bellagra', 'Kostrava', 'Lemberg', 'Silvara', 'Dravnik', 'Velaria',
+  'Ostrova', 'Sanmarc', 'Torvalla', 'Brennholm', 'Calvera', 'Duravia', 'Kinshara', 'Osakawa', 'Marrabat', 'Tasmora',
 ];
-export const WORLD_REGIONS = ['América do Sul', 'América do Norte', 'África', 'Ásia', 'Oceania', 'Oriente Médio', 'América Central'];
+export const WORLD_REGIONS = ['Europa', 'América do Norte', 'África', 'Ásia', 'Oceania', 'Oriente Médio', 'América Central'];
+
+export const SPONSOR_NAMES = [
+  'Padaria Pão Quente', 'Auto Peças Trovão', 'Cervejaria Bigode', 'Metalúrgica Aurora',
+  'Bet Relâmpago', 'Construtora Pilar', 'Fintech Kripto9', 'Supermercado Bom Preço',
+];

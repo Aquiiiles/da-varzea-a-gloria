@@ -12,40 +12,49 @@ function setup(mutate: (s: GameState) => void = () => {}): GameState {
   return s;
 }
 
-describe('Copa Nacional', () => {
-  it('todo clube da pirâmide joga; time da várzea começa na Preliminar', () => {
+describe('Copa do Estado e Copa Nacional', () => {
+  it('time da Várzea joga a Copa do Estado desde a 1ª fase e não joga a Copa Nacional', () => {
     const s = setup();
     const r = simulateSeason(s);
-    const copa = r.cups.find((c) => c.id === 'copa')!;
-    expect(copa).toBeDefined();
-    expect(copa.matches[0].round).toBe('Preliminar');
-    // ou foi eliminado na última partida, ou é campeão
-    const last = copa.matches[copa.matches.length - 1];
-    expect(copa.champion ? last.won && last.round === 'Final' : !last.won).toBe(true);
+    const estado = r.cups.find((c) => c.id === 'estado')!;
+    expect(estado.matches[0].round).toBe('1ª fase');
+    expect(r.cups.some((c) => c.id === 'copa')).toBe(false);
+    const last = estado.matches[estado.matches.length - 1];
+    expect(estado.champion ? last.round === 'Final' : last.advanced === false).toBe(true);
   });
 
-  it('time imbatível ganha a copa, recebe prêmio e a taça', () => {
+  it('time imbatível ganha a Copa do Estado e ganha vaga na Copa Nacional', () => {
     const s = setup((s) => {
       for (const f of s.player.squad) f.ovr = 99;
+      s.player.capacity = 5000;
     });
     const r = simulateSeason(s);
-    const copa = r.cups.find((c) => c.id === 'copa')!;
-    expect(copa.champion).toBe(true);
-    expect(copa.matches.at(-1)!.round).toBe('Final');
-    expect(copa.prize).toBeGreaterThan(0);
-    expect(r.finance.prizes).toBeGreaterThanOrEqual(copa.prize);
-    expect(copa.matches.some((m) => m.giantKill)).toBe(true);
-    // campeão da copa vai para a Liga Europa se subir até a Championship ou se já estiver lá
-    expect(r.moments.some((m) => m.kind === 'final_copa')).toBe(true);
+    const estado = r.cups.find((c) => c.id === 'estado')!;
+    expect(estado.champion).toBe(true);
+    expect(estado.prize).toBeGreaterThan(0);
+    expect(s.player.copaSpot).toBe(true);
+    expect(estado.matches.some((m) => m.giantKill)).toBe(true);
+    s.season++;
+    for (const f of s.player.squad) f.ovr = 99;
+    const r2 = simulateSeason(s);
+    const copa = r2.cups.find((c) => c.id === 'copa')!;
+    expect(copa).toBeDefined();
+    expect(copa.matches.some((m) => m.round.includes('(ida)'))).toBe(true); // ida e volta a partir das oitavas
+    expect(r2.moments.length).toBeGreaterThan(0);
   });
 });
 
-describe('Europa e Mundial', () => {
-  it('top 4 da Premier vai à Copa dos Campeões; campeão dela vai ao Mundial', () => {
+describe('Copa Continental e Mundial', () => {
+  it('top 6 da Série A vai à Copa Continental; o campeão vai ao Mundial', () => {
     const s = setup((s) => {
-      const swap = s.world[1].pop()!;
-      swap.tier = 8;
-      s.world[8].push(swap);
+      const swap = s.clubs.find((c) => c.national === 1 && c.stateDiv === null)!;
+      swap.national = null;
+      swap.tier = 5;
+      const toV = s.clubs.find((c) => c.stateDiv === 'A' && c.national === null)!;
+      toV.stateDiv = 'V';
+      toV.tier = 7;
+      s.player.national = 1;
+      s.player.stateDiv = 'A';
       s.player.tier = 1;
       s.player.capacity = 60000;
       for (const f of s.player.squad) f.ovr = 99;
@@ -53,11 +62,10 @@ describe('Europa e Mundial', () => {
     });
     const r = simulateSeason(s);
     const cc = r.cups.find((c) => c.id === 'cc')!;
-    expect(cc.matches).toHaveLength(5);
+    expect(cc.matches.filter((m) => m.round.startsWith('Grupo'))).toHaveLength(6);
     expect(cc.champion).toBe(true);
     expect(s.player.worldCup).toBe(true);
     expect(s.player.continental).toBe('cc');
-    expect(r.moments[0].kind === 'final_cc' || r.moments.some((m) => m.kind === 'final_cc')).toBe(true);
     s.season++;
     for (const f of s.player.squad) f.ovr = 99;
     const r2 = simulateSeason(s);

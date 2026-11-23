@@ -31,20 +31,20 @@ export interface LevelInfo {
 export const LEVELS = [
   '',
   'Fechou as portas',
-  'Time de pub',
+  'Time de várzea',
   'Herói da Copa',
   'Clube elevador',
-  'Clube profissional',
-  'Clube de Premier',
+  'Clube de série nacional',
+  'Clube de Série A',
   'Campeão nacional',
-  'Rei da Europa',
+  'Rei da América',
   'Dinastia',
   'O Milagre',
 ];
 
 export function runStats(state: GameState): RunStats {
   const h = state.history;
-  let bestTier: Tier = 8;
+  let bestTier: Tier = 7;
   for (const r of h) {
     if (r.tier < bestTier) bestTier = r.tier;
     if (r.nextTier < bestTier && r.outcome !== 'falencia') bestTier = r.nextTier;
@@ -71,8 +71,8 @@ export function runStats(state: GameState): RunStats {
     seasons: h.length,
     promotions: h.filter((r) => r.nextTier < r.tier).length,
     relegations: h.filter((r) => r.nextTier > r.tier).length,
-    leagueTitles: h.filter((r) => r.position === 1).length,
-    premierTitles: h.filter((r) => r.tier === 1 && r.position === 1).length,
+    leagueTitles: h.reduce((n, r) => n + r.comps.filter((c) => c.won).length, 0),
+    premierTitles: h.filter((r) => r.comps.some((c) => c.id === 'serie_a' && c.won)).length,
     bestTier,
     barred: h.filter((r) => r.outcome === 'barrado_estadio').length,
     giantKills: cupGames.filter((m) => m.giantKill).length,
@@ -90,7 +90,7 @@ export function runStats(state: GameState): RunStats {
 /** Pontuação para ranking: presença em divisões altas + conquistas. */
 export function computeScore(s: RunStats): number {
   let score = 0;
-  for (const t of s.trajectory) score += (9 - t) * (9 - t) * 2; // nível 1 = 128/temporada
+  for (const t of s.trajectory) score += (8 - t) * (8 - t) * 2; // Série A = 98/temporada
   score += s.promotions * 40;
   score += s.leagueTitles * 60;
   score += s.premierTitles * 400;
@@ -103,7 +103,7 @@ export function computeScore(s: RunStats): number {
   return score;
 }
 
-/** Escada de níveis. 8–10 exigem a Copa dos Campeões. */
+/** Escada de níveis. 8–10 exigem a Copa Continental. */
 export function levelFor(s: RunStats): LevelInfo {
   let level: number;
   if (s.bankrupt) level = 1;

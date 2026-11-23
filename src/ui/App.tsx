@@ -116,7 +116,7 @@ export function App() {
 }
 
 const DEFAULT_NEWS = [
-  'Federação abre inscrições para novos clubes na Liga Regional',
+  'Federação abre inscrições para novos times na Várzea',
   'Bilionários de olho no futebol de base',
   'Estádios pequenos barram acessos: "regulamento é regulamento"',
 ];

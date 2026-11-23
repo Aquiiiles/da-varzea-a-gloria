@@ -15,7 +15,7 @@ export function startingCoach(): Coach {
 
 /** 3 candidatos por janela; o nível típico acompanha a divisão do clube. */
 export function coachCandidates(rng: Rng, tier: Tier): Coach[] {
-  const base = clamp(Math.round((8 - tier) / 2), 0, 3);
+  const base = clamp(Math.round((7 - tier) / 2), 0, 3);
   const out: Coach[] = [];
   const styles = rng.shuffle(STYLES);
   for (let i = 0; i < 3; i++) {
@@ -95,23 +95,47 @@ export function expectedRank(teamStrength: number, rivals: number[]): number {
 }
 
 export function seasonObjectives(rng: Rng, tier: Tier, expected: number, rivalSameTier: boolean): Objective[] {
-  const r = TIERS[tier];
-  const size = r.size;
   const out: Objective[] = [];
-  if (tier === 1) {
-    if (expected <= 2) out.push({ kind: 'titulo', text: 'Diretoria: ser campeão da Premier', main: true, target: 1 });
-    else if (expected <= 6) out.push({ kind: 'top4', text: 'Diretoria: terminar no top 4 (vaga na Copa dos Campeões)', main: true, target: 4 });
-    else if (expected <= size - 6) out.push({ kind: 'meio', text: `Diretoria: terminar até o ${Math.ceil(size / 2) + 2}º lugar`, main: true, target: Math.ceil(size / 2) + 2 });
-    else out.push({ kind: 'nao_cair', text: 'Diretoria: não cair', main: true, target: size - r.down });
-  } else {
-    const poEnd = r.playoff ? r.playoff[1] : r.autoUp;
-    if (expected <= r.autoUp + 1) out.push({ kind: 'subir', text: 'Diretoria: conquistar o acesso', main: true, target: r.autoUp });
-    else if (expected <= Math.ceil(size / 3)) out.push({ kind: 'brigar', text: `Diretoria: brigar pelo acesso (terminar até o ${poEnd}º)`, main: true, target: poEnd });
-    else if (expected <= Math.ceil(size * 0.75)) out.push({ kind: 'meio', text: `Diretoria: terminar até o ${Math.ceil(size / 2) + 2}º lugar`, main: true, target: Math.ceil(size / 2) + 2 });
-    else out.push({ kind: 'nao_cair', text: tier === 8 ? 'Diretoria: sair da lanterna (até o 15º)' : 'Diretoria: não cair', main: true, target: tier === 8 ? 15 : size - r.down });
+  const main = (kind: Objective['kind'], text: string, target: number) => out.push({ kind, text: `Diretoria: ${text}`, main: true, target });
+  switch (tier) {
+    case 7:
+      if (expected <= 3) main('subir', 'chegar à final da Várzea e subir', 2);
+      else if (expected <= 8) main('brigar', 'ir às semifinais (top 4 na 1ª fase)', 4);
+      else main('meio', 'terminar na metade de cima da tabela', 10);
+      break;
+    case 6:
+      if (expected <= 3) main('subir', 'chegar à final e subir para o Estadual', 2);
+      else if (expected <= 8) main('brigar', 'ir às semifinais (top 4 na 1ª fase)', 4);
+      else main('nao_cair', 'não cair para a Várzea', 14);
+      break;
+    case 5:
+      if (expected <= 4) main('subir', 'garantir vaga na Série D', 2);
+      else if (expected <= 10) main('brigar', 'classificar para o mata-mata (top 8)', 8);
+      else main('nao_cair', 'não cair no Estadual', 14);
+      break;
+    case 4:
+      if (expected <= 6) main('subir', 'subir para a Série C', 1);
+      else main('brigar', 'passar da fase de grupos', 2);
+      break;
+    case 3:
+      if (expected <= 5) main('subir', 'subir para a Série B', 4);
+      else if (expected <= 12) main('brigar', 'ir ao quadrangular (top 8)', 8);
+      else main('nao_cair', 'não cair para a Série D', 16);
+      break;
+    case 2:
+      if (expected <= 5) main('subir', 'subir para a Série A', 4);
+      else if (expected <= 12) main('meio', 'terminar até o 10º lugar', 10);
+      else main('nao_cair', 'não cair para a Série C', 16);
+      break;
+    case 1:
+      if (expected <= 2) main('titulo', 'ser campeão da Série A', 1);
+      else if (expected <= 8) main('top4', 'vaga na Copa Continental (top 6)', 6);
+      else if (expected <= 14) main('meio', 'terminar até o 12º lugar', 12);
+      else main('nao_cair', 'não cair para a Série B', 16);
+      break;
   }
   const bonus: Objective[] = [
-    { kind: 'copa', text: 'Torcida: passar de duas fases na Copa Nacional', main: false, target: 3 },
+    { kind: 'copa', text: 'Torcida: passar de duas fases nas copas', main: false, target: 3 },
     { kind: 'base', text: 'Torcida: ter 2 crias da base no time titular', main: false, target: 2 },
     { kind: 'casa', text: 'Torcida: estádio com 90% de ocupação média', main: false, target: 90 },
   ];

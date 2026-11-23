@@ -1,5 +1,5 @@
 import { computeScore, levelFor, runStats, type RunStats } from '../../src/engine/score';
-import { patterned, playRun } from './helpers';
+import { playRun } from './helpers';
 
 const base: RunStats = {
   seasons: 25, promotions: 0, relegations: 0, leagueTitles: 0, premierTitles: 0, bestTier: 8, barred: 0,
@@ -36,7 +36,7 @@ describe('escada de níveis', () => {
     expect(computeScore({ ...base, premierTitles: 1 })).toBeGreaterThan(computeScore(base));
   });
   it('estatísticas de uma run real são coerentes', () => {
-    const s = playRun(31, patterned);
+    const s = playRun(31);
     const st = runStats(s);
     expect(st.trajectory).toHaveLength(s.history.length);
     expect(st.bestTier).toBeLessThanOrEqual(Math.min(...st.trajectory));

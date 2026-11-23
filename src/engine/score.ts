@@ -49,10 +49,8 @@ export function runStats(state: GameState): RunStats {
     if (r.tier < bestTier) bestTier = r.tier;
     if (r.nextTier < bestTier && r.outcome !== 'falencia') bestTier = r.nextTier;
   }
-  const idolMan = state.player.squad.reduce<GameState['player']['squad'][number] | null>(
-    (best, s) => (!best || s.goals > best.goals ? s : best),
-    null,
-  );
+  const everyone = [...state.player.squad, ...state.player.alumni];
+  const idolMan = everyone.reduce<(typeof everyone)[number] | null>((best, s) => (!best || s.goals > best.goals ? s : best), null);
   return {
     seasons: h.length,
     promotions: h.filter((r) => r.nextTier < r.tier).length,

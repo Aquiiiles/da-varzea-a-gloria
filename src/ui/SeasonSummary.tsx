@@ -1,4 +1,4 @@
-import { PLAYER_ID, TIERS, type SeasonResult, type Tier } from '../engine';
+import { PLAYER_ID, TIERS, type GameState, type SeasonResult, type Tier } from '../engine';
 import { money, OUTCOME_LABEL } from './format';
 
 function zone(tier: Tier, pos: number, size: number): string {
@@ -12,13 +12,14 @@ function zone(tier: Tier, pos: number, size: number): string {
 
 interface Props {
   result: SeasonResult;
-  clubName: string;
+  state: GameState;
   onNext: () => void;
   onFast: () => void;
   fast: boolean;
 }
 
-export function SeasonSummary({ result: r, clubName, onNext, onFast, fast }: Props) {
+export function SeasonSummary({ result: r, state, onNext, onFast, fast }: Props) {
+  const clubName = state.player.name;
   const tone = r.outcome === 'queda' || r.outcome === 'falencia' || r.outcome === 'barrado_estadio' ? 'bad' : r.outcome === 'fica' ? 'neutral' : 'good';
   const f = r.finance;
   const po = r.playoff;
@@ -63,15 +64,31 @@ export function SeasonSummary({ result: r, clubName, onNext, onFast, fast }: Pro
           <p>{r.topScorer && r.topScorer.goals > 0 ? `${r.topScorer.name} — ${r.topScorer.goals} gols` : '—'}</p>
         </div>
         <div className="box">
+          <h3>Força do time</h3>
+          <p>{r.strength.toFixed(1)} (média da divisão {TIERS[r.tier].meanStrength})</p>
+        </div>
+        <div className="box">
           <h3>Finanças</h3>
           <p>
-            Receita {money(f.tickets + f.tv + f.sponsors)} · Salários {money(f.wages)}
+            Receita {money(f.tickets + f.tv + f.sponsors)} · Custos {money(f.wages + f.staff + f.upkeep)}
           </p>
+          <p className="muted">Público médio {f.attendance.toLocaleString('pt-BR')}</p>
           <p className={f.net < 0 ? 'bad' : 'good'}>
             Saldo {money(f.net)} → caixa {money(f.cashEnd)}
           </p>
         </div>
       </div>
+
+      {r.departures.length > 0 && (
+        <div className="box departures">
+          <h3>Movimentação do elenco</h3>
+          <ul>
+            {r.departures.map((d, i) => (
+              <li key={i}>{d}</li>
+            ))}
+          </ul>
+        </div>
+      )}
 
       <details className="table-wrap" open>
         <summary>Classificação — {TIERS[r.tier].name}</summary>
@@ -104,7 +121,7 @@ export function SeasonSummary({ result: r, clubName, onNext, onFast, fast }: Pro
 
       <div className="actions">
         <button type="button" className="btn btn-primary" onClick={onNext}>
-          Próxima temporada
+          Abrir a janela de {r.year + 1}
         </button>
         <button type="button" className="btn" onClick={onFast} disabled={fast}>
           Rápido ⏩

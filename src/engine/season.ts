@@ -1,26 +1,30 @@
-import { ALL_TIERS, BOTTOM_TIER, START_YEAR, TIERS } from '../data/pyramid';
-import { clamp, driftClub, makeClub } from './clubs';
-import { newSquadman } from './effects';
-import { attendance, seasonFinance } from './finance';
+import { ALL_TIERS, BOTTOM_TIER, SQUAD_MIN, START_YEAR, TIERS, YOUTH_AGE_LIMIT } from '../data/pyramid';
+import { driftClub, makeClub } from './clubs';
+import { nextId } from './effects';
+import { TICKET_POLICY, seasonFinance } from './finance';
+import { bestEleven, develop, makeFootballer, marketValue, retires, squadStrength } from './footballers';
 import { simulateLeague, simulatePlayoff, type LeagueContext } from './league';
 import { BASE_HOME_ADVANTAGE } from './match';
-import { deriveRng } from './rng';
-import type { Club, GameState, MatchResult, Outcome, SeasonResult, Tier } from './types';
+import { deriveRng, type Rng } from './rng';
+import { clamp } from './util';
+import type { Club, Footballer, GameState, MatchResult, Outcome, SeasonResult, Tier } from './types';
 
 export const PLAYER_ID = 'player';
 export const DEDUCTION_POINTS = 10;
 
-/** Força efetiva do jogador num jogo (técnico + forma da temporada). */
-export function playerMatchStrength(state: GameState, form: number): number {
-  return state.player.strength + state.player.staff.coach * 1.5 + form;
-}
-
 export function playerHomeAdv(state: GameState): number {
   const p = state.player;
-  return BASE_HOME_ADVANTAGE + 2 * Math.min(1, attendance(p) / TIERS[p.tier].typicalFans);
+  const full = Math.min(p.capacity, p.fans) / Math.max(1, TIERS[p.tier].typicalFans);
+  return BASE_HOME_ADVANTAGE + Math.min(1, full);
 }
 
-/** O clube pode jogar na divisão `tier` com o estádio atual? */
+/** Força esperada do time (sem a sorte da temporada): XI + técnico + eventos. */
+export function teamStrength(state: GameState): number {
+  const p = state.player;
+  return Math.round((squadStrength(p.squad) + p.staff.coach * 0.5 + p.formMod) * 10) / 10;
+}
+
+/** O clube pode jogar na divisão `tier` com esse estádio? */
 export function stadiumAllows(capacity: number, tier: Tier): boolean {
   return capacity >= TIERS[tier].minStadium;
 }
@@ -32,7 +36,7 @@ interface Movement {
 
 /**
  * Simula UMA temporada completa (todas as divisões), aplica acesso/queda,
- * finanças e evolução. Muta `state` e devolve o resumo do clube do jogador.
+ * finanças e evolução do elenco. Muta `state` e devolve o resumo do clube do jogador.
  */
 export function simulateSeason(state: GameState): SeasonResult {
   const p = state.player;
@@ -40,12 +44,13 @@ export function simulateSeason(state: GameState): SeasonResult {
   const season = state.season;
   const tier = p.tier;
 
-  // forma da temporada: time de YouTuber oscila muito
+  // sorte da temporada: lesões, fase, vestiário. Time de YouTuber oscila muito.
   const formRng = deriveRng(seed, season, 'form');
-  const form = p.origin === 'youtuber' ? formRng.normal(4) : formRng.normal(1.5);
-  const pStrength = playerMatchStrength(state, form);
+  const sd = (p.origin === 'youtuber' ? 2 : 0.9) * (1 - p.facilities.medical * 0.1);
+  const form = formRng.normal(sd);
+  const pStrength = teamStrength(state) + form;
   const pHome = playerHomeAdv(state);
-  const rivalBonus = p.rivalHatred / 25;
+  const rivalBonus = p.rivalHatred / 50;
 
   const byId = new Map<string, Club>();
   for (const t of ALL_TIERS) for (const c of state.world[t]) byId.set(c.id, c);
@@ -53,10 +58,9 @@ export function simulateSeason(state: GameState): SeasonResult {
   const ctx: LeagueContext = {
     strength(id, opp) {
       if (id === PLAYER_ID) return pStrength;
-      const c = byId.get(id)!;
-      let s = c.strength;
+      let s = byId.get(id)!.strength;
       if (opp === PLAYER_ID) {
-        if (p.origin === 'youtuber') s += 2; // todo mundo quer ganhar do time do YouTuber
+        if (p.origin === 'youtuber') s += 1; // todo mundo quer ganhar do time do YouTuber
         if (id === p.rivalId) s += rivalBonus;
       }
       return s;
@@ -66,7 +70,9 @@ export function simulateSeason(state: GameState): SeasonResult {
     },
   };
 
-  // ---------------------- ligas de todas as divisões ----------------------
+  // obras em andamento ficam prontas no fim da temporada: contam para a vistoria do acesso
+  const capacityAtInspection = p.capacity + p.capacityBuilding;
+
   const moves = {} as Record<Tier, Movement>;
   let playerTable: SeasonResult['table'] = [];
   let playerMatches: MatchResult[] = [];
@@ -78,57 +84,46 @@ export function simulateSeason(state: GameState): SeasonResult {
     const rules = TIERS[t];
     const ids = state.world[t].map((c) => c.id);
     if (t === tier) ids.push(PLAYER_ID);
-    const rng = deriveRng(seed, season, 'league', t);
-    const run = simulateLeague(rng, ids, ctx, t === tier ? { [PLAYER_ID]: deduction } : {});
+    const run = simulateLeague(deriveRng(seed, season, 'league', t), ids, ctx, t === tier ? { [PLAYER_ID]: deduction } : {});
     const order = run.table.map((r) => r.clubId);
 
     const promoted: string[] = [];
-    let playoffResult: SeasonResult['playoff'];
     if (t > 1) {
       const target = (t - 1) as Tier;
-      const eligible = (id: string) => id !== PLAYER_ID || stadiumAllows(p.capacity, target);
-      // vagas diretas: os primeiros colocados elegíveis
-      let cursor = 0;
-      while (promoted.length < rules.autoUp && cursor < order.length) {
-        const id = order[cursor];
-        if (eligible(id)) promoted.push(id);
-        else if (id === PLAYER_ID) barred = true;
-        cursor++;
+      const eligible = (id: string) => id !== PLAYER_ID || stadiumAllows(capacityAtInspection, target);
+      for (let i = 0; i < order.length && promoted.length < rules.autoUp; i++) {
+        if (eligible(order[i])) promoted.push(order[i]);
+        else barred = true;
       }
-      // playoff: os 4 seguintes na tabela (o jogador barrado nas vagas diretas não entra;
-      // o jogador que já está na zona de playoff joga mesmo sem estádio — e é barrado se vencer)
       if (rules.playoff) {
+        // o jogador barrado nas vagas diretas não entra; quem já está na zona de playoff joga e é barrado se vencer
         const group = order.filter((id) => !promoted.includes(id) && !(id === PLAYER_ID && barred)).slice(0, 4);
-        const prng = deriveRng(seed, season, 'playoff', t);
-        playoffResult = simulatePlayoff(prng, group, ctx);
-        let winner = playoffResult.winner;
+        const po = simulatePlayoff(deriveRng(seed, season, 'playoff', t), group, ctx);
+        let winner = po.winner;
         if (!eligible(winner)) {
           barred = true;
-          const f = playoffResult.final;
-          winner = f.home === winner ? f.away : f.home;
+          winner = po.final.home === winner ? po.final.away : po.final.home;
         }
         promoted.push(winner);
-        if (group.includes(PLAYER_ID)) playerPlayoff = playoffResult;
+        if (group.includes(PLAYER_ID)) playerPlayoff = po;
       }
     }
 
     const relegated: string[] = [];
-    const downCount = rules.down;
-    for (let i = order.length - 1; i >= 0 && relegated.length < downCount; i--) {
+    for (let i = order.length - 1; i >= 0 && relegated.length < rules.down; i--) {
       const id = order[i];
       if (t === BOTTOM_TIER && id === PLAYER_ID) continue; // o clube do jogador não sai da pirâmide
-      if (promoted.includes(id)) continue;
-      relegated.push(id);
+      if (!promoted.includes(id)) relegated.push(id);
     }
     moves[t] = { promoted, relegated };
 
     if (t === tier) {
       playerTable = run.table;
-      playerMatches = run.rounds.map((r) => r.find((m) => m.home === PLAYER_ID || m.away === PLAYER_ID)!).filter(Boolean);
+      playerMatches = run.rounds.map((r) => r.find((m) => m.home === PLAYER_ID || m.away === PLAYER_ID)).filter((m): m is MatchResult => !!m);
     }
   }
 
-  // ---------------------- resultado do jogador ----------------------
+  // ---------------------- resultado ----------------------
   const position = playerTable.findIndex((r) => r.clubId === PLAYER_ID) + 1;
   const row = playerTable[position - 1];
   const mv = moves[tier];
@@ -136,7 +131,7 @@ export function simulateSeason(state: GameState): SeasonResult {
   let nextTier: Tier = tier;
   if (mv.promoted.includes(PLAYER_ID)) {
     nextTier = (tier - 1) as Tier;
-    outcome = position === 1 ? 'campeao' : playerPlayoff && playerPlayoff.winner === PLAYER_ID ? 'acesso_playoff' : 'acesso';
+    outcome = position === 1 ? 'campeao' : playerPlayoff?.winner === PLAYER_ID ? 'acesso_playoff' : 'acesso';
   } else if (mv.relegated.includes(PLAYER_ID)) {
     nextTier = (tier + 1) as Tier;
     outcome = 'queda';
@@ -148,51 +143,40 @@ export function simulateSeason(state: GameState): SeasonResult {
     outcome = 'fica';
   }
 
-  // ---------------------- artilharia ----------------------
-  const goals = row.gf;
-  const scorerRng = deriveRng(seed, season, 'scorers');
-  const active = p.squad.filter((s) => s.active);
-  const seasonGoals = new Map<string, number>();
-  if (active.length > 0) {
-    // ~60% dos gols do clube vão para os jogadores nomeados
-    for (let g = 0; g < Math.round(goals * 0.6); g++) {
-      const s = scorerRng.weighted(active, (x) => x.finishing);
-      seasonGoals.set(s.id, (seasonGoals.get(s.id) ?? 0) + 1);
-    }
-  }
-  let topScorer: SeasonResult['topScorer'] = null;
-  for (const s of active) {
-    const g = seasonGoals.get(s.id) ?? 0;
-    s.goals += g;
-    s.seasons++;
-    if (!topScorer || g > topScorer.goals) topScorer = { name: s.name, goals: g };
-  }
+  const topScorer = distributeGoals(deriveRng(seed, season, 'scorers'), p.squad, row.gf, row.played);
 
   // ---------------------- finanças ----------------------
-  // turno e returno: cada clube faz (n - 1) jogos em casa
-  const finance = seasonFinance(p, playerTable.length - 1);
+  const finance = seasonFinance(p, tier, playerTable.length - 1, position, playerTable.length);
   p.cash = finance.cashEnd;
   for (const s of p.sponsors) if (s.seasonsLeft !== null) s.seasonsLeft--;
   p.sponsors = p.sponsors.filter((s) => s.seasonsLeft === null || s.seasonsLeft > 0);
 
-  const headlines: string[] = [];
   const name = p.name;
-  const tierName = TIERS[tier].name;
-  const nextName = TIERS[nextTier].name;
+  const headlines: string[] = [];
+  const departures: string[] = [];
 
   if (deduction > 0) headlines.push(`${name} começou a temporada com -${deduction} pontos por dívidas`);
   p.pendingDeduction = 0;
-  // Regra do caixa: 2 temporadas seguidas no vermelho = perde pontos na próxima.
-  // A partir daí, se a dívida PIORAR, o clube decreta falência.
+
+  // venda forçada: o clube se desfaz dos jogadores mais valiosos para tapar o buraco
+  if (p.cash < 0) {
+    const sellable = p.squad.slice().sort((a, b) => marketValue(b) - marketValue(a) || a.id - b.id);
+    let sold = 0;
+    while (p.cash < 0 && sold < 3 && p.squad.length > SQUAD_MIN && sellable.length > 0) {
+      const f = sellable.shift()!;
+      const fee = Math.round(marketValue(f) * 0.7);
+      p.cash += fee;
+      p.squad = p.squad.filter((x) => x.id !== f.id);
+      p.alumni.push(f);
+      departures.push(`${f.name} (${f.ovr}) vendido às pressas por £ ${fee} mil`);
+      sold++;
+    }
+    if (sold > 0) headlines.push(`${name} faz venda forçada de ${sold} jogador(es) para pagar salários`);
+  }
+
+  // regra do caixa: 2 temporadas no vermelho = -10 pontos; se a dívida piorar depois disso, falência
   let bankrupt = false;
   const cashBefore = finance.cashEnd - finance.net;
-  if (p.cash < 0) {
-    // venda forçada: o clube se desfaz de jogadores para tapar o buraco
-    const relief = Math.round(Math.min(-p.cash, 12 * TIERS[tier].moneyScale));
-    p.cash += relief;
-    p.strength = clamp(p.strength - 3, 1, 99);
-    headlines.push(`${name} faz venda forçada de jogadores para pagar salários`);
-  }
   if (p.cash < 0) {
     p.negativeSeasons++;
     if (p.negativeSeasons >= 3 && p.cash < cashBefore) {
@@ -208,6 +192,8 @@ export function simulateSeason(state: GameState): SeasonResult {
     p.negativeSeasons = 0;
   }
 
+  const tierName = TIERS[tier].name;
+  const nextName = TIERS[nextTier].name;
   switch (outcome) {
     case 'campeao':
       headlines.unshift(tier === 1 ? `${name} É CAMPEÃO DA PREMIER!` : `${name} campeão da ${tierName}! Rumo à ${nextName}`);
@@ -245,43 +231,100 @@ export function simulateSeason(state: GameState): SeasonResult {
     playerMatches,
     topScorer,
     finance,
-    strength: Math.round(p.strength * 10) / 10,
+    strength: Math.round(pStrength * 10) / 10,
     headlines,
+    departures,
   };
 
-  // ---------------------- evolução (para a próxima temporada) ----------------------
-  evolvePlayer(state, result);
+  // ---------------------- evolução para a próxima temporada ----------------------
+  p.capacity += p.capacityBuilding;
+  p.capacityBuilding = 0;
+  evolveClub(state, result);
   moveClubs(state, moves);
   const driftRng = deriveRng(seed, season, 'drift');
   for (const t of ALL_TIERS) for (const c of state.world[t]) driftClub(driftRng, c);
   if (bankrupt) state.over = 'falencia';
-
   return result;
 }
 
-function evolvePlayer(state: GameState, result: SeasonResult): void {
+const GOAL_WEIGHT = { GOL: 0, DEF: 0.5, MEI: 2, ATA: 5 };
+
+/** Distribui os gols do time entre o elenco (titulares marcam mais). */
+function distributeGoals(rng: Rng, squad: Footballer[], goals: number, games: number) {
+  if (squad.length === 0) return null;
+  const { ids } = bestEleven(squad);
+  for (const f of squad) f.apps += ids.has(f.id) ? games : Math.round(games * 0.25);
+  const weight = (f: Footballer) => GOAL_WEIGHT[f.pos] * (ids.has(f.id) ? 1 : 0.2) * Math.pow(1.06, f.ovr - 50);
+  const seasonGoals = new Map<number, number>();
+  for (let g = 0; g < goals; g++) {
+    const f = rng.weighted(squad, weight);
+    seasonGoals.set(f.id, (seasonGoals.get(f.id) ?? 0) + 1);
+  }
+  let top: { name: string; goals: number } | null = null;
+  for (const f of squad) {
+    const g = seasonGoals.get(f.id) ?? 0;
+    f.goals += g;
+    if (!top || g > top.goals) top = { name: f.name, goals: g };
+  }
+  return top;
+}
+
+function evolveClub(state: GameState, result: SeasonResult): void {
   const p = state.player;
   const rng = deriveRng(state.seed, state.season, 'evolve');
-  const growth = p.staff.scout * 0.8 + p.staff.academy * 0.6;
-  const decay = 2 - p.staff.fitness * 0.5;
-  let delta = growth - decay;
-  const fanGrowth = { campeao: 0.45, acesso: 0.35, acesso_playoff: 0.35, barrado_estadio: 0.05, fica: 0, queda: -0.2, falencia: -0.5 }[result.outcome];
-  if (result.outcome === 'campeao' || result.outcome === 'acesso' || result.outcome === 'acesso_playoff') delta += 2;
-  if (result.outcome === 'queda') delta -= 3;
-  p.strength = clamp(Math.round((p.strength + delta) * 10) / 10, 1, 99);
+  const deps = result.departures;
 
+  // elenco profissional
+  const { ids } = bestEleven(p.squad);
+  const stay: Footballer[] = [];
+  for (const f of p.squad) {
+    develop(rng, f, { ct: p.facilities.ct, fitness: p.staff.fitness, inEleven: ids.has(f.id) });
+    f.contract--;
+    if (retires(rng, f)) {
+      deps.push(`${f.name} (${f.age} anos) pendura as chuteiras`);
+      p.alumni.push(f);
+    } else if (f.contract <= 0) {
+      deps.push(`${f.name} sai de graça: contrato encerrado`);
+      p.alumni.push(f);
+    } else {
+      stay.push(f);
+    }
+  }
+  p.squad = stay;
+
+  // base
+  const youthStay: Footballer[] = [];
+  for (const y of p.youth) {
+    develop(rng, y, { ct: p.facilities.ct, fitness: p.staff.fitness, inEleven: false, youth: true, academy: p.facilities.academy });
+    if (y.age > YOUTH_AGE_LIMIT) deps.push(`${y.name} deixa a base sem ser aproveitado`);
+    else youthStay.push(y);
+  }
+  p.youth = youthStay;
+
+  // elenco mínimo: completa com amadores da várzea
+  while (p.squad.length < SQUAD_MIN) {
+    const f = makeFootballer(rng, {
+      id: nextId(state),
+      ovr: TIERS[result.nextTier].meanStrength - 10 + rng.normal(2),
+      age: rng.int(19, 30),
+      scout: p.staff.scout,
+      season: state.season + 1,
+      contract: 1,
+    });
+    p.squad.push(f);
+  }
+
+  // torcida, hype, alma
+  const fanGrowth = { campeao: 0.4, acesso: 0.3, acesso_playoff: 0.3, barrado_estadio: 0.05, fica: 0, queda: -0.2, falencia: -0.5 }[result.outcome];
   const size = result.table.length;
   const posFactor = (size / 2 - result.position) / size; // -0.5 .. +0.5
-  p.fans = Math.max(20, Math.round(p.fans * (1 + fanGrowth + posFactor * 0.2 + p.hype / 1000)));
+  const policy = TICKET_POLICY[p.ticket];
+  p.fans = Math.max(20, Math.round(p.fans * (1 + fanGrowth + posFactor * 0.15 + policy.fanGrowth + p.hype / 1500)));
+  p.soul = clamp(p.soul + policy.soul, 0, 100);
   p.hype = clamp(Math.round(p.hype * 0.85), 0, 100);
   p.rivalHatred = clamp(Math.round(p.rivalHatred * 0.9), 0, 100);
+  p.formMod = 0;
   p.tier = result.nextTier;
-
-  // elenco nomeado: veteranos se aposentam, base repõe
-  for (const s of p.squad) if (s.active && s.seasons >= 9) s.active = false;
-  while (p.squad.filter((s) => s.active).length < 3) {
-    p.squad.push(newSquadman(state, rng, 2 + p.staff.academy * 0.5));
-  }
 }
 
 function moveClubs(state: GameState, moves: Record<Tier, Movement>): void {
@@ -303,14 +346,12 @@ function moveClubs(state: GameState, moves: Record<Tier, Movement>): void {
       next[c.tier].push(c);
     }
     for (const id of relegated) {
-      if (id === PLAYER_ID) continue;
-      if (t === BOTTOM_TIER) continue; // sai da pirâmide
+      if (id === PLAYER_ID || t === BOTTOM_TIER) continue; // os do fundo saem da pirâmide
       const c = byId.get(id)!;
       c.tier = (t + 1) as Tier;
       next[c.tier].push(c);
     }
   }
-  // novos clubes filiados no fundo da pirâmide
   const taken = new Set<string>([p.name]);
   for (const t of ALL_TIERS) for (const c of next[t]) taken.add(c.name);
   const rng = deriveRng(state.seed, state.season, 'newclubs');
@@ -318,12 +359,9 @@ function moveClubs(state: GameState, moves: Record<Tier, Movement>): void {
   while (next[BOTTOM_TIER].length < bottomTarget) {
     next[BOTTOM_TIER].push(makeClub(rng, `c${state.serial++}`, BOTTOM_TIER, taken));
   }
-  // garante tamanhos (considerando a vaga do jogador)
   for (const t of ALL_TIERS) {
     const target = TIERS[t].size - (p.tier === t ? 1 : 0);
-    if (next[t].length !== target) {
-      throw new Error(`pirâmide desbalanceada no nível ${t}: ${next[t].length} != ${target}`);
-    }
+    if (next[t].length !== target) throw new Error(`pirâmide desbalanceada no nível ${t}: ${next[t].length} != ${target}`);
   }
   state.world = next;
 }

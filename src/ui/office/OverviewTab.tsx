@@ -1,0 +1,98 @@
+import {
+  SQUAD_MAX, TIERS, YOUTH_AGE_LIMIT, effectsCashCost, projectFinance, stadiumAllows, type Tier,
+} from '../../engine';
+import { money } from '../format';
+import type { TabProps } from './Office';
+import { Chips, Section } from './common';
+
+export function OverviewTab({ state, dispatch, goTo }: TabProps) {
+  const p = state.player;
+  const o = state.office;
+  const proj = projectFinance(state);
+  const alerts: { text: string; tab: Parameters<TabProps['goTo']>[0] }[] = [];
+
+  const lastYear = p.squad.filter((f) => f.contract === 1);
+  if (lastYear.length > 0) alerts.push({ text: `${lastYear.length} jogador(es) no último ano de contrato: renove ou eles saem de graça.`, tab: 'elenco' });
+  const aging = p.youth.filter((y) => y.age >= YOUTH_AGE_LIMIT);
+  if (aging.length > 0) alerts.push({ text: `${aging.length} garoto(s) da base com ${YOUTH_AGE_LIMIT} anos: promova ou eles vão embora.`, tab: 'base' });
+  if (p.tier > 1 && !stadiumAllows(p.capacity + p.capacityBuilding, (p.tier - 1) as Tier)) {
+    alerts.push({ text: `O estádio não comporta a ${TIERS[(p.tier - 1) as Tier].name} (${TIERS[(p.tier - 1) as Tier].minStadium.toLocaleString('pt-BR')} lugares). Se for campeão, não sobe.`, tab: 'estadio' });
+  }
+  if (p.cash + proj.net < 0) alerts.push({ text: `Pela projeção, o caixa fecha a temporada em ${money(p.cash + proj.net)}.`, tab: 'clube' });
+  if (p.squad.length >= SQUAD_MAX) alerts.push({ text: 'Elenco cheio: venda ou dispense antes de contratar.', tab: 'elenco' });
+  if (p.fans > p.capacity * 1.2) alerts.push({ text: 'A torcida não cabe no estádio: você está perdendo bilheteria.', tab: 'estadio' });
+
+  return (
+    <div className="tab-stack">
+      {o.event && (
+        <section className={`panel event${o.eventChoice === null ? '' : ' is-done'}`}>
+          <p className="kicker kicker-alert">Plantão</p>
+          <h2 className="headline">{o.event.title}</h2>
+          <p className="lede">{o.event.text}</p>
+          {o.eventChoice === null ? (
+            <div className="event-options">
+              {o.event.options.map((opt, i) => (
+                <button key={opt.label} type="button" className="option" onClick={() => dispatch({ t: 'event', choice: i as 0 | 1 })}>
+                  <strong>{opt.label}</strong>
+                  <Chips state={state} effects={opt.effects} />
+                </button>
+              ))}
+            </div>
+          ) : (
+            <p className="done">Decisão: {o.event.options[o.eventChoice].label}</p>
+          )}
+        </section>
+      )}
+
+      <Section title="Oportunidades" note="Propostas desta janela. Aceitar é opcional; o que você ignorar some no fim da temporada.">
+        <div className="opps">
+          {o.opportunities.map(({ opp, taken }, idx) => {
+            const cost = effectsCashCost(state, opp.effects);
+            return (
+              <article key={opp.id} className={`opp${taken ? ' is-done' : ''}`}>
+                <div>
+                  <strong>{opp.title}</strong>
+                  <p>{opp.text}</p>
+                  <Chips state={state} effects={opp.effects} />
+                </div>
+                {taken ? (
+                  <span className="done">Feito</span>
+                ) : (
+                  <button type="button" className="btn btn-small" disabled={cost > 0 && p.cash < cost} onClick={() => dispatch({ t: 'opp', idx })}>
+                    {opp.accept}
+                  </button>
+                )}
+              </article>
+            );
+          })}
+        </div>
+      </Section>
+
+      {alerts.length > 0 && (
+        <Section title="Atenção, presidente">
+          <ul className="alerts">
+            {alerts.map((a, i) => (
+              <li key={i}>
+                <button type="button" onClick={() => goTo(a.tab)}>
+                  {a.text} <span aria-hidden="true">→</span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        </Section>
+      )}
+
+      <Section title="Orçamento da temporada" note="Projeção para uma campanha de meio de tabela. A premiação muda com a posição final.">
+        <dl className="budget">
+          <div><dt>Bilheteria</dt><dd className="good">{money(proj.tickets)}</dd></div>
+          <div><dt>TV e premiação</dt><dd className="good">{money(proj.tv)}</dd></div>
+          <div><dt>Patrocínios</dt><dd className={proj.sponsors >= 0 ? 'good' : 'bad'}>{money(proj.sponsors)}</dd></div>
+          <div><dt>Salários</dt><dd className="bad">-{money(proj.wages)}</dd></div>
+          <div><dt>Staff</dt><dd className="bad">-{money(proj.staff)}</dd></div>
+          <div><dt>Manutenção</dt><dd className="bad">-{money(proj.upkeep)}</dd></div>
+          <div className="budget-total"><dt>Saldo</dt><dd className={proj.net >= 0 ? 'good' : 'bad'}>{money(proj.net)}</dd></div>
+        </dl>
+      </Section>
+    </div>
+  );
+}

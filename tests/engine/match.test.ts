@@ -17,7 +17,7 @@ describe('partida', () => {
     let strongWins = 0;
     let weakWins = 0;
     for (let i = 0; i < 5000; i++) {
-      const m = playMatch(r, 'fraco', 'forte', 40, 70, 3);
+      const m = playMatch(r, 'fraco', 'forte', 58, 70, 1.5);
       if (m.ag > m.hg) strongWins++;
       if (m.hg > m.ag) weakWins++;
     }

@@ -1,35 +1,42 @@
-import { CARDS, STADIUM_CARD_IDS } from '../data/cards';
 import { EVENTS, EVENT_CHANCE } from '../data/events';
-import { MAX_SEASONS, TIERS } from '../data/pyramid';
-import { generateWorld, initials, randomPersonName } from './clubs';
-import { applyEffects } from './effects';
+import { OPPORTUNITIES } from '../data/opportunities';
+import { ALL_TIERS, FACILITY_COST, MAX_SEASONS, SQUAD_MAX, SQUAD_MIN, STAFF_WAGE, TIERS, YOUTH_MAX } from '../data/pyramid';
+import { generateWorld, initials } from './clubs';
+import { applyEffects, nextId } from './effects';
+import { foundingSquad, marketListings, marketWage, round1, tryoutCandidates, tryoutCost, youthIntake } from './footballers';
 import { deriveRng } from './rng';
-import { simulateSeason, stadiumAllows, PLAYER_ID } from './season';
-import type { Card, Foundation, GameEvent, GameState, Origin, PlayerClub, Squadman, Tier } from './types';
+import { PLAYER_ID, simulateSeason } from './season';
+import type { Action, Foundation, GameEvent, GameState, Opportunity, Origin, PlayerClub, Tier } from './types';
+import { runAssistant } from './assistant';
+import { ActionError } from './util';
+export { ActionError };
+import { effectsCashCost, loanFor, releaseCost, renewWage, seatsFor, sellPrice } from './office';
 
 interface OriginPreset {
+  label: string;
+  blurb: string;
   cash: number;
   fans: number;
   soul: number;
   hype: number;
-  strength: number;
+  squadMean: number;
   capacity: number;
   sponsor?: { name: string; perSeason: number };
 }
 
-export const ORIGINS: Record<Origin, OriginPreset & { label: string; blurb: string }> = {
+export const ORIGINS: Record<Origin, OriginPreset> = {
   pub: {
     label: 'Time de pub', blurb: 'Torcida e alma altas, pouco dinheiro.',
-    cash: 25, fans: 420, soul: 85, hype: 10, strength: 20, capacity: 500,
+    cash: 25, fans: 380, soul: 85, hype: 10, squadMean: 47, capacity: 400,
   },
   fabrica: {
     label: 'Time de fábrica', blurb: 'Patrocinador fixo (renda estável), torcida pequena.',
-    cash: 35, fans: 160, soul: 65, hype: 5, strength: 20, capacity: 600,
-    sponsor: { name: 'Metalúrgica Aurora', perSeason: 22 },
+    cash: 35, fans: 150, soul: 65, hype: 5, squadMean: 47.5, capacity: 500,
+    sponsor: { name: 'Metalúrgica Aurora', perSeason: 45 },
   },
   youtuber: {
     label: 'Time de YouTuber', blurb: 'Hype e dinheiro altos, moral instável, rivais com bônus contra você.',
-    cash: 90, fans: 300, soul: 45, hype: 85, strength: 21, capacity: 500,
+    cash: 110, fans: 260, soul: 45, hype: 85, squadMean: 47.5, capacity: 400,
   },
 };
 
@@ -38,6 +45,8 @@ export function sanitizeName(name: string): string {
   return clean.length > 0 ? clean : 'Várzea FC';
 }
 
+/* ------------------------------ Criação ------------------------------ */
+
 export function newGame(seed: number, foundation: Foundation): GameState {
   const seedU = seed >>> 0;
   const f: Foundation = { ...foundation, name: sanitizeName(foundation.name) };
@@ -45,171 +54,316 @@ export function newGame(seed: number, foundation: Foundation): GameState {
   const taken = new Set<string>([f.name]);
   const { world, serial } = generateWorld(rng, taken);
   const preset = ORIGINS[f.origin];
-
-  // rival: o clube do bairro vizinho, na mesma divisão
   const rival = rng.pick(world[8]);
-  const squadRng = deriveRng(seedU, 'squad');
-  const squad: Squadman[] = [3, 2, 2].map((finishing, i) => ({
-    id: `p${i}`,
-    name: randomPersonName(squadRng),
-    finishing,
-    goals: 0,
-    seasons: 0,
-    joined: 1,
-    active: true,
-  }));
+  const squad = foundingSquad(deriveRng(seedU, 'squad'), preset.squadMean, 1);
 
   const player: PlayerClub = {
     id: PLAYER_ID,
     name: f.name,
     short: initials(f.name),
     colors: f.colors,
-    strength: preset.strength,
+    strength: 0,
     tier: 8,
     origin: f.origin,
-    founded: 1,
     cash: preset.cash,
     negativeSeasons: 0,
     pendingDeduction: 0,
     capacity: preset.capacity,
+    capacityBuilding: 0,
     fans: preset.fans,
     soul: preset.soul,
     hype: preset.hype,
-    staff: { coach: 0, scout: 0, fitness: 0, academy: 0 },
+    ticket: 1,
+    facilities: { ct: 0, academy: 0, medical: 0 },
+    staff: { coach: 0, scout: 0, fitness: 0 },
     sponsors: preset.sponsor ? [{ ...preset.sponsor, seasonsLeft: null }] : [],
     squad,
+    youth: [],
+    alumni: [],
     rivalId: rival.id,
     rivalHatred: 30,
+    formMod: 0,
   };
 
   const state: GameState = {
-    version: 1,
+    version: 2,
     seed: seedU,
     foundation: f,
     season: 1,
-    choices: [],
-    phase: 'draft',
+    actions: [],
+    phase: 'office',
     player,
     world,
-    offer: [],
-    event: null,
-    seenEvents: [],
+    office: emptyOffice(),
+    seenOnce: [],
     history: [],
     news: [`Nasce o ${f.name}: clube de bairro se inscreve na ${TIERS[8].name}`, `${rival.name} será o grande rival`],
     over: null,
-    serial: serial + squad.length,
+    serial: Math.max(serial, 1000) + squad.length + 1,
   };
-  state.offer = drawCards(state);
+  startSeason(state);
   return state;
 }
 
+function emptyOffice(): GameState['office'] {
+  return { market: [], tryout: null, opportunities: [], event: null, eventChoice: null, built: { seats: false, facility: false, loan: false } };
+}
+
 function tierAllowed(tier: Tier, item: { minTier?: Tier; maxTier?: Tier }): boolean {
-  // minTier/maxTier em termos de "nível": minTier 6 = só do nível 6 para cima (6..1)
+  // minTier 6 = só do nível 6 para cima (6..1); maxTier 4 = só do nível 4 para baixo (4..8)
   if (item.minTier !== undefined && tier > item.minTier) return false;
   if (item.maxTier !== undefined && tier < item.maxTier) return false;
   return true;
 }
 
-/** 3 cartas distintas, sorteadas por peso, preferindo tipos diferentes. */
-export function drawCards(state: GameState): Card[] {
-  const rng = deriveRng(state.seed, state.season, 'cards');
-  const pool = CARDS.filter((c) => tierAllowed(state.player.tier, c));
-  const picked: Card[] = [];
-  // se o estádio atual não comporta a divisão de cima, sempre vem uma carta de estádio
+/** Abre o escritório da temporada: mercado, base, oportunidades e evento. */
+function startSeason(state: GameState): void {
   const p = state.player;
-  if (p.tier > 1 && !stadiumAllows(p.capacity, (p.tier - 1) as Tier)) {
-    const stadium = pool.filter((c) => STADIUM_CARD_IDS.includes(c.id));
-    if (stadium.length > 0) picked.push(rng.weighted(stadium, (c) => c.weight));
+  const s = state.season;
+  const office = emptyOffice();
+  const ids = () => nextId(state);
+
+  const names = ALL_TIERS.flatMap((t) => state.world[t].map((c) => c.name));
+  office.market = marketListings(deriveRng(state.seed, s, 'market'), p.tier, p.staff.scout, ids, s, names);
+
+  const intake = youthIntake(deriveRng(state.seed, s, 'youth'), p.facilities.academy, p.staff.scout, p.tier, ids, s);
+  for (const y of intake) if (p.youth.length < YOUTH_MAX) p.youth.push(y);
+  if (intake.length > 0) state.news.push(`${intake.length} garoto(s) aparecem nas categorias de base`);
+
+  const orng = deriveRng(state.seed, s, 'opps');
+  const pool = OPPORTUNITIES.filter((o) => tierAllowed(p.tier, o) && !(o.once && state.seenOnce.includes(o.id)));
+  const count = 1 + (orng.chance(0.55) ? 1 : 0) + (orng.chance(0.2) ? 1 : 0);
+  const picked: Opportunity[] = [];
+  while (picked.length < count && picked.length < pool.length) {
+    picked.push(orng.weighted(pool.filter((o) => !picked.includes(o)), (o) => o.weight));
   }
-  while (picked.length < 3 && picked.length < pool.length) {
-    const available = pool.filter((c) => !picked.includes(c));
-    const card = rng.weighted(available, (c) => c.weight * (picked.some((x) => x.kind === c.kind) ? 0.25 : 1));
-    picked.push(card);
-  }
-  return rng.shuffle(picked);
+  office.opportunities = picked.map((opp) => ({ opp, taken: false }));
+
+  office.event = drawEvent(state);
+  state.office = office;
 }
 
-export function drawEvent(state: GameState): GameEvent | null {
+function drawEvent(state: GameState): GameEvent | null {
   const rng = deriveRng(state.seed, state.season, 'event');
   if (!rng.chance(EVENT_CHANCE)) return null;
-  const pool = EVENTS.filter((e) => tierAllowed(state.player.tier, e) && !(e.once && state.seenEvents.includes(e.id)));
-  if (pool.length === 0) return null;
-  return rng.weighted(pool, (e) => e.weight);
+  const pool = EVENTS.filter((e) => tierAllowed(state.player.tier, e) && !(e.once && state.seenOnce.includes(e.id)));
+  return pool.length > 0 ? rng.weighted(pool, (e) => e.weight) : null;
 }
 
-/** Quantas opções a decisão atual tem (para validação de replays). */
-export function optionCount(state: GameState): number {
-  if (state.phase === 'draft') return state.offer.length;
-  if (state.phase === 'event') return 2;
-  return 0;
+/* ------------------------------ Ações ------------------------------ */
+
+
+function fail(msg: string): never {
+  throw new ActionError(msg);
 }
 
-function clone(state: GameState): GameState {
-  return structuredClone(state);
+/** Valida e aplica uma ação. Devolve NOVO estado (o original não é mutado). */
+export function apply(prev: GameState, action: Action): GameState {
+  const state = structuredClone(prev);
+  applyMut(state, action);
+  state.actions.push(action);
+  return state;
 }
 
-/**
- * Aplica uma escolha na fase atual ('draft' ou 'event') e, se for a última decisão
- * da temporada, simula a temporada. Retorna um NOVO estado (o original não é mutado).
- */
-export function choose(prev: GameState, index: number): GameState {
-  if (prev.phase !== 'draft' && prev.phase !== 'event') throw new Error(`não há escolha na fase ${prev.phase}`);
-  if (!Number.isInteger(index) || index < 0 || index >= optionCount(prev)) throw new Error(`escolha inválida: ${index}`);
-  const state = clone(prev);
-  state.choices.push(index);
-  const decision = state.choices.length;
+/** Tenta aplicar; se a ação for inválida devolve null (útil para a UI e o assistente). */
+export function tryApply(prev: GameState, action: Action): GameState | null {
+  try {
+    return apply(prev, action);
+  } catch (e) {
+    if (e instanceof ActionError) return null;
+    throw e;
+  }
+}
 
-  if (state.phase === 'draft') {
-    const card = state.offer[index];
-    applyEffects(state, card.effects, deriveRng(state.seed, state.season, 'apply', decision));
-    state.news.push(`${state.player.name} aposta em: ${card.title.toLowerCase()}`);
-    const event = drawEvent(state);
-    if (event) {
-      state.event = event;
-      state.phase = 'event';
-      return state;
+export function canApply(state: GameState, action: Action): boolean {
+  try {
+    applyMut(structuredClone(state), action);
+    return true;
+  } catch (e) {
+    if (e instanceof ActionError) return false;
+    throw e;
+  }
+}
+
+export function applyMut(state: GameState, a: Action): void {
+  const p = state.player;
+  const o = state.office;
+  if (state.phase === 'over') fail('a run acabou');
+  if (a.t === 'next') {
+    if (state.phase !== 'summary') fail('não há resumo aberto');
+    state.season++;
+    state.phase = 'office';
+    startSeason(state);
+    return;
+  }
+  if (state.phase !== 'office') fail('o escritório está fechado');
+  const actionRng = () => deriveRng(state.seed, state.season, 'act', state.actions.length);
+
+  switch (a.t) {
+    case 'buy': {
+      const l = o.market[a.idx];
+      if (!l) fail('jogador indisponível');
+      if (p.squad.length >= SQUAD_MAX) fail('elenco cheio');
+      if (p.cash < l.fee) fail('caixa insuficiente');
+      p.cash -= l.fee;
+      p.squad.push({ ...l.player, joined: state.season });
+      o.market[a.idx] = null;
+      state.news.push(`${p.name} contrata ${l.player.name} (${l.player.pos}, ${l.player.ovr})${l.fee > 0 ? ` por £ ${l.fee} mil` : ' sem custo de transferência'}`);
+      return;
     }
-  } else {
-    const event = state.event!;
-    const option = event.options[index];
-    applyEffects(state, option.effects, deriveRng(state.seed, state.season, 'apply', decision));
-    state.seenEvents.push(event.id);
-    state.news.push(option.headline);
+    case 'sell': {
+      const f = p.squad.find((x) => x.id === a.id);
+      if (!f) fail('jogador não encontrado');
+      if (p.squad.length <= SQUAD_MIN) fail(`o elenco precisa de pelo menos ${SQUAD_MIN} jogadores`);
+      const fee = sellPrice(state, a.id);
+      p.cash += fee;
+      p.squad = p.squad.filter((x) => x.id !== a.id);
+      p.alumni.push(f);
+      if (f.homegrown) p.soul = Math.max(0, p.soul - 1);
+      state.news.push(`${f.name} é vendido por £ ${fee} mil`);
+      return;
+    }
+    case 'release': {
+      const f = p.squad.find((x) => x.id === a.id);
+      if (!f) fail('jogador não encontrado');
+      if (p.squad.length <= SQUAD_MIN) fail(`o elenco precisa de pelo menos ${SQUAD_MIN} jogadores`);
+      const cost = releaseCost(state, a.id);
+      if (p.cash < cost) fail('caixa insuficiente para a multa');
+      p.cash -= cost;
+      p.squad = p.squad.filter((x) => x.id !== a.id);
+      p.alumni.push(f);
+      return;
+    }
+    case 'renew': {
+      const f = p.squad.find((x) => x.id === a.id);
+      if (!f) fail('jogador não encontrado');
+      if (f.contract !== 1) fail('só dá para renovar no último ano de contrato');
+      f.wage = renewWage(f.ovr, f.wage, f.homegrown);
+      f.contract = 4;
+      return;
+    }
+    case 'promote': {
+      const y = p.youth.find((x) => x.id === a.id);
+      if (!y) fail('garoto não encontrado');
+      if (p.squad.length >= SQUAD_MAX) fail('elenco cheio');
+      p.youth = p.youth.filter((x) => x.id !== a.id);
+      p.squad.push({ ...y, wage: round1(marketWage(y.ovr) * 0.8), contract: 4 });
+      state.news.push(`Cria da base, ${y.name} sobe para o profissional`);
+      return;
+    }
+    case 'cut': {
+      if (!p.youth.some((x) => x.id === a.id)) fail('garoto não encontrado');
+      p.youth = p.youth.filter((x) => x.id !== a.id);
+      return;
+    }
+    case 'tryout': {
+      if (o.tryout) fail('já houve peneira nesta temporada');
+      const cost = tryoutCost(p.tier);
+      if (p.cash < cost) fail('caixa insuficiente');
+      p.cash -= cost;
+      o.tryout = tryoutCandidates(deriveRng(state.seed, state.season, 'tryout'), p.tier, p.staff.scout, () => nextId(state), state.season);
+      state.news.push(`${p.name} abre peneira: centenas de garotos no campo do bairro`);
+      return;
+    }
+    case 'sign': {
+      const c = o.tryout?.[a.idx];
+      if (!c) fail('candidato indisponível');
+      if (c.age <= 19) {
+        if (p.youth.length >= YOUTH_MAX) fail('base lotada');
+        p.youth.push(c);
+      } else {
+        if (p.squad.length >= SQUAD_MAX) fail('elenco cheio');
+        p.squad.push({ ...c, wage: round1(marketWage(c.ovr) * 0.8) });
+      }
+      o.tryout![a.idx] = null;
+      return;
+    }
+    case 'seats': {
+      if (o.built.seats) fail('já há uma obra no estádio nesta temporada');
+      const { seats, cost } = seatsFor(p.capacity + p.capacityBuilding, a.size);
+      if (p.cash < cost) fail('caixa insuficiente');
+      p.cash -= cost;
+      p.capacityBuilding += seats;
+      o.built.seats = true;
+      state.news.push(`Obras no estádio do ${p.name}: +${seats} lugares até o fim da temporada`);
+      return;
+    }
+    case 'facility': {
+      if (o.built.facility) fail('só uma obra de estrutura por temporada');
+      const level = p.facilities[a.which];
+      if (level >= 5) fail('nível máximo');
+      const cost = FACILITY_COST[level];
+      if (p.cash < cost) fail('caixa insuficiente');
+      p.cash -= cost;
+      p.facilities[a.which] = level + 1;
+      o.built.facility = true;
+      return;
+    }
+    case 'staff': {
+      const next = p.staff[a.which] + a.dir;
+      if (next < 0 || next >= STAFF_WAGE.length) fail('nível inválido');
+      p.staff[a.which] = next;
+      return;
+    }
+    case 'ticket':
+      p.ticket = a.level;
+      return;
+    case 'loan': {
+      if (o.built.loan) fail('um empréstimo por temporada');
+      if (p.sponsors.filter((s) => s.perSeason < 0).length >= 2) fail('o banco não empresta mais: já há dois empréstimos');
+      const { amount, perSeason } = loanFor(p.tier, a.size);
+      p.cash += amount;
+      p.sponsors.push({ name: 'Parcela do empréstimo', perSeason, seasonsLeft: 3 });
+      o.built.loan = true;
+      return;
+    }
+    case 'opp': {
+      const entry = o.opportunities[a.idx];
+      if (!entry || entry.taken) fail('oportunidade indisponível');
+      const cost = effectsCashCost(state, entry.opp.effects);
+      if (cost > 0 && p.cash < cost) fail('caixa insuficiente');
+      entry.taken = true;
+      const notes = applyEffects(state, entry.opp.effects, actionRng());
+      if (entry.opp.once) state.seenOnce.push(entry.opp.id);
+      state.news.push(entry.opp.headline, ...notes);
+      return;
+    }
+    case 'event': {
+      if (!o.event || o.eventChoice !== null) fail('não há evento pendente');
+      const opt = o.event.options[a.choice];
+      const cost = effectsCashCost(state, opt.effects);
+      if (cost > 0 && p.cash < cost) fail('caixa insuficiente');
+      o.eventChoice = a.choice;
+      const notes = applyEffects(state, opt.effects, actionRng());
+      if (o.event.once) state.seenOnce.push(o.event.id);
+      state.news.push(opt.headline, ...notes);
+      return;
+    }
+    case 'auto':
+      runAssistant(state, applyMut);
+      return;
+    case 'play': {
+      if (o.event && o.eventChoice === null) fail('responda o evento antes de jogar');
+      const result = simulateSeason(state);
+      state.history.push(result);
+      state.news.push(...result.headlines);
+      state.phase = state.over ? 'over' : 'summary';
+      if (!state.over && state.season >= MAX_SEASONS) {
+        state.over = 'fim';
+        state.phase = 'over';
+      }
+      return;
+    }
   }
-  return playSeason(state);
 }
 
-function playSeason(state: GameState): GameState {
-  state.event = null;
-  state.offer = [];
-  const result = simulateSeason(state);
-  state.history.push(result);
-  state.news.push(...result.headlines);
-  state.phase = state.over ? 'over' : 'summary';
-  if (!state.over && state.season >= MAX_SEASONS) {
-    state.over = 'fim';
-    state.phase = 'over';
+/** Reconstrói uma run inteira a partir da seed, fundação e ações. */
+export function replay(seed: number, foundation: Foundation, actions: readonly Action[]): GameState {
+  const state = newGame(seed, foundation);
+  for (const a of actions) {
+    applyMut(state, a);
+    state.actions.push(a);
   }
   return state;
 }
 
-/** Sai do resumo e começa a próxima temporada. */
-export function advance(prev: GameState): GameState {
-  if (prev.phase !== 'summary') throw new Error(`advance só no resumo (fase: ${prev.phase})`);
-  const state = clone(prev);
-  state.season++;
-  state.phase = 'draft';
-  state.offer = drawCards(state);
-  return state;
-}
-
-/** Reconstrói uma run inteira a partir da seed, fundação e lista de escolhas. */
-export function replay(seed: number, foundation: Foundation, choices: readonly number[]): GameState {
-  let state = newGame(seed, foundation);
-  for (const c of choices) {
-    if (state.phase === 'summary') state = advance(state);
-    if (state.phase === 'over') break;
-    state = choose(state, c);
-  }
-  return state;
-}

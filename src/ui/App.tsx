@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useState } from 'react';
-import { advance, choose, decodeRun, encodeRun, newGame, replay, seedFromEntropy, type Foundation, type GameState } from '../engine';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { ActionError, apply, decodeRun, encodeRun, newGame, replay, seedFromEntropy, type Action, type Foundation, type GameState } from '../engine';
 import { FoundationScreen } from './FoundationScreen';
 import { GameScreen } from './GameScreen';
 import { Ticker } from './Ticker';
@@ -19,7 +19,7 @@ function loadFromUrl(): GameState | null {
   const code = decodeRun(window.location.search);
   if (!code) return null;
   try {
-    return replay(code.seed, code.foundation, code.choices);
+    return replay(code.seed, code.foundation, code.actions);
   } catch {
     return null;
   }
@@ -30,16 +30,46 @@ function writeUrl(state: GameState | null): void {
   window.history.replaceState(null, '', url);
 }
 
+export type Dispatch = (...actions: Action[]) => boolean;
+
 export function App() {
   const [state, setState] = useState<GameState | null>(() => loadFromUrl());
-  /** veio de um link compartilhado (replay)? */
   const [fromLink] = useState(() => state !== null);
+  const [toast, setToast] = useState<string | null>(null);
+  const stateRef = useRef(state);
+  stateRef.current = state;
 
   useEffect(() => writeUrl(state), [state]);
+  useEffect(() => {
+    if (!toast) return;
+    const t = setTimeout(() => setToast(null), 2600);
+    return () => clearTimeout(t);
+  }, [toast]);
 
   const start = useCallback((f: Foundation) => setState(newGame(freshSeed(), f)), []);
-  const onChoose = useCallback((i: number) => setState((s) => (s ? choose(s, i) : s)), []);
-  const onAdvance = useCallback(() => setState((s) => (s && s.phase === 'summary' ? advance(s) : s)), []);
+
+  /** Aplica uma ou mais ações em sequência; para na primeira inválida e mostra o motivo. */
+  const dispatch: Dispatch = useCallback((...actions: Action[]) => {
+    let s = stateRef.current;
+    if (!s) return false;
+    for (const a of actions) {
+      try {
+        s = apply(s, a);
+      } catch (e) {
+        if (e instanceof ActionError) {
+          setToast(e.message);
+          stateRef.current = s;
+          setState(s);
+          return false;
+        }
+        throw e;
+      }
+    }
+    stateRef.current = s;
+    setState(s);
+    return true;
+  }, []);
+
   const restart = useCallback(() => setState(null), []);
 
   return (
@@ -53,11 +83,16 @@ export function App() {
       </header>
       <main className="stage">
         {state ? (
-          <GameScreen state={state} onChoose={onChoose} onAdvance={onAdvance} onRestart={restart} fromLink={fromLink} />
+          <GameScreen state={state} dispatch={dispatch} onRestart={restart} fromLink={fromLink} />
         ) : (
           <FoundationScreen onStart={start} />
         )}
       </main>
+      {toast && (
+        <div className="toast" role="status">
+          {toast}
+        </div>
+      )}
     </div>
   );
 }

@@ -1,5 +1,5 @@
 import {
-  SQUAD_MAX, TIERS, YOUTH_AGE_LIMIT, effectsCashCost, projectFinance, stadiumAllows, type Tier,
+  SQUAD_MAX, SQUAD_MIN, TIERS, YOUTH_AGE_LIMIT, effectsCashCost, marketValue, moodLabel, projectFinance, renewWage, stadiumAllows, type Tier,
 } from '../../engine';
 import { money } from '../format';
 import type { TabProps } from './Office';
@@ -11,8 +11,11 @@ export function OverviewTab({ state, dispatch, goTo }: TabProps) {
   const proj = projectFinance(state);
   const alerts: { text: string; tab: Parameters<TabProps['goTo']>[0] }[] = [];
 
-  const lastYear = p.squad.filter((f) => f.contract === 1);
-  if (lastYear.length > 0) alerts.push({ text: `${lastYear.length} jogador(es) no último ano de contrato: renove ou eles saem de graça.`, tab: 'elenco' });
+  const renewing = p.squad.filter((f) => f.contract === 1 && !f.leaving);
+  const raise = renewing.reduce((s, f) => s + Math.max(0, renewWage(f.ovr, f.wage, f.homegrown) - f.wage), 0);
+  if (renewing.length > 0 && raise > proj.wages * 0.08) {
+    alerts.push({ text: `${renewing.length} contrato(s) renovam sozinhos no fim da temporada, somando +${money(raise)} na folha. Libere quem você não quer manter.`, tab: 'elenco' });
+  }
   const aging = p.youth.filter((y) => y.age >= YOUTH_AGE_LIMIT);
   if (aging.length > 0) alerts.push({ text: `${aging.length} garoto(s) da base com ${YOUTH_AGE_LIMIT} anos: promova ou eles vão embora.`, tab: 'base' });
   if (p.tier > 1 && !stadiumAllows(p.capacity + p.capacityBuilding, (p.tier - 1) as Tier)) {
@@ -42,6 +45,63 @@ export function OverviewTab({ state, dispatch, goTo }: TabProps) {
             <p className="done">Decisão: {o.event.options[o.eventChoice].label}</p>
           )}
         </section>
+      )}
+
+      <Section title="Metas da temporada" note="Cumprir metas anima a torcida e rende bônus em dinheiro; falhar a da diretoria pesa no torcedômetro.">
+        <ul className="objectives">
+          {o.objectives.map((ob, i) => (
+            <li key={i} className={ob.main ? 'obj-main' : 'obj-bonus'}>
+              {ob.text}
+            </li>
+          ))}
+        </ul>
+        <div className="moodbar" aria-label={`Torcedômetro ${p.mood} de 100`}>
+          <div className="moodbar-head">
+            <span>Torcedômetro</span>
+            <b>
+              {p.mood} · {moodLabel(p.mood)}
+            </b>
+          </div>
+          <div className="meter mood-meter">
+            <span className="meter-fill" style={{ width: `${p.mood}%`, background: p.mood < 25 ? 'var(--bad)' : p.mood < 45 ? 'var(--warn)' : 'var(--good)' }} />
+          </div>
+          <small className="muted">Mexe no público (até ±15%) e no patrocínio. Sobe com vitórias, metas cumpridas, clássico, zebras e ingresso popular; cai com fracassos, ingresso caro e venda de crias da base.</small>
+        </div>
+        {(p.continental || p.worldCup) && (
+          <p className="competitions">
+            Nesta temporada: Copa Nacional{p.continental === 'cc' ? ' · Copa dos Campeões' : p.continental === 'le' ? ' · Liga Europa' : ''}
+            {p.worldCup ? ' · Mundial de Clubes' : ''}
+          </p>
+        )}
+      </Section>
+
+      {o.offers.some(Boolean) && (
+        <Section title="Propostas recebidas" note="Clubes interessados nos seus jogadores. Ignorar é recusar; elas expiram no fim da janela.">
+          <div className="opps">
+            {o.offers.map((of, idx) => {
+              if (!of) return null;
+              const f = p.squad.find((x) => x.id === of.playerId);
+              if (!f) return null;
+              const value = marketValue(f);
+              return (
+                <article key={idx} className="opp">
+                  <div>
+                    <strong>
+                      {of.club} quer {f.name} ({f.pos}, {f.ovr})
+                    </strong>
+                    <p>
+                      Oferta de {money(of.fee)} · valor de mercado {money(value)}
+                      {of.fee >= value * 1.2 ? ' · acima do valor!' : of.fee < value * 0.9 ? ' · abaixo do valor' : ''}
+                    </p>
+                  </div>
+                  <button type="button" className="btn btn-small btn-primary" disabled={p.squad.length <= SQUAD_MIN} onClick={() => dispatch({ t: 'offer', idx })}>
+                    Vender
+                  </button>
+                </article>
+              );
+            })}
+          </div>
+        </Section>
       )}
 
       <Section title="Oportunidades" note="Propostas desta janela. Aceitar é opcional; o que você ignorar some no fim da temporada.">
@@ -87,6 +147,7 @@ export function OverviewTab({ state, dispatch, goTo }: TabProps) {
           <div><dt>Bilheteria</dt><dd className="good">{money(proj.tickets)}</dd></div>
           <div><dt>TV e premiação</dt><dd className="good">{money(proj.tv)}</dd></div>
           <div><dt>Patrocínios</dt><dd className={proj.sponsors >= 0 ? 'good' : 'bad'}>{money(proj.sponsors)}</dd></div>
+          <div><dt>Comércio local</dt><dd className="good">{money(proj.commerce)}</dd></div>
           <div><dt>Salários</dt><dd className="bad">-{money(proj.wages)}</dd></div>
           <div><dt>Staff</dt><dd className="bad">-{money(proj.staff)}</dd></div>
           <div><dt>Manutenção</dt><dd className="bad">-{money(proj.upkeep)}</dd></div>

@@ -24,13 +24,20 @@ npm run balance    # probe de balanceamento com bots (não roda no npm test)
 A cada temporada você abre o **Escritório do Presidente**:
 
 - **Painel:** evento da temporada, oportunidades (propostas opcionais), alertas e orçamento previsto.
-- **Elenco:** jogadores com overall, potencial (faixa lida pelo olheiro), idade, salário, contrato e valor. Venda, dispense ou renove no último ano.
+- **Elenco:** jogadores com overall, potencial (faixa lida pelo olheiro), idade, salário, contrato e valor. Contratos renovam sozinhos; você só marca quem não quer manter. Venda, dispense, empreste jovens e aceite propostas de outros clubes.
 - **Base:** garotos que surgem todo ano (mais e melhores com a base investida) e a peneira (1 por temporada).
-- **Mercado:** 8 jogadores por janela, com taxa à vista e salário na folha.
+- **Mercado:** 12 jogadores por janela (promessas, prontos, veteranos e sem clube), com filtros, taxa à vista e salário na folha.
 - **Estádio:** ampliações (ficam prontas no fim da temporada e contam na vistoria do acesso), preço do ingresso e estrutura (CT, base, departamento médico).
 - **Clube:** comissão técnica, patrocínios, empréstimos e identidade.
+- **Troféus:** sala de troféus e recordes do clube.
 
-O botão **Assistente decide** faz uma gestão conservadora por você, e **Rápido** deixa o assistente gerir e jogar até algo decisivo acontecer.
+A carreira é salva automaticamente no navegador (até 5 em andamento); runs terminadas vão para o Hall da fama.
+
+O botão **Assistente decide** faz uma gestão conservadora por você, e **Rápido** deixa o assistente gerir e jogar até algo decisivo acontecer. Na aba Clube dá para **delegar** áreas (contratos, base, mercado, estádio) a diretores que cuidam delas sozinhos.
+
+Além da liga, toda temporada tem a **Copa Nacional** (os pequenos entram nas preliminares e podem cruzar com gigantes). O top 4 da Premier vai à **Copa dos Campeões**, o 5º à **Liga Europa**, e quem ganha a Copa dos Campeões joga o **Mundial de Clubes**. Finais, playoff, última rodada decisiva, zebra na copa e clássico são mostrados **ao vivo**, com narração.
+
+Também há: técnicos com estilo (ofensivo, retranqueiro, formador, motivador, estrategista), comércio local, torcedômetro, metas da temporada, histórico do clássico, conquistas, **desafio do dia** (mesma seed para todo mundo) e **card final** em PNG 1080x1350.
 
 ## Deploy (GitHub Pages)
 

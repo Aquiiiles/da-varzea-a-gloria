@@ -47,7 +47,7 @@ describe('determinismo', () => {
 describe('URL da run', () => {
   it('todas as ações fazem ida e volta no codec', () => {
     const all: Action[] = [
-      { t: 'buy', idx: 3 }, { t: 'sell', id: 1042 }, { t: 'release', id: 7 }, { t: 'renew', id: 12 },
+      { t: 'buy', idx: 3 }, { t: 'sell', id: 1042 }, { t: 'release', id: 7 }, { t: 'leave', id: 12 }, { t: 'offer', idx: 2 }, { t: 'lend', id: 55 },
       { t: 'promote', id: 99 }, { t: 'cut', id: 100 }, { t: 'tryout' }, { t: 'sign', idx: 4 },
       { t: 'seats', size: 2 }, { t: 'facility', which: 'medical' }, { t: 'staff', which: 'scout', dir: -1 },
       { t: 'ticket', level: 0 }, { t: 'loan', size: 1 }, { t: 'opp', idx: 1 }, { t: 'event', choice: 1 },
@@ -69,7 +69,7 @@ describe('URL da run', () => {
   it('rejeita lixo', () => {
     expect(decodeRun('s=!!&o=p')).toBeNull();
     expect(decodeRun('s=abc&o=x&k=ffffff-000000')).toBeNull();
-    expect(decodeRun('s=abc&o=p&k=ffffff-000000&a=q9')).toBeNull();
+    expect(decodeRun('s=abc&o=p&k=ffffff-000000&a=y9')).toBeNull();
   });
 });
 
@@ -79,7 +79,8 @@ describe('fluxo da run', () => {
     expect(s.player.tier).toBe(8);
     expect(s.phase).toBe('office');
     expect(s.player.squad.length).toBeGreaterThanOrEqual(SQUAD_MIN);
-    expect(s.office.market).toHaveLength(8);
+    expect(s.office.market).toHaveLength(12);
+    expect(new Set(s.office.market.map((l) => l!.profile))).toEqual(new Set(['promessa', 'pronto', 'veterano', 'livre']));
     expect(s.office.opportunities.length).toBeGreaterThanOrEqual(1);
   });
 
@@ -149,24 +150,59 @@ describe('mercado e elenco', () => {
     expect(after.player.alumni.map((x) => x.id)).toContain(f.id);
   });
 
-  it('renovação só no último ano de contrato', () => {
-    const s = setup();
-    const f = s.player.squad[0];
-    f.contract = 2;
-    expect(canApply(s, { t: 'renew', id: f.id })).toBe(false);
-    f.contract = 1;
-    const after = apply(s, { t: 'renew', id: f.id });
-    expect(after.player.squad[0].contract).toBe(4);
-  });
-
-  it('contrato que acaba: o jogador sai de graça', () => {
+  it('contrato acaba: renova sozinho com salário de mercado', () => {
     const s = setup();
     const f = s.player.squad[0];
     f.contract = 1;
     f.age = 22;
+    f.wage = 0.5;
+    const r = simulateSeason(s);
+    const after = s.player.squad.find((x) => x.id === f.id)!;
+    expect(after).toBeDefined();
+    expect(after.contract).toBe(3);
+    expect(after.wage).toBeGreaterThan(0.5);
+    expect(r.renewals.join(' ')).toContain(f.name);
+  });
+
+  it('marcado para não renovar: sai de graça no fim do contrato', () => {
+    const s0 = setup();
+    const f = s0.player.squad[0];
+    f.contract = 1;
+    f.age = 22;
+    const s = apply(s0, { t: 'leave', id: f.id });
+    expect(s.player.squad[0].leaving).toBe(true);
     const r = simulateSeason(s);
     expect(s.player.squad.some((x) => x.id === f.id)).toBe(false);
     expect(r.departures.join(' ')).toContain(f.name);
+    // alternar de novo desmarca
+    expect(apply(apply(s0, { t: 'leave', id: f.id }), { t: 'leave', id: f.id }).player.squad[0].leaving).toBe(false);
+  });
+
+  it('proposta aceita: vende pelo valor oferecido', () => {
+    const s = setup();
+    const f = s.player.squad[3];
+    s.office.offers = [{ playerId: f.id, fee: 999, club: 'Gigante FC', clubTier: 1 }];
+    const after = apply(s, { t: 'offer', idx: 0 });
+    expect(after.player.cash).toBe(s.player.cash + 999);
+    expect(after.player.squad.some((x) => x.id === f.id)).toBe(false);
+    expect(canApply(after, { t: 'offer', idx: 0 })).toBe(false);
+  });
+
+  it('empréstimo: só jovens, volta no fim da temporada mais evoluído', () => {
+    const s0 = setup();
+    const old = s0.player.squad.find((x) => x.age > 21)!;
+    expect(canApply(s0, { t: 'lend', id: old.id })).toBe(false);
+    const kid = { ...s0.player.squad[0], id: 7777, age: 17, ovr: 40, pot: 70, potLo: 60, potHi: 80, homegrown: true, wage: 0.6 };
+    s0.player.youth = [kid];
+    const s = apply(s0, { t: 'lend', id: 7777 });
+    expect(s.player.youth).toHaveLength(0);
+    expect(s.player.onLoan.map((x) => x.id)).toEqual([7777]);
+    const r = simulateSeason(s);
+    const back = s.player.youth.find((x) => x.id === 7777)!;
+    expect(back).toBeDefined();
+    expect(back.ovr).toBeGreaterThan(40);
+    expect(s.player.onLoan).toHaveLength(0);
+    expect(r.departures.join(' ')).toContain('volta de empréstimo');
   });
 
   it('peneira: uma por temporada, custa dinheiro e traz 5 candidatos', () => {

@@ -1,5 +1,6 @@
 import { PLAYER_ID, TIERS, type GameState, type SeasonResult, type Tier } from '../engine';
 import { money, OUTCOME_LABEL } from './format';
+import { moodLabel } from '../engine';
 
 function zone(tier: Tier, pos: number, size: number): string {
   const r = TIERS[tier];
@@ -45,6 +46,64 @@ export function SeasonSummary({ result: r, state, onNext, onFast, fast }: Props)
         ))}
       </ul>
 
+      {r.cups.map((c) => (
+        <div key={c.id} className={`cup-run${c.champion ? ' is-champ' : ''}`}>
+          <h3>
+            {c.name} · <span>{c.reached}</span>
+            {c.prize > 0 && <small> · prêmio {money(c.prize)}</small>}
+          </h3>
+          <ul>
+            {c.matches.map((m, i) => {
+              const mine = m.home ? m.result.hg : m.result.ag;
+              const theirs = m.home ? m.result.ag : m.result.hg;
+              const pens = m.result.pens ? (m.home ? m.result.pens : ([m.result.pens[1], m.result.pens[0]] as const)) : null;
+              return (
+                <li key={i} className={m.won ? 'good' : 'bad'}>
+                  <span className="cup-round">{m.round}</span>
+                  <span>
+                    {m.home ? 'x' : '@'} {m.opponent}
+                    {m.opponentTier ? ` (${m.opponentTier}ª div.)` : ' (estrangeiro)'}
+                  </span>
+                  <b>
+                    {mine}-{theirs}
+                    {pens ? ` (${pens[0]}-${pens[1]} pên.)` : m.result.extraTime ? ' (prorr.)' : ''}
+                  </b>
+                  {m.giantKill && <em className="tag-offer">zebra</em>}
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+      ))}
+
+      <div className="summary-grid">
+        <div className="box">
+          <h3>Metas</h3>
+          <ul className="objectives">
+            {r.objectives.map((o, i) => (
+              <li key={i} className={o.met ? 'good' : 'bad'}>
+                {o.met ? '✔' : '✘'} {o.text}
+              </li>
+            ))}
+          </ul>
+        </div>
+        <div className="box">
+          <h3>Torcedômetro</h3>
+          <p>
+            {r.mood} · {moodLabel(r.mood)}{' '}
+            <span className={r.moodDelta >= 0 ? 'good' : 'bad'}>
+              ({r.moodDelta >= 0 ? '+' : ''}
+              {r.moodDelta})
+            </span>
+          </p>
+          {r.derby && (
+            <p className="muted">
+              Clássico: {r.derby.w}V {r.derby.d}E {r.derby.l}D
+            </p>
+          )}
+        </div>
+      </div>
+
       {po && (
         <div className="playoff">
           <h3>Playoff de acesso</h3>
@@ -70,14 +129,29 @@ export function SeasonSummary({ result: r, state, onNext, onFast, fast }: Props)
         <div className="box">
           <h3>Finanças</h3>
           <p>
-            Receita {money(f.tickets + f.tv + f.sponsors)} · Custos {money(f.wages + f.staff + f.upkeep)}
+            Receita {money(f.tickets + f.tv + f.sponsors + f.commerce + f.prizes)} · Custos {money(f.wages + f.staff + f.upkeep)}
           </p>
-          <p className="muted">Público médio {f.attendance.toLocaleString('pt-BR')}</p>
+          <p className="muted">
+            Público médio {f.attendance.toLocaleString('pt-BR')}
+            {f.commerce > 0 ? ` · comércio ${money(f.commerce)}` : ''}
+            {f.prizes > 0 ? ` · prêmios ${money(f.prizes)}` : ''}
+          </p>
           <p className={f.net < 0 ? 'bad' : 'good'}>
             Saldo {money(f.net)} → caixa {money(f.cashEnd)}
           </p>
         </div>
       </div>
+
+      {r.renewals.length > 0 && (
+        <div className="box departures">
+          <h3>Renovações automáticas</h3>
+          <ul>
+            {r.renewals.map((d, i) => (
+              <li key={i}>{d}</li>
+            ))}
+          </ul>
+        </div>
+      )}
 
       {r.departures.length > 0 && (
         <div className="box departures">

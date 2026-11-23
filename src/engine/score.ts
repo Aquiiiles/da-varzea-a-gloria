@@ -49,6 +49,22 @@ export function runStats(state: GameState): RunStats {
     if (r.tier < bestTier) bestTier = r.tier;
     if (r.nextTier < bestTier && r.outcome !== 'falencia') bestTier = r.nextTier;
   }
+  const cupGames = h.flatMap((r) => r.cups.flatMap((c) => c.matches));
+  const wins = (id: string) => h.filter((r) => r.cups.some((c) => c.id === id && c.champion)).length;
+  let biggestUpset: RunStats['biggestUpset'] = null;
+  for (const r of h) {
+    for (const c of r.cups) {
+      for (const m of c.matches) {
+        if (!m.won || m.opponentTier === null) continue;
+        const gap = r.tier - m.opponentTier;
+        if (gap >= 2 && (!biggestUpset || gap > biggestUpset.tierGap)) {
+          const mine = m.home ? m.result.hg : m.result.ag;
+          const theirs = m.home ? m.result.ag : m.result.hg;
+          biggestUpset = { opponent: m.opponent, tierGap: gap, score: `${mine} x ${theirs}${m.result.pens ? ' (pên.)' : ''}` };
+        }
+      }
+    }
+  }
   const everyone = [...state.player.squad, ...state.player.alumni];
   const idolMan = everyone.reduce<(typeof everyone)[number] | null>((best, s) => (!best || s.goals > best.goals ? s : best), null);
   return {
@@ -59,11 +75,11 @@ export function runStats(state: GameState): RunStats {
     premierTitles: h.filter((r) => r.tier === 1 && r.position === 1).length,
     bestTier,
     barred: h.filter((r) => r.outcome === 'barrado_estadio').length,
-    giantKills: 0,
-    biggestUpset: null,
-    cupWins: 0,
-    championsWins: 0,
-    worldWins: 0,
+    giantKills: cupGames.filter((m) => m.giantKill).length,
+    biggestUpset,
+    cupWins: wins('copa'),
+    championsWins: wins('cc'),
+    worldWins: wins('mundial'),
     bankrupt: state.over === 'falencia',
     soul: Math.round(state.player.soul),
     idol: idolMan && idolMan.goals > 0 ? { name: idolMan.name, goals: idolMan.goals } : null,

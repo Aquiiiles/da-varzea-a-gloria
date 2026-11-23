@@ -1,4 +1,4 @@
-import type { Action, Facility, Foundation, GameState, Origin, StaffRole } from './types';
+import type { Action, BusinessId, DelegateArea, Facility, Foundation, GameState, Origin, StaffRole } from './types';
 
 /**
  * Codificação da run na URL:
@@ -11,8 +11,12 @@ const ORIGIN_CODE: Record<Origin, string> = { pub: 'p', fabrica: 'f', youtuber: 
 const CODE_ORIGIN: Record<string, Origin> = { p: 'pub', f: 'fabrica', y: 'youtuber' };
 const FAC: Record<Facility, string> = { ct: 'c', academy: 'a', medical: 'm' };
 const CAF: Record<string, Facility> = { c: 'ct', a: 'academy', m: 'medical' };
-const STAFF: Record<StaffRole, string> = { coach: 'c', scout: 's', fitness: 'f' };
-const FFATS: Record<string, StaffRole> = { c: 'coach', s: 'scout', f: 'fitness' };
+const STAFF: Record<StaffRole, string> = { scout: 's', fitness: 'f' };
+const FFATS: Record<string, StaffRole> = { s: 'scout', f: 'fitness' };
+const BIZ: Record<BusinessId, string> = { bar: 'b', loja: 'l', escolinha: 'e', estacionamento: 'p', foodtruck: 'f' };
+const ZIB: Record<string, BusinessId> = { b: 'bar', l: 'loja', e: 'escolinha', p: 'estacionamento', f: 'foodtruck' };
+const DEL: Record<DelegateArea, string> = { contratos: 'c', base: 'b', mercado: 'm', estadio: 'e' };
+const LED: Record<string, DelegateArea> = { c: 'contratos', b: 'base', m: 'mercado', e: 'estadio' };
 
 export interface RunCode {
   seed: number;
@@ -25,7 +29,9 @@ export function encodeAction(a: Action): string {
     case 'buy': return `b${a.idx}`;
     case 'sell': return `s${a.id}`;
     case 'release': return `r${a.id}`;
-    case 'renew': return `n${a.id}`;
+    case 'leave': return `q${a.id}`;
+    case 'offer': return `w${a.idx}`;
+    case 'lend': return `d${a.id}`;
     case 'promote': return `p${a.id}`;
     case 'cut': return `x${a.id}`;
     case 'tryout': return 't';
@@ -34,6 +40,9 @@ export function encodeAction(a: Action): string {
     case 'facility': return `f${FAC[a.which]}`;
     case 'staff': return `h${STAFF[a.which]}${a.dir > 0 ? 'u' : 'd'}`;
     case 'ticket': return `k${a.level}`;
+    case 'coach': return `c${a.idx}`;
+    case 'business': return `u${BIZ[a.which]}`;
+    case 'delegate': return `m${DEL[a.area]}`;
     case 'loan': return `l${a.size}`;
     case 'opp': return `o${a.idx}`;
     case 'event': return `v${a.choice}`;
@@ -51,7 +60,9 @@ export function decodeAction(tok: string): Action | null {
     case 'b': return Number.isNaN(n) ? null : { t: 'buy', idx: n };
     case 's': return Number.isNaN(n) ? null : { t: 'sell', id: n };
     case 'r': return Number.isNaN(n) ? null : { t: 'release', id: n };
-    case 'n': return Number.isNaN(n) ? null : { t: 'renew', id: n };
+    case 'q': return Number.isNaN(n) ? null : { t: 'leave', id: n };
+    case 'w': return Number.isNaN(n) ? null : { t: 'offer', idx: n };
+    case 'd': return Number.isNaN(n) ? null : { t: 'lend', id: n };
     case 'p': return Number.isNaN(n) ? null : { t: 'promote', id: n };
     case 'x': return Number.isNaN(n) ? null : { t: 'cut', id: n };
     case 't': return rest === '' ? { t: 'tryout' } : null;
@@ -59,6 +70,9 @@ export function decodeAction(tok: string): Action | null {
     case 'e': return n === 0 || n === 1 || n === 2 ? { t: 'seats', size: n } : null;
     case 'f': return CAF[rest] ? { t: 'facility', which: CAF[rest] } : null;
     case 'h': return FFATS[rest[0]] && (rest[1] === 'u' || rest[1] === 'd') && rest.length === 2 ? { t: 'staff', which: FFATS[rest[0]], dir: rest[1] === 'u' ? 1 : -1 } : null;
+    case 'c': return Number.isNaN(n) ? null : { t: 'coach', idx: n };
+    case 'u': return ZIB[rest] ? { t: 'business', which: ZIB[rest] } : null;
+    case 'm': return LED[rest] ? { t: 'delegate', area: LED[rest] } : null;
     case 'k': return n === 0 || n === 1 || n === 2 ? { t: 'ticket', level: n } : null;
     case 'l': return n === 0 || n === 1 ? { t: 'loan', size: n } : null;
     case 'o': return Number.isNaN(n) ? null : { t: 'opp', idx: n };

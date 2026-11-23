@@ -1,12 +1,22 @@
 import { useState } from 'react';
-import { SQUAD_MAX, squadStrength } from '../../engine';
+import { SQUAD_MAX, squadStrength, type ListingProfile, type Position } from '../../engine';
 import { money, weekly } from '../format';
 import type { TabProps } from './Office';
 import { PlayerLine, Section } from './common';
 
+const PROFILE_LABEL: Record<ListingProfile | 'todos', string> = {
+  todos: 'Todos',
+  promessa: 'Promessa',
+  pronto: 'Pronto',
+  veterano: 'Veterano',
+  livre: 'Sem clube',
+};
+
 export function MarketTab({ state, dispatch }: TabProps) {
   const p = state.player;
   const [open, setOpen] = useState<number | null>(null);
+  const [pos, setPos] = useState<Position | 'todos'>('todos');
+  const [profile, setProfile] = useState<ListingProfile | 'todos'>('todos');
   const base = squadStrength(p.squad);
   const full = p.squad.length >= SQUAD_MAX;
 
@@ -21,8 +31,25 @@ export function MarketTab({ state, dispatch }: TabProps) {
           </>
         }
       >
+        <div className="filters">
+          <div className="seg seg-compact" role="group" aria-label="Posição">
+            {(['todos', 'GOL', 'DEF', 'MEI', 'ATA'] as const).map((x) => (
+              <button key={x} type="button" className={`seg-btn${pos === x ? ' is-on' : ''}`} onClick={() => setPos(x)}>
+                {x === 'todos' ? 'Todas' : x}
+              </button>
+            ))}
+          </div>
+          <div className="seg seg-compact" role="group" aria-label="Perfil">
+            {(['todos', 'promessa', 'pronto', 'veterano', 'livre'] as const).map((x) => (
+              <button key={x} type="button" className={`seg-btn${profile === x ? ' is-on' : ''}`} onClick={() => setProfile(x)}>
+                {PROFILE_LABEL[x]}
+              </button>
+            ))}
+          </div>
+        </div>
         <ul className="pl-list">
           {state.office.market.map((l, idx) => {
+            if (l && ((pos !== 'todos' && l.player.pos !== pos) || (profile !== 'todos' && l.profile !== profile))) return null;
             if (!l) {
               return (
                 <li key={idx} className="pl pl-gone">
@@ -39,7 +66,7 @@ export function MarketTab({ state, dispatch }: TabProps) {
                 tier={p.tier}
                 meta={
                   <>
-                    {l.from} · força {gain > 0.05 ? <span className="good">+{gain.toFixed(1)}</span> : <span className="muted">+0</span>}
+                    {PROFILE_LABEL[l.profile]} · {l.from} · força {gain > 0.05 ? <span className="good">+{gain.toFixed(1)}</span> : <span className="muted">+0</span>}
                   </>
                 }
                 aside={

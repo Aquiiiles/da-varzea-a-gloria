@@ -56,6 +56,9 @@ export const START_YEAR = 2027;
 export const SQUAD_MIN = 16;
 export const SQUAD_MAX = 28;
 export const YOUTH_MAX = 10;
+/** Máximo de jovens emprestados ao mesmo tempo e idade máxima para emprestar. */
+export const MAX_LOANS = 4;
+export const LOAN_AGE_LIMIT = 21;
 /** Idade em que o garoto da base precisa subir ou ser dispensado. */
 export const YOUTH_AGE_LIMIT = 19;
 

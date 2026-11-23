@@ -4,6 +4,7 @@
  * Todo acesso ao localStorage é protegido: em aba anônima ou com o storage bloqueado, o jogo segue sem saves.
  */
 import { computeScore, encodeRun, levelFor, runStats, TIERS, type GameState } from './engine';
+import { dailyLabel } from './ui/daily';
 
 const CAREERS_KEY = 'dvg:careers:v2';
 const HALL_KEY = 'dvg:hall:v2';
@@ -31,6 +32,8 @@ export interface HallEntry {
   bestTier: string;
   query: string;
   finishedAt: number;
+  /** desafio do dia (dd/mm), se for */
+  daily?: string | null;
 }
 
 function read<T>(key: string): T[] {
@@ -81,6 +84,7 @@ export function saveCareer(state: GameState): void {
       bestTier: TIERS[stats.bestTier].name,
       query: encodeRun(state),
       finishedAt: Date.now(),
+      daily: dailyLabel(state.seed),
     };
     const hall = read<HallEntry>(HALL_KEY).filter((h) => h.id !== id);
     hall.push(entry);

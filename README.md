@@ -33,7 +33,11 @@ A cada temporada você abre o **Escritório do Presidente**:
 
 A carreira é salva automaticamente no navegador (até 5 em andamento); runs terminadas vão para o Hall da fama.
 
-O botão **Assistente decide** faz uma gestão conservadora por você, e **Rápido** deixa o assistente gerir e jogar até algo decisivo acontecer.
+O botão **Assistente decide** faz uma gestão conservadora por você, e **Rápido** deixa o assistente gerir e jogar até algo decisivo acontecer. Na aba Clube dá para **delegar** áreas (contratos, base, mercado, estádio) a diretores que cuidam delas sozinhos.
+
+Além da liga, toda temporada tem a **Copa Nacional** (os pequenos entram nas preliminares e podem cruzar com gigantes). O top 4 da Premier vai à **Copa dos Campeões**, o 5º à **Liga Europa**, e quem ganha a Copa dos Campeões joga o **Mundial de Clubes**. Finais, playoff, última rodada decisiva, zebra na copa e clássico são mostrados **ao vivo**, com narração.
+
+Também há: técnicos com estilo (ofensivo, retranqueiro, formador, motivador, estrategista), comércio local, torcedômetro, metas da temporada, histórico do clássico, conquistas, **desafio do dia** (mesma seed para todo mundo) e **card final** em PNG 1080x1350.
 
 ## Deploy (GitHub Pages)
 

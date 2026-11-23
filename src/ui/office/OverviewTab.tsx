@@ -1,5 +1,5 @@
 import {
-  SQUAD_MAX, SQUAD_MIN, TIERS, YOUTH_AGE_LIMIT, effectsCashCost, marketValue, projectFinance, renewWage, stadiumAllows, type Tier,
+  SQUAD_MAX, SQUAD_MIN, TIERS, YOUTH_AGE_LIMIT, effectsCashCost, marketValue, moodLabel, projectFinance, renewWage, stadiumAllows, type Tier,
 } from '../../engine';
 import { money } from '../format';
 import type { TabProps } from './Office';
@@ -46,6 +46,34 @@ export function OverviewTab({ state, dispatch, goTo }: TabProps) {
           )}
         </section>
       )}
+
+      <Section title="Metas da temporada" note="Cumprir metas anima a torcida e rende bônus em dinheiro; falhar a da diretoria pesa no torcedômetro.">
+        <ul className="objectives">
+          {o.objectives.map((ob, i) => (
+            <li key={i} className={ob.main ? 'obj-main' : 'obj-bonus'}>
+              {ob.text}
+            </li>
+          ))}
+        </ul>
+        <div className="moodbar" aria-label={`Torcedômetro ${p.mood} de 100`}>
+          <div className="moodbar-head">
+            <span>Torcedômetro</span>
+            <b>
+              {p.mood} · {moodLabel(p.mood)}
+            </b>
+          </div>
+          <div className="meter mood-meter">
+            <span className="meter-fill" style={{ width: `${p.mood}%`, background: p.mood < 25 ? 'var(--bad)' : p.mood < 45 ? 'var(--warn)' : 'var(--good)' }} />
+          </div>
+          <small className="muted">Mexe no público (até ±15%) e no patrocínio. Sobe com vitórias, metas cumpridas, clássico, zebras e ingresso popular; cai com fracassos, ingresso caro e venda de crias da base.</small>
+        </div>
+        {(p.continental || p.worldCup) && (
+          <p className="competitions">
+            Nesta temporada: Copa Nacional{p.continental === 'cc' ? ' · Copa dos Campeões' : p.continental === 'le' ? ' · Liga Europa' : ''}
+            {p.worldCup ? ' · Mundial de Clubes' : ''}
+          </p>
+        )}
+      </Section>
 
       {o.offers.some(Boolean) && (
         <Section title="Propostas recebidas" note="Clubes interessados nos seus jogadores. Ignorar é recusar; elas expiram no fim da janela.">
@@ -119,6 +147,7 @@ export function OverviewTab({ state, dispatch, goTo }: TabProps) {
           <div><dt>Bilheteria</dt><dd className="good">{money(proj.tickets)}</dd></div>
           <div><dt>TV e premiação</dt><dd className="good">{money(proj.tv)}</dd></div>
           <div><dt>Patrocínios</dt><dd className={proj.sponsors >= 0 ? 'good' : 'bad'}>{money(proj.sponsors)}</dd></div>
+          <div><dt>Comércio local</dt><dd className="good">{money(proj.commerce)}</dd></div>
           <div><dt>Salários</dt><dd className="bad">-{money(proj.wages)}</dd></div>
           <div><dt>Staff</dt><dd className="bad">-{money(proj.staff)}</dd></div>
           <div><dt>Manutenção</dt><dd className="bad">-{money(proj.upkeep)}</dd></div>

@@ -47,8 +47,8 @@ export function App() {
     return () => clearTimeout(t);
   }, [toast]);
 
-  const start = useCallback((f: Foundation) => {
-    const s = newGame(freshSeed(), f);
+  const start = useCallback((f: Foundation, seed?: number) => {
+    const s = newGame(seed ?? freshSeed(), f);
     saveCareer(s);
     setState(s);
   }, []);

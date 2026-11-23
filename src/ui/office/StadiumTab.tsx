@@ -1,5 +1,5 @@
 import {
-  FACILITY_COST, SEAT_PACKS, TICKET_POLICY, TIERS, attendance, seatsFor, stadiumAllows, type Facility, type Tier,
+  BUSINESSES, FACILITY_COST, SEAT_PACKS, TICKET_POLICY, TIERS, attendance, commerce, seatsFor, stadiumAllows, type Facility, type Tier,
 } from '../../engine';
 import { money, num } from '../format';
 import type { TabProps } from './Office';
@@ -18,6 +18,9 @@ export function StadiumTab({ state, dispatch }: TabProps) {
   const next = (p.tier > 1 ? p.tier - 1 : 1) as Tier;
   const ok = p.tier === 1 || stadiumAllows(total, next);
   const att = attendance(p);
+  const homeGames = TIERS[p.tier].size - 1;
+  const idolGoals = Math.max(0, ...p.squad.map((f) => f.goals));
+  const shop = commerce(p, att, homeGames, idolGoals);
 
   return (
     <div className="tab-stack">
@@ -111,6 +114,43 @@ export function StadiumTab({ state, dispatch }: TabProps) {
                     onClick={() => dispatch({ t: 'facility', which: f.id })}
                   >
                     Nível {level + 1}: {money(cost)}
+                  </button>
+                ) : (
+                  <span className="done">Máximo</span>
+                )}
+              </li>
+            );
+          })}
+        </ul>
+      </Section>
+
+      <Section
+        title="Comércio local"
+        note={`Negócios do clube rendem todo ano conforme público, torcida e hype. Um investimento por temporada; manutenção de 8% do investido.${o.built.business ? ' O investimento desta temporada já foi feito.' : ''}`}
+      >
+        <p className="muted">
+          Receita prevista do comércio: <strong className="good">{money(shop.revenue)}/temp.</strong> · manutenção {money(shop.upkeep)}/temp.
+        </p>
+        <ul className="facilities">
+          {BUSINESSES.map((b) => {
+            const level = p.businesses[b.id];
+            const cost = level < 3 ? b.cost[level] : 0;
+            return (
+              <li key={b.id} className="facility">
+                <div>
+                  <strong>{b.name}</strong>
+                  <span className="pips" aria-label={`nível ${level} de 3`}>
+                    {[0, 1, 2].map((i) => (
+                      <i key={i} className={i < level ? 'on' : ''} />
+                    ))}
+                  </span>
+                  <p>
+                    {b.text} {level > 0 && <span className="good">Rende {money(shop.byBusiness[b.id])}/temp.</span>}
+                  </p>
+                </div>
+                {level < 3 ? (
+                  <button type="button" className="btn btn-small" disabled={o.built.business || p.cash < cost} onClick={() => dispatch({ t: 'business', which: b.id })}>
+                    {level === 0 ? 'Abrir' : `Nível ${level + 1}`}: {money(cost)}
                   </button>
                 ) : (
                   <span className="done">Máximo</span>

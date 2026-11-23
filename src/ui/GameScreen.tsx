@@ -4,10 +4,11 @@ import type { Dispatch } from './App';
 import { Office } from './office/Office';
 import { ResultScreen } from './ResultScreen';
 import { SeasonSummary } from './SeasonSummary';
+import { LiveMatch } from './LiveMatch';
 
 /** Resultados que interrompem o modo rápido. */
 export function isDecisive(r: SeasonResult): boolean {
-  return r.outcome !== 'fica';
+  return r.outcome !== 'fica' || r.moments.length > 0;
 }
 
 interface Props {
@@ -23,6 +24,9 @@ export function GameScreen({ state, dispatch, onRestart, fromLink }: Props) {
   const fast = fastFrom !== null;
   const setFast = (on: boolean) => setFastFrom(on ? state.history.length : null);
   const last = state.history[state.history.length - 1];
+  /** transmissão ao vivo: [temporada, índice do jogo] já assistidos */
+  // ao abrir um save/link, a última temporada já conta como assistida
+  const [live, setLive] = useState<{ season: number; idx: number }>(() => ({ season: state.history.at(-1)?.season ?? 0, idx: 99 }));
 
   // modo rápido: o assistente gere e joga até algo decisivo (novo) acontecer
   useEffect(() => {
@@ -41,6 +45,19 @@ export function GameScreen({ state, dispatch, onRestart, fromLink }: Props) {
     }, 150);
     return () => clearTimeout(t);
   }, [fastFrom, state, last, dispatch]);
+
+  const idx = last && live.season === last.season ? live.idx : 0;
+  if (last && (state.phase === 'summary' || state.phase === 'over') && idx < last.moments.length) {
+    return (
+      <LiveMatch
+        key={`${last.season}-${idx}`}
+        moment={last.moments[idx]}
+        index={idx}
+        total={last.moments.length}
+        onDone={() => setLive({ season: last.season, idx: idx + 1 })}
+      />
+    );
+  }
 
   if (state.phase === 'over') return <ResultScreen state={state} onRestart={onRestart} fromLink={fromLink} />;
 

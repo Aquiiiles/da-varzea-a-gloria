@@ -11,6 +11,7 @@ import { SquadTab } from './SquadTab';
 import { StadiumTab } from './StadiumTab';
 import { YouthTab } from './YouthTab';
 import { TrophyRoom } from '../TrophyRoom';
+import { Crest } from '../Crest';
 
 export type TabId = 'painel' | 'elenco' | 'base' | 'mercado' | 'estadio' | 'clube' | 'trofeus';
 
@@ -94,7 +95,7 @@ function StatusBar({ state }: { state: GameState }) {
   return (
     <section className="statusbar">
       <div className="status-club">
-        <span className="club-dot" style={{ background: `linear-gradient(135deg, ${p.colors[0]} 50%, ${p.colors[1]} 50%)` }} />
+        <Crest name={p.name} short={p.short} colors={p.colors} size={44} />
         <div>
           <strong>{p.name}</strong>
           <small>
@@ -106,7 +107,7 @@ function StatusBar({ state }: { state: GameState }) {
         <Stat label="Força do time" value={strength.toFixed(1)} hint={`${diff >= 0 ? '+' : ''}${diff.toFixed(1)} vs média`} tone={diff >= 1 ? 'good' : diff <= -2 ? 'bad' : undefined} />
         <Stat label="Caixa" value={money(p.cash)} tone={p.cash < 0 ? 'bad' : undefined} />
         <Stat label="Saldo previsto" value={money(proj.net)} tone={proj.net < 0 ? 'bad' : 'good'} />
-        <Stat label="Torcida" value={num(p.fans)} hint={`alma ${Math.round(p.soul)}`} />
+        <Stat label="Torcida" value={num(p.fans)} hint={`humor ${p.mood} · alma ${Math.round(p.soul)}`} tone={p.mood < 25 ? 'bad' : undefined} />
         <Stat
           label="Estádio"
           value={num(p.capacity)}

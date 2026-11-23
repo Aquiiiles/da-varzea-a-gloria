@@ -1,4 +1,4 @@
-import { TIERS, clubRecords, trophies, type GameState, type Tier } from '../engine';
+import { TIERS, achievements, clubRecords, trophies, type GameState, type Tier } from '../engine';
 import { num } from './format';
 
 /** Taça desenhada em SVG; o tamanho cresce com a importância. */
@@ -20,6 +20,7 @@ function Cup({ size, tier }: { size: 1 | 2 | 3; tier?: Tier }) {
 export function TrophyRoom({ state }: { state: GameState }) {
   const list = trophies(state);
   const rec = clubRecords(state);
+  const ach = achievements(state);
 
   return (
     <div className="tab-stack">
@@ -39,7 +40,25 @@ export function TrophyRoom({ state }: { state: GameState }) {
             ))}
           </ul>
         )}
-        <p className="section-note shelf-note">Copa Nacional, Copa dos Campeões e Mundial chegam com os jogos ao vivo.</p>
+      </section>
+
+      <section className="panel section">
+        <h2 className="section-title">
+          Conquistas ({ach.filter((x) => x.unlocked).length}/{ach.length})
+        </h2>
+        <ul className="achievements">
+          {ach.map((x) => (
+            <li key={x.id} className={x.unlocked ? 'is-on' : ''}>
+              <span className="ach-icon" aria-hidden="true">
+                {x.unlocked ? '🏅' : '🔒'}
+              </span>
+              <span>
+                <strong>{x.title}</strong>
+                <small>{x.text}</small>
+              </span>
+            </li>
+          ))}
+        </ul>
       </section>
 
       <section className="panel section">
@@ -58,6 +77,7 @@ export function TrophyRoom({ state }: { state: GameState }) {
             value={rec.bestCampaign ? `${rec.bestCampaign.points} pts, ${rec.bestCampaign.position}º na ${TIERS[rec.bestCampaign.tier].name} (${rec.bestCampaign.year})` : '—'}
           />
           <Rec label="Maior público médio" value={rec.bestAttendance ? `${num(rec.bestAttendance.value)} (${rec.bestAttendance.year})` : '—'} />
+          <Rec label="Clássico (V-E-D)" value={`${state.player.derby.w}-${state.player.derby.d}-${state.player.derby.l}`} />
         </dl>
         {Object.keys(rec.seasonsByTier).length > 0 && (
           <>

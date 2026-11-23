@@ -16,3 +16,4 @@ export {
   TIERS, MAX_SEASONS, START_YEAR, FACILITY_COST, STAFF_WAGE, SEAT_PACKS, SQUAD_MIN, SQUAD_MAX, YOUTH_MAX, YOUTH_AGE_LIMIT, MAX_LOANS, LOAN_AGE_LIMIT,
 } from '../data/pyramid';
 export { COACH_STYLES, BUSINESSES, DELEGATE_INFO } from '../data/club';
+export { initials } from './clubs';

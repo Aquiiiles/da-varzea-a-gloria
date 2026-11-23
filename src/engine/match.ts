@@ -7,8 +7,8 @@ export const BASE_HOME_ADVANTAGE = 1.5;
 /** Médias de gols (Poisson) a partir da diferença de força (escala de overall: ~4 pontos por divisão). */
 export function goalRates(homeStrength: number, awayStrength: number, homeAdv: number): [number, number] {
   const d = homeStrength - awayStrength + homeAdv;
-  const lh = 1.25 * Math.exp(0.1 * d);
-  const la = 1.25 * Math.exp(-0.1 * d);
+  const lh = 1.25 * Math.exp(0.12 * d);
+  const la = 1.25 * Math.exp(-0.12 * d);
   return [Math.min(6, Math.max(0.12, lh)), Math.min(6, Math.max(0.12, la))];
 }
 

@@ -47,6 +47,22 @@ describe('formatos', () => {
     }
   });
 
+  it('vantagem da campanha: empate no agregado classifica o de melhor campanha, sem pênaltis', () => {
+    const rng = createRng(5);
+    const ctx = { strength: () => 60, homeAdv: () => 1.5 };
+    let ties = 0;
+    for (let i = 0; i < 300; i++) {
+      const [m1, m2] = twoLegs(rng, ctx, 'a', 'b', true);
+      if (m1.ag + m2.hg === m1.hg + m2.ag) {
+        ties++;
+        expect(m2.winner).toBe('a');
+        expect(m2.advantage).toBe(true);
+        expect(m2.pens).toBeUndefined();
+      }
+    }
+    expect(ties).toBeGreaterThan(0);
+  });
+
   it('Várzea: 1ª fase em turno único (19 jogos) e mata-mata', () => {
     const s = structuredClone(newGame(10, FOUNDATION));
     for (const f of s.player.squad) f.ovr = 80;

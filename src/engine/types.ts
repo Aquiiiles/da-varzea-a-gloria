@@ -369,6 +369,8 @@ export interface MatchResult {
   /** placar ao fim dos 90 minutos (quando houve prorrogação) */
   reg?: [number, number];
   winner?: string;
+  /** empate no confronto: classificou o de melhor campanha */
+  advantage?: boolean;
 }
 
 export interface TableRow {

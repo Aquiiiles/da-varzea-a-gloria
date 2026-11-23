@@ -14,7 +14,7 @@ function score(m: CupMatch): string {
   const mine = m.home ? m.result.hg : m.result.ag;
   const theirs = m.home ? m.result.ag : m.result.hg;
   const pens = m.result.pens ? (m.home ? m.result.pens : [m.result.pens[1], m.result.pens[0]]) : null;
-  return `${mine}-${theirs}${pens ? ` (${pens[0]}-${pens[1]} pên.)` : m.result.extraTime ? ' (prorr.)' : ''}`;
+  return `${mine}-${theirs}${pens ? ` (${pens[0]}-${pens[1]} pên.)` : m.result.extraTime ? ' (prorr.)' : m.result.advantage ? ' (vantagem da campanha)' : ''}`;
 }
 
 export function TieList({ matches }: { matches: CupMatch[] }) {

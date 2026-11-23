@@ -1,4 +1,4 @@
-import { SEAT_PACKS, TIERS, seatCost } from '../data/pyramid';
+import { SEAT_PACKS, STADIUM_FINANCE, TIERS, seatCost } from '../data/pyramid';
 import { scaled } from './effects';
 import { seasonFinance } from './finance';
 import { marketValue, marketWage, round1 } from './footballers';
@@ -6,10 +6,13 @@ import type { Effect, Footballer, GameState, Tier } from './types';
 
 /* ------------------------------ Custos (também usados pela UI) ------------------------------ */
 
-export function seatsFor(capacity: number, size: 0 | 1 | 2): { seats: number; cost: number } {
+export function seatsFor(capacity: number, size: 0 | 1 | 2): { seats: number; cost: number; down: number; perSeason: number } {
   const pack = SEAT_PACKS[size];
   const seats = Math.max(pack.min, Math.round((capacity * pack.pct) / 100) * 100);
-  return { seats, cost: Math.round(seats * seatCost(capacity)) };
+  const cost = Math.round(seats * seatCost(capacity));
+  const down = Math.round(cost * STADIUM_FINANCE.down);
+  const perSeason = Math.round(((cost - down) * (1 + STADIUM_FINANCE.interest)) / STADIUM_FINANCE.seasons);
+  return { seats, cost, down, perSeason };
 }
 
 export function loanFor(tier: Tier, size: 0 | 1): { amount: number; perSeason: number } {

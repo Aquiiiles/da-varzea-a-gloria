@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
 import { computeScore, levelFor, runStats, TIERS, type GameState } from '../engine';
+import { TrophyRoom } from './TrophyRoom';
 
 export function ResultScreen({ state, onRestart, fromLink }: { state: GameState; onRestart: () => void; fromLink: boolean }) {
   const stats = useMemo(() => runStats(state), [state]);
@@ -46,6 +47,10 @@ export function ResultScreen({ state, onRestart, fromLink }: { state: GameState;
           </li>
         ))}
       </ol>
+
+      <div className="result-trophies">
+        <TrophyRoom state={state} />
+      </div>
 
       <div className="actions">
         <button type="button" className="btn" onClick={copy}>

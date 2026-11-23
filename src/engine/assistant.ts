@@ -1,7 +1,7 @@
-import { FACILITY_COST, STAFF_WAGE, TIERS, YOUTH_MAX } from '../data/pyramid';
+import { FACILITY_COST, MAX_LOANS, STAFF_WAGE, TIERS, YOUTH_MAX } from '../data/pyramid';
 import { scaled } from './effects';
 import { payroll } from './finance';
-import { bestEleven, squadStrength, tryoutCost } from './footballers';
+import { bestEleven, marketValue, squadStrength, tryoutCost } from './footballers';
 import { effectsCashCost, projectFinance, seatsFor } from './office';
 import { ActionError } from './util';
 import type { Action, Effect, Footballer, GameState, Tier } from './types';
@@ -42,17 +42,33 @@ export function runAssistant(state: GameState, apply: Apply): void {
     }
   });
 
-  // 3) contratos: renova titulares e jovens promissores
+  // 3) contratos (renovam sozinhos): libera reservas veteranos e quem não vai vingar
   const xi = bestEleven(p.squad).ids;
   for (const f of p.squad.slice()) {
-    if (f.contract === 1 && f.age <= 32 && (xi.has(f.id) || (f.age <= 23 && f.potHi >= mean))) tryDo({ t: 'renew', id: f.id });
+    const keep = xi.has(f.id) || (f.age <= 23 && f.potHi >= mean);
+    if (f.contract === 1 && !keep !== !!f.leaving) tryDo({ t: 'leave', id: f.id });
   }
+
+  // 3b) propostas: vende reserva bem pago ou quando a oferta é irrecusável
+  o.offers.forEach((of, idx) => {
+    if (!of) return;
+    const f = p.squad.find((x) => x.id === of.playerId);
+    if (!f) return;
+    const value = marketValue(f);
+    if ((!xi.has(f.id) && of.fee >= value) || of.fee >= value * 1.6) tryDo({ t: 'offer', idx });
+  });
 
   // 4) base: promove quem já briga por vaga; dispensa quem não vai vingar
   for (const y of p.youth.slice()) {
     const weakest = weakestAt(p.squad, y.pos, xi);
     if (y.ovr >= weakest - 1 || (y.age >= 19 && y.potHi >= mean)) tryDo({ t: 'promote', id: y.id });
     else if (y.age >= 18 && y.potHi < mean - 2) tryDo({ t: 'cut', id: y.id });
+  }
+
+  // 4b) empresta garotos que ainda não jogam para ganharem rodagem
+  for (const y of p.youth.slice()) {
+    if (p.onLoan.length >= MAX_LOANS) break;
+    if (y.age >= 17 && y.ovr < mean - 8 && y.potHi >= mean) tryDo({ t: 'lend', id: y.id });
   }
 
   // 5) estádio: prepara a vistoria do acesso

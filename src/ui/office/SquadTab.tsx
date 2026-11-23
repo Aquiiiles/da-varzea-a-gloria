@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import {
-  SQUAD_MAX, SQUAD_MIN, bestEleven, marketValue, payroll, releaseCost, renewWage, sellPrice, squadStrength, type Position,
+  LOAN_AGE_LIMIT, MAX_LOANS, SQUAD_MAX, SQUAD_MIN, bestEleven, marketValue, payroll, releaseCost, renewWage, renewalCap, sellPrice, squadStrength,
+  type Position,
 } from '../../engine';
 import { money, POS_LABEL, weekly } from '../format';
 import type { TabProps } from './Office';
@@ -13,6 +14,7 @@ export function SquadTab({ state, dispatch }: TabProps) {
   const [open, setOpen] = useState<number | null>(null);
   const xi = bestEleven(p.squad).ids;
   const canLose = p.squad.length > SQUAD_MIN;
+  const offerFor = new Map(state.office.offers.flatMap((of, idx) => (of ? [[of.playerId, { ...of, idx }] as const] : [])));
 
   return (
     <div className="tab-stack">
@@ -21,7 +23,8 @@ export function SquadTab({ state, dispatch }: TabProps) {
         note={
           <>
             Força do XI: <strong>{squadStrength(p.squad).toFixed(1)}</strong> · Folha: <strong>{money(payroll(p))}/temporada</strong>. O time
-            joga no 4-4-2 com os melhores de cada posição (★). Toque num jogador para negociar.
+            joga no 4-4-2 com os melhores de cada posição (★). Contratos renovam sozinhos no fim; toque num jogador para negociar ou
+            liberar.
           </>
         }
       >
@@ -41,7 +44,13 @@ export function SquadTab({ state, dispatch }: TabProps) {
                     badge={xi.has(f.id) ? '★' : undefined}
                     meta={
                       <>
-                        {f.contract === 1 ? <span className="bad">último ano</span> : `${f.contract} anos de contrato`} · {f.goals} gols
+                        {f.contract === 1 ? (
+                          f.leaving ? <span className="bad">sai no fim da temporada</span> : <span className="warnc">último ano · renova sozinho</span>
+                        ) : (
+                          `${f.contract} anos de contrato`
+                        )}{' '}
+                        · {f.goals} gols
+                        {offerFor.has(f.id) && <span className="tag-offer">proposta</span>}
                       </>
                     }
                     aside={
@@ -53,9 +62,33 @@ export function SquadTab({ state, dispatch }: TabProps) {
                     open={open === f.id}
                     onToggle={() => setOpen(open === f.id ? null : f.id)}
                   >
+                    {offerFor.has(f.id) && (
+                      <button
+                        type="button"
+                        className="btn btn-small btn-primary"
+                        disabled={!canLose}
+                        onClick={() => dispatch({ t: 'offer', idx: offerFor.get(f.id)!.idx }) && setOpen(null)}
+                      >
+                        Aceitar proposta do {offerFor.get(f.id)!.club}: {money(offerFor.get(f.id)!.fee)}
+                      </button>
+                    )}
                     {f.contract === 1 && (
-                      <button type="button" className="btn btn-small btn-primary" onClick={() => dispatch({ t: 'renew', id: f.id })}>
-                        Renovar por 3 anos ({weekly(renewWage(f.ovr, f.wage, f.homegrown))})
+                      <button type="button" className="btn btn-small" onClick={() => dispatch({ t: 'leave', id: f.id })}>
+                        {f.leaving
+                          ? 'Manter: renovar no fim do contrato'
+                          : renewWage(f.ovr, f.wage, f.homegrown) > renewalCap(p.tier, f.wage)
+                            ? 'Liberar (ele vai pedir salário alto demais)'
+                            : `Não renovar (renovaria por ${weekly(renewWage(f.ovr, f.wage, f.homegrown))})`}
+                      </button>
+                    )}
+                    {f.age <= LOAN_AGE_LIMIT && (
+                      <button
+                        type="button"
+                        className="btn btn-small"
+                        disabled={!canLose || p.onLoan.length >= MAX_LOANS}
+                        onClick={() => dispatch({ t: 'lend', id: f.id }) && setOpen(null)}
+                      >
+                        Emprestar por 1 temporada
                       </button>
                     )}
                     <button type="button" className="btn btn-small" disabled={!canLose} onClick={() => dispatch({ t: 'sell', id: f.id }) && setOpen(null)}>

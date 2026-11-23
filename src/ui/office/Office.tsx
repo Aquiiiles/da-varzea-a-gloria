@@ -10,8 +10,9 @@ import { OverviewTab } from './OverviewTab';
 import { SquadTab } from './SquadTab';
 import { StadiumTab } from './StadiumTab';
 import { YouthTab } from './YouthTab';
+import { TrophyRoom } from '../TrophyRoom';
 
-export type TabId = 'painel' | 'elenco' | 'base' | 'mercado' | 'estadio' | 'clube';
+export type TabId = 'painel' | 'elenco' | 'base' | 'mercado' | 'estadio' | 'clube' | 'trofeus';
 
 const TABS: { id: TabId; label: string }[] = [
   { id: 'painel', label: 'Painel' },
@@ -20,6 +21,7 @@ const TABS: { id: TabId; label: string }[] = [
   { id: 'mercado', label: 'Mercado' },
   { id: 'estadio', label: 'Estádio' },
   { id: 'clube', label: 'Clube' },
+  { id: 'trofeus', label: 'Troféus' },
 ];
 
 export interface TabProps {
@@ -45,6 +47,7 @@ export function Office({ state, dispatch, onFast }: { state: GameState; dispatch
             {t.label}
             {t.id === 'painel' && eventPending && <span className="dot" aria-label="evento pendente" />}
             {t.id === 'base' && p.youth.length > 0 && <span className="count">{p.youth.length}</span>}
+            {t.id === 'elenco' && o.offers.some(Boolean) && <span className="dot dot-offer" aria-label="propostas recebidas" />}
           </button>
         ))}
       </nav>
@@ -56,6 +59,7 @@ export function Office({ state, dispatch, onFast }: { state: GameState; dispatch
         {tab === 'mercado' && <MarketTab {...props} />}
         {tab === 'estadio' && <StadiumTab {...props} />}
         {tab === 'clube' && <ClubTab {...props} />}
+        {tab === 'trofeus' && <TrophyRoom state={state} />}
       </div>
 
       <div className="playbar">

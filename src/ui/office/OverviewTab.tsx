@@ -1,5 +1,5 @@
 import {
-  SQUAD_MAX, TIERS, YOUTH_AGE_LIMIT, effectsCashCost, projectFinance, stadiumAllows, type Tier,
+  SQUAD_MAX, SQUAD_MIN, TIERS, YOUTH_AGE_LIMIT, effectsCashCost, marketValue, projectFinance, renewWage, stadiumAllows, type Tier,
 } from '../../engine';
 import { money } from '../format';
 import type { TabProps } from './Office';
@@ -11,8 +11,11 @@ export function OverviewTab({ state, dispatch, goTo }: TabProps) {
   const proj = projectFinance(state);
   const alerts: { text: string; tab: Parameters<TabProps['goTo']>[0] }[] = [];
 
-  const lastYear = p.squad.filter((f) => f.contract === 1);
-  if (lastYear.length > 0) alerts.push({ text: `${lastYear.length} jogador(es) no último ano de contrato: renove ou eles saem de graça.`, tab: 'elenco' });
+  const renewing = p.squad.filter((f) => f.contract === 1 && !f.leaving);
+  const raise = renewing.reduce((s, f) => s + Math.max(0, renewWage(f.ovr, f.wage, f.homegrown) - f.wage), 0);
+  if (renewing.length > 0 && raise > proj.wages * 0.08) {
+    alerts.push({ text: `${renewing.length} contrato(s) renovam sozinhos no fim da temporada, somando +${money(raise)} na folha. Libere quem você não quer manter.`, tab: 'elenco' });
+  }
   const aging = p.youth.filter((y) => y.age >= YOUTH_AGE_LIMIT);
   if (aging.length > 0) alerts.push({ text: `${aging.length} garoto(s) da base com ${YOUTH_AGE_LIMIT} anos: promova ou eles vão embora.`, tab: 'base' });
   if (p.tier > 1 && !stadiumAllows(p.capacity + p.capacityBuilding, (p.tier - 1) as Tier)) {
@@ -42,6 +45,35 @@ export function OverviewTab({ state, dispatch, goTo }: TabProps) {
             <p className="done">Decisão: {o.event.options[o.eventChoice].label}</p>
           )}
         </section>
+      )}
+
+      {o.offers.some(Boolean) && (
+        <Section title="Propostas recebidas" note="Clubes interessados nos seus jogadores. Ignorar é recusar; elas expiram no fim da janela.">
+          <div className="opps">
+            {o.offers.map((of, idx) => {
+              if (!of) return null;
+              const f = p.squad.find((x) => x.id === of.playerId);
+              if (!f) return null;
+              const value = marketValue(f);
+              return (
+                <article key={idx} className="opp">
+                  <div>
+                    <strong>
+                      {of.club} quer {f.name} ({f.pos}, {f.ovr})
+                    </strong>
+                    <p>
+                      Oferta de {money(of.fee)} · valor de mercado {money(value)}
+                      {of.fee >= value * 1.2 ? ' · acima do valor!' : of.fee < value * 0.9 ? ' · abaixo do valor' : ''}
+                    </p>
+                  </div>
+                  <button type="button" className="btn btn-small btn-primary" disabled={p.squad.length <= SQUAD_MIN} onClick={() => dispatch({ t: 'offer', idx })}>
+                    Vender
+                  </button>
+                </article>
+              );
+            })}
+          </div>
+        </Section>
       )}
 
       <Section title="Oportunidades" note="Propostas desta janela. Aceitar é opcional; o que você ignorar some no fim da temporada.">

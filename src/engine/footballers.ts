@@ -2,7 +2,7 @@ import { TIERS } from '../data/pyramid';
 import { FIRST_NAMES, LAST_NAMES } from '../data/names';
 import { clamp } from './util';
 import type { Rng } from './rng';
-import type { Footballer, Position, Tier } from './types';
+import type { Footballer, Listing, ListingProfile, Offer, Position, Tier } from './types';
 
 /** Pontos (overall, salário anual em mil £) — interpolação em escala log. */
 const WAGE_CURVE: [number, number][] = [
@@ -170,14 +170,14 @@ export interface GrowthContext {
 export function develop(rng: Rng, p: Footballer, ctx: GrowthContext): void {
   const a = p.age;
   let delta: number;
-  if (a <= 20) delta = 3.5;
-  else if (a <= 23) delta = 2.5;
-  else if (a <= 26) delta = 1.2;
+  if (a <= 20) delta = 2.6;
+  else if (a <= 23) delta = 1.7;
+  else if (a <= 26) delta = 0.7;
   else if (a <= 29) delta = 0.2;
   else if (a <= 31) delta = -1;
   else if (a <= 33) delta = -2.2;
   else delta = -3.8;
-  if (a <= 26) delta += ctx.ct * 0.35 + (ctx.inEleven ? 0.6 : 0);
+  if (a <= 26) delta += ctx.ct * 0.3 + (ctx.inEleven ? 0.4 : 0);
   if (ctx.youth) delta += 1 + (ctx.academy ?? 0) * 0.4;
   if (delta < 0) delta += ctx.fitness * 0.3;
   delta += rng.normal(1.2);
@@ -249,17 +249,65 @@ export function tryoutCost(tier: Tier): number {
   return Math.round(8 * Math.sqrt(TIERS[tier].moneyScale));
 }
 
-/** Mercado da temporada: 8 jogadores em torno do nível da divisão. */
-export function marketListings(rng: Rng, tier: Tier, scout: number, nextId: () => number, season: number, clubNames: string[]) {
+interface ProfileSpec {
+  profile: ListingProfile;
+  count: number;
+  age: [number, number];
+  rel: [number, number];
+  potBoost: number;
+  wage: [number, number];
+  fee: [number, number];
+  contract: [number, number];
+}
+
+/** Composição do mercado: 12 jogadores por janela. */
+const MARKET_MIX: ProfileSpec[] = [
+  { profile: 'promessa', count: 3, age: [17, 21], rel: [-7, -1], potBoost: 4, wage: [1, 1.15], fee: [1.1, 1.5], contract: [3, 4] },
+  { profile: 'pronto', count: 5, age: [23, 29], rel: [-3, 4], potBoost: 0, wage: [1.05, 1.3], fee: [1.1, 1.4], contract: [2, 3] },
+  { profile: 'veterano', count: 2, age: [30, 33], rel: [-1, 4], potBoost: 0, wage: [1.3, 1.6], fee: [1, 1.3], contract: [1, 2] },
+  { profile: 'livre', count: 2, age: [28, 34], rel: [-4, 2], potBoost: 0, wage: [1.4, 1.7], fee: [0, 0], contract: [1, 1] },
+];
+
+export function marketListings(rng: Rng, tier: Tier, scout: number, nextId: () => number, season: number, clubNames: string[]): Listing[] {
   const mean = TIERS[tier].meanStrength;
-  const out = [];
-  for (let i = 0; i < 8; i++) {
-    const free = i === 7; // sempre um jogador sem clube (sem taxa, salário alto, veterano)
-    const age = free ? rng.int(29, 34) : rng.int(18, 32);
-    const ovr = mean + (free ? rng.int(-2, 3) : rng.int(-4, 7)) + (scout >= 3 ? 1 : 0);
-    const p = makeFootballer(rng, { id: nextId(), ovr, age, scout, season, contract: free ? 1 : 3, wageMult: free ? 1.4 : rng.float(1, 1.25) });
-    const fee = free ? 0 : Math.round(marketValue(p) * rng.float(1.05, 1.35));
-    out.push({ player: p, fee, from: free ? 'Sem clube' : rng.pick(clubNames) });
+  const out: Listing[] = [];
+  for (const spec of MARKET_MIX) {
+    for (let i = 0; i < spec.count; i++) {
+      const age = rng.int(spec.age[0], spec.age[1]);
+      const ovr = mean + rng.int(spec.rel[0], spec.rel[1]) + (scout >= 3 ? 1 : 0);
+      const p = makeFootballer(rng, {
+        id: nextId(),
+        ovr,
+        age,
+        potBoost: spec.potBoost,
+        scout,
+        season,
+        contract: rng.int(spec.contract[0], spec.contract[1]),
+        wageMult: rng.float(spec.wage[0], spec.wage[1]),
+      });
+      const fee = spec.fee[1] === 0 ? 0 : Math.round(marketValue(p) * rng.float(spec.fee[0], spec.fee[1]));
+      out.push({ player: p, fee, from: spec.profile === 'livre' ? 'Sem clube' : rng.pick(clubNames), profile: spec.profile });
+    }
   }
   return out;
+}
+
+/**
+ * Propostas dos clubes da IA pelos seus jogadores. Destaques e jovens promissores atraem mais interesse;
+ * clubes de divisões acima pagam acima do valor de mercado.
+ */
+export function incomingOffers(rng: Rng, squad: readonly Footballer[], tier: Tier, buyers: { name: string; tier: Tier }[]): Offer[] {
+  const mean = TIERS[tier].meanStrength;
+  const offers: Offer[] = [];
+  const candidates = squad.slice().sort((a, b) => b.ovr - a.ovr || a.id - b.id);
+  for (const f of candidates) {
+    if (offers.length >= 3 || buyers.length === 0) break;
+    const star = Math.max(0, f.ovr - mean) * 0.03;
+    const prospect = f.age <= 23 && f.potHi >= mean + 5 ? 0.12 : 0;
+    if (!rng.chance(Math.min(0.4, 0.03 + star + prospect))) continue;
+    const buyer = rng.pick(buyers);
+    const premium = 1 + (tier - buyer.tier) * 0.08;
+    offers.push({ playerId: f.id, fee: Math.round(marketValue(f) * rng.float(0.75, 1.15) * premium), club: buyer.name, clubTier: buyer.tier });
+  }
+  return offers;
 }

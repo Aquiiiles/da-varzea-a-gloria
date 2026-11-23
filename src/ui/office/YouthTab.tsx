@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { SQUAD_MAX, YOUTH_AGE_LIMIT, YOUTH_MAX, marketWage, tryoutCost } from '../../engine';
+import { MAX_LOANS, SQUAD_MAX, YOUTH_AGE_LIMIT, YOUTH_MAX, marketWage, tryoutCost } from '../../engine';
 import { money, weekly } from '../format';
 import type { TabProps } from './Office';
 import { PlayerLine, Section } from './common';
@@ -48,6 +48,9 @@ export function YouthTab({ state, dispatch, goTo }: TabProps) {
                 >
                   Promover ao profissional ({weekly(marketWage(y.ovr) * 0.8)}, 4 anos)
                 </button>
+                <button type="button" className="btn btn-small" disabled={p.onLoan.length >= MAX_LOANS} onClick={() => dispatch({ t: 'lend', id: y.id }) && setOpen(null)}>
+                  Emprestar por 1 temporada (joga mais, evolui mais)
+                </button>
                 <button type="button" className="btn btn-small btn-danger" onClick={() => dispatch({ t: 'cut', id: y.id }) && setOpen(null)}>
                   Dispensar
                 </button>
@@ -56,6 +59,16 @@ export function YouthTab({ state, dispatch, goTo }: TabProps) {
           </ul>
         )}
       </Section>
+
+      {p.onLoan.length > 0 && (
+        <Section title={`Emprestados (${p.onLoan.length}/${MAX_LOANS})`} note="Voltam no fim da temporada, com mais rodagem. O clube que pegou emprestado paga o salário.">
+          <ul className="pl-list">
+            {p.onLoan.map((f) => (
+              <PlayerLine key={f.id} f={f} tier={p.tier} meta="emprestado" />
+            ))}
+          </ul>
+        </Section>
+      )}
 
       <Section
         title="Peneira"

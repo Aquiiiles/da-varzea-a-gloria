@@ -44,7 +44,13 @@ export interface Footballer {
   joined: number;
   /** cria da base? */
   homegrown: boolean;
+  /** marcado para NÃO renovar: sai de graça quando o contrato acabar */
+  leaving?: boolean;
+  /** emprestado a partir da base (volta para a base) */
+  loanFromYouth?: boolean;
 }
+
+export type ListingProfile = 'promessa' | 'pronto' | 'veterano' | 'livre';
 
 /** Jogador à venda no mercado. */
 export interface Listing {
@@ -52,6 +58,15 @@ export interface Listing {
   fee: number;
   /** clube vendedor (texto) */
   from: string;
+  profile: ListingProfile;
+}
+
+/** Proposta de um clube da IA por um jogador seu. */
+export interface Offer {
+  playerId: number;
+  fee: number;
+  club: string;
+  clubTier: Tier;
 }
 
 /* ------------------------------ Clube do jogador ------------------------------ */
@@ -89,6 +104,8 @@ export interface PlayerClub extends Club {
   sponsors: Sponsor[];
   squad: Footballer[];
   youth: Footballer[];
+  /** emprestados a outros clubes nesta temporada (voltam no fim) */
+  onLoan: Footballer[];
   /** ex-jogadores (para o ídolo) */
   alumni: Footballer[];
   rivalId: string;
@@ -151,7 +168,9 @@ export type Action =
   | { t: 'buy'; idx: number } // compra a listagem idx do mercado
   | { t: 'sell'; id: number }
   | { t: 'release'; id: number }
-  | { t: 'renew'; id: number }
+  | { t: 'leave'; id: number } // alterna "não renovar" (sai de graça no fim do contrato)
+  | { t: 'offer'; idx: number } // aceita a proposta idx
+  | { t: 'lend'; id: number } // empresta um jovem por uma temporada
   | { t: 'promote'; id: number } // base → profissional
   | { t: 'cut'; id: number } // dispensa da base
   | { t: 'tryout' } // faz a peneira
@@ -232,6 +251,8 @@ export interface SeasonResult {
   headlines: string[];
   /** saídas e chegadas automáticas (aposentadoria, contrato) */
   departures: string[];
+  /** renovações automáticas feitas no fim da temporada */
+  renewals: string[];
 }
 
 /* ------------------------------ Estado ------------------------------ */
@@ -246,6 +267,8 @@ export interface Foundation {
 
 export interface SeasonOffice {
   market: (Listing | null)[];
+  /** propostas recebidas (null = já aceita) */
+  offers: (Offer | null)[];
   /** candidatos da peneira (null = já contratado) */
   tryout: (Footballer | null)[] | null;
   opportunities: { opp: Opportunity; taken: boolean }[];

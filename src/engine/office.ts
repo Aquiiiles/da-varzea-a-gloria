@@ -28,9 +28,14 @@ export function releaseCost(state: GameState, id: number): number {
   return f ? Math.round(f.wage * f.contract * 0.5) : 0;
 }
 
-/** Salário pedido na renovação: o de mercado + 10%. Cria da base aceita o valor de mercado, sem os 10%. */
+/**
+ * Salário na renovação: valor de mercado do overall ATUAL (veterano em queda aceita redução).
+ * Quem evoluiu pede 10% a mais; cria da base aceita 5% a menos.
+ */
 export function renewWage(ovr: number, currentWage: number, homegrown = false): number {
-  return round1(Math.max(currentWage, marketWage(ovr) * (homegrown ? 1 : 1.1)));
+  const market = marketWage(ovr);
+  const mult = homegrown ? 0.95 : market > currentWage ? 1.1 : 1;
+  return round1(market * mult);
 }
 
 export function effectsCashCost(state: GameState, effects: readonly Effect[]): number {

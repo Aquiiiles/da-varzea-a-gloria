@@ -79,6 +79,17 @@ export function SeasonSummary({ result: r, state, onNext, onFast, fast }: Props)
         </div>
       </div>
 
+      {r.renewals.length > 0 && (
+        <div className="box departures">
+          <h3>Renovações automáticas</h3>
+          <ul>
+            {r.renewals.map((d, i) => (
+              <li key={i}>{d}</li>
+            ))}
+          </ul>
+        </div>
+      )}
+
       {r.departures.length > 0 && (
         <div className="box departures">
           <h3>Movimentação do elenco</h3>

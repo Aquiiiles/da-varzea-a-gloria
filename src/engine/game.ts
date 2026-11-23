@@ -1,16 +1,16 @@
 import { EVENTS, EVENT_CHANCE } from '../data/events';
 import { OPPORTUNITIES } from '../data/opportunities';
-import { ALL_TIERS, FACILITY_COST, MAX_SEASONS, SQUAD_MAX, SQUAD_MIN, STAFF_WAGE, TIERS, YOUTH_MAX } from '../data/pyramid';
+import { ALL_TIERS, FACILITY_COST, LOAN_AGE_LIMIT, MAX_LOANS, MAX_SEASONS, SQUAD_MAX, SQUAD_MIN, STAFF_WAGE, TIERS, YOUTH_MAX } from '../data/pyramid';
 import { generateWorld, initials } from './clubs';
 import { applyEffects, nextId } from './effects';
-import { foundingSquad, marketListings, marketWage, round1, tryoutCandidates, tryoutCost, youthIntake } from './footballers';
+import { foundingSquad, incomingOffers, marketListings, marketWage, round1, tryoutCandidates, tryoutCost, youthIntake } from './footballers';
 import { deriveRng } from './rng';
 import { PLAYER_ID, simulateSeason } from './season';
 import type { Action, Foundation, GameEvent, GameState, Opportunity, Origin, PlayerClub, Tier } from './types';
 import { runAssistant } from './assistant';
 import { ActionError } from './util';
 export { ActionError };
-import { effectsCashCost, loanFor, releaseCost, renewWage, seatsFor, sellPrice } from './office';
+import { effectsCashCost, loanFor, releaseCost, seatsFor, sellPrice } from './office';
 
 interface OriginPreset {
   label: string;
@@ -27,7 +27,7 @@ interface OriginPreset {
 export const ORIGINS: Record<Origin, OriginPreset> = {
   pub: {
     label: 'Time de pub', blurb: 'Torcida e alma altas, pouco dinheiro.',
-    cash: 25, fans: 380, soul: 85, hype: 10, squadMean: 47, capacity: 400,
+    cash: 25, fans: 320, soul: 85, hype: 10, squadMean: 46.5, capacity: 400,
   },
   fabrica: {
     label: 'Time de fábrica', blurb: 'Patrocinador fixo (renda estável), torcida pequena.',
@@ -79,6 +79,7 @@ export function newGame(seed: number, foundation: Foundation): GameState {
     sponsors: preset.sponsor ? [{ ...preset.sponsor, seasonsLeft: null }] : [],
     squad,
     youth: [],
+    onLoan: [],
     alumni: [],
     rivalId: rival.id,
     rivalHatred: 30,
@@ -106,7 +107,7 @@ export function newGame(seed: number, foundation: Foundation): GameState {
 }
 
 function emptyOffice(): GameState['office'] {
-  return { market: [], tryout: null, opportunities: [], event: null, eventChoice: null, built: { seats: false, facility: false, loan: false } };
+  return { market: [], offers: [], tryout: null, opportunities: [], event: null, eventChoice: null, built: { seats: false, facility: false, loan: false } };
 }
 
 function tierAllowed(tier: Tier, item: { minTier?: Tier; maxTier?: Tier }): boolean {
@@ -125,6 +126,13 @@ function startSeason(state: GameState): void {
 
   const names = ALL_TIERS.flatMap((t) => state.world[t].map((c) => c.name));
   office.market = marketListings(deriveRng(state.seed, s, 'market'), p.tier, p.staff.scout, ids, s, names);
+  const buyers = ALL_TIERS.filter((t) => t <= p.tier && t >= p.tier - 2).flatMap((t) => state.world[t].map((c) => ({ name: c.name, tier: t })));
+  const offers = incomingOffers(deriveRng(state.seed, s, 'offers'), p.squad, p.tier, buyers);
+  office.offers = offers;
+  for (const of of offers) {
+    const f = p.squad.find((x) => x.id === of.playerId)!;
+    state.news.push(`${of.club} faz proposta de £ ${of.fee} mil por ${f.name}`);
+  }
 
   const intake = youthIntake(deriveRng(state.seed, s, 'youth'), p.facilities.academy, p.staff.scout, p.tier, ids, s);
   for (const y of intake) if (p.youth.length < YOUTH_MAX) p.youth.push(y);
@@ -234,12 +242,39 @@ export function applyMut(state: GameState, a: Action): void {
       p.alumni.push(f);
       return;
     }
-    case 'renew': {
+    case 'leave': {
       const f = p.squad.find((x) => x.id === a.id);
       if (!f) fail('jogador não encontrado');
-      if (f.contract !== 1) fail('só dá para renovar no último ano de contrato');
-      f.wage = renewWage(f.ovr, f.wage, f.homegrown);
-      f.contract = 4;
+      f.leaving = !f.leaving;
+      return;
+    }
+    case 'offer': {
+      const of = o.offers[a.idx];
+      if (!of) fail('proposta indisponível');
+      const f = p.squad.find((x) => x.id === of.playerId);
+      if (!f) fail('o jogador já não está no clube');
+      if (p.squad.length <= SQUAD_MIN) fail(`o elenco precisa de pelo menos ${SQUAD_MIN} jogadores`);
+      p.cash += of.fee;
+      p.squad = p.squad.filter((x) => x.id !== f.id);
+      p.alumni.push(f);
+      if (f.homegrown) p.soul = Math.max(0, p.soul - 1);
+      o.offers[a.idx] = null;
+      state.news.push(`${f.name} é vendido ao ${of.club} por £ ${of.fee} mil`);
+      return;
+    }
+    case 'lend': {
+      if (p.onLoan.length >= MAX_LOANS) fail(`no máximo ${MAX_LOANS} emprestados`);
+      const inYouth = p.youth.find((x) => x.id === a.id);
+      const inSquad = p.squad.find((x) => x.id === a.id);
+      const f = inYouth ?? inSquad;
+      if (!f) fail('jogador não encontrado');
+      if (f.age > LOAN_AGE_LIMIT) fail(`só jogadores até ${LOAN_AGE_LIMIT} anos podem ser emprestados`);
+      if (inSquad && p.squad.length <= SQUAD_MIN) fail(`o elenco precisa de pelo menos ${SQUAD_MIN} jogadores`);
+      p.youth = p.youth.filter((x) => x.id !== a.id);
+      p.squad = p.squad.filter((x) => x.id !== a.id);
+      f.loanFromYouth = !!inYouth;
+      p.onLoan.push(f);
+      state.news.push(`${f.name} é emprestado para ganhar rodagem`);
       return;
     }
     case 'promote': {

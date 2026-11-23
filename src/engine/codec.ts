@@ -25,7 +25,9 @@ export function encodeAction(a: Action): string {
     case 'buy': return `b${a.idx}`;
     case 'sell': return `s${a.id}`;
     case 'release': return `r${a.id}`;
-    case 'renew': return `n${a.id}`;
+    case 'leave': return `q${a.id}`;
+    case 'offer': return `w${a.idx}`;
+    case 'lend': return `d${a.id}`;
     case 'promote': return `p${a.id}`;
     case 'cut': return `x${a.id}`;
     case 'tryout': return 't';
@@ -51,7 +53,9 @@ export function decodeAction(tok: string): Action | null {
     case 'b': return Number.isNaN(n) ? null : { t: 'buy', idx: n };
     case 's': return Number.isNaN(n) ? null : { t: 'sell', id: n };
     case 'r': return Number.isNaN(n) ? null : { t: 'release', id: n };
-    case 'n': return Number.isNaN(n) ? null : { t: 'renew', id: n };
+    case 'q': return Number.isNaN(n) ? null : { t: 'leave', id: n };
+    case 'w': return Number.isNaN(n) ? null : { t: 'offer', idx: n };
+    case 'd': return Number.isNaN(n) ? null : { t: 'lend', id: n };
     case 'p': return Number.isNaN(n) ? null : { t: 'promote', id: n };
     case 'x': return Number.isNaN(n) ? null : { t: 'cut', id: n };
     case 't': return rest === '' ? { t: 'tryout' } : null;

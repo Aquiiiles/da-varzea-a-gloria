@@ -3,6 +3,7 @@ import { ActionError, apply, decodeRun, encodeRun, newGame, replay, seedFromEntr
 import { FoundationScreen } from './FoundationScreen';
 import { GameScreen } from './GameScreen';
 import { Ticker } from './Ticker';
+import { saveCareer } from '../storage';
 
 /** Seed nova vem da UI (o motor nunca gera entropia). */
 function freshSeed(): number {
@@ -46,7 +47,22 @@ export function App() {
     return () => clearTimeout(t);
   }, [toast]);
 
-  const start = useCallback((f: Foundation) => setState(newGame(freshSeed(), f)), []);
+  const start = useCallback((f: Foundation) => {
+    const s = newGame(freshSeed(), f);
+    saveCareer(s);
+    setState(s);
+  }, []);
+
+  /** Continua uma carreira salva (reconstrói pelo log de ações). */
+  const resume = useCallback((query: string) => {
+    const code = decodeRun(query);
+    if (!code) return setToast('Save inválido.');
+    try {
+      setState(replay(code.seed, code.foundation, code.actions));
+    } catch {
+      setToast('Não foi possível carregar este save.');
+    }
+  }, []);
 
   /** Aplica uma ou mais ações em sequência; para na primeira inválida e mostra o motivo. */
   const dispatch: Dispatch = useCallback((...actions: Action[]) => {
@@ -60,6 +76,7 @@ export function App() {
           setToast(e.message);
           stateRef.current = s;
           setState(s);
+          saveCareer(s);
           return false;
         }
         throw e;
@@ -67,6 +84,7 @@ export function App() {
     }
     stateRef.current = s;
     setState(s);
+    saveCareer(s);
     return true;
   }, []);
 
@@ -85,7 +103,7 @@ export function App() {
         {state ? (
           <GameScreen state={state} dispatch={dispatch} onRestart={restart} fromLink={fromLink} />
         ) : (
-          <FoundationScreen onStart={start} />
+          <FoundationScreen onStart={start} onResume={resume} />
         )}
       </main>
       {toast && (

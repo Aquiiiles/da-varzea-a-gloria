@@ -1,8 +1,9 @@
-import { ALL_TIERS, BOTTOM_TIER, SQUAD_MIN, START_YEAR, TIERS, YOUTH_AGE_LIMIT } from '../data/pyramid';
+import { ALL_TIERS, BOTTOM_TIER, SQUAD_MAX, SQUAD_MIN, START_YEAR, TIERS, YOUTH_AGE_LIMIT, YOUTH_MAX } from '../data/pyramid';
 import { driftClub, makeClub } from './clubs';
 import { nextId } from './effects';
 import { TICKET_POLICY, seasonFinance } from './finance';
-import { bestEleven, develop, makeFootballer, marketValue, retires, squadStrength } from './footballers';
+import { bestEleven, develop, makeFootballer, marketValue, marketWage, retires, round1, squadStrength } from './footballers';
+import { renewWage } from './office';
 import { simulateLeague, simulatePlayoff, type LeagueContext } from './league';
 import { BASE_HOME_ADVANTAGE } from './match';
 import { deriveRng, type Rng } from './rng';
@@ -60,7 +61,7 @@ export function simulateSeason(state: GameState): SeasonResult {
       if (id === PLAYER_ID) return pStrength;
       let s = byId.get(id)!.strength;
       if (opp === PLAYER_ID) {
-        if (p.origin === 'youtuber') s += 1; // todo mundo quer ganhar do time do YouTuber
+        if (p.origin === 'youtuber') s += 0.5; // todo mundo quer ganhar do time do YouTuber
         if (id === p.rivalId) s += rivalBonus;
       }
       return s;
@@ -234,6 +235,7 @@ export function simulateSeason(state: GameState): SeasonResult {
     strength: Math.round(pStrength * 10) / 10,
     headlines,
     departures,
+    renewals: [],
   };
 
   // ---------------------- evolução para a próxima temporada ----------------------
@@ -269,6 +271,18 @@ function distributeGoals(rng: Rng, squad: Footballer[], goals: number, games: nu
   return top;
 }
 
+/** Chance de o jogador recusar a renovação automática. */
+export function refusalChance(f: Footballer, starter: boolean): number {
+  let c = starter ? 0.1 : f.age >= 27 ? 0.4 : 0.2;
+  if (f.homegrown) c -= 0.08;
+  return Math.max(0, c);
+}
+
+/** Teto salarial que o clube topa numa renovação automática. */
+export function renewalCap(tier: Tier, currentWage: number): number {
+  return Math.max(marketWage(TIERS[tier].meanStrength + 6), currentWage * 1.5);
+}
+
 function evolveClub(state: GameState, result: SeasonResult): void {
   const p = state.player;
   const rng = deriveRng(state.seed, state.season, 'evolve');
@@ -283,9 +297,25 @@ function evolveClub(state: GameState, result: SeasonResult): void {
     if (retires(rng, f)) {
       deps.push(`${f.name} (${f.age} anos) pendura as chuteiras`);
       p.alumni.push(f);
-    } else if (f.contract <= 0) {
+    } else if (f.contract <= 0 && f.leaving) {
       deps.push(`${f.name} sai de graça: contrato encerrado`);
       p.alumni.push(f);
+    } else if (f.contract <= 0 && renewWage(f.ovr, f.wage, f.homegrown) > renewalCap(result.nextTier, f.wage)) {
+      // cresceu demais para o clube: pede salário de divisão de cima e é vendido a um gigante
+      const fee = Math.round(marketValue(f) * 0.1); // fim de contrato: só a compensação por formação
+      p.cash += fee;
+      p.alumni.push(f);
+      deps.push(`${f.name} (${f.ovr}) recusa renovar e sai para um clube maior (compensação de £ ${fee} mil)`);
+    } else if (f.contract <= 0 && rng.chance(refusalChance(f, ids.has(f.id)))) {
+      deps.push(`${f.name} não aceita renovar: ${ids.has(f.id) ? 'quer novos ares' : 'quer mais minutos em outro clube'}`);
+      p.alumni.push(f);
+    } else if (f.contract <= 0) {
+      // renovação automática: salário de mercado (com o overall novo), veteranos por 1 ano
+      const old = f.wage;
+      f.wage = renewWage(f.ovr, f.wage, f.homegrown);
+      f.contract = f.age >= 32 ? 1 : 3;
+      result.renewals.push(`${f.name} renova por ${f.contract} ano(s)${f.wage > old ? ` com aumento de £ ${Math.round(f.wage - old)} mil/temp.` : ''}`);
+      stay.push(f);
     } else {
       stay.push(f);
     }
@@ -300,6 +330,27 @@ function evolveClub(state: GameState, result: SeasonResult): void {
     else youthStay.push(y);
   }
   p.youth = youthStay;
+
+  // emprestados voltam: jogaram muito, evoluem mais
+  for (const f of p.onLoan) {
+    develop(rng, f, { ct: 0, fitness: 0, inEleven: true, youth: f.age < YOUTH_AGE_LIMIT, academy: 1 });
+    if (f.contract > 0) f.contract--;
+    const wasYouth = !!f.loanFromYouth;
+    delete f.loanFromYouth;
+    if (wasYouth && f.age <= YOUTH_AGE_LIMIT && p.youth.length < YOUTH_MAX) {
+      p.youth.push(f);
+    } else if (p.squad.length < SQUAD_MAX) {
+      if (wasYouth) f.wage = round1(marketWage(f.ovr) * 0.8);
+      if (f.contract <= 0) f.contract = 3;
+      p.squad.push(f);
+    } else {
+      deps.push(`${f.name} volta de empréstimo e é liberado: elenco cheio`);
+      p.alumni.push(f);
+      continue;
+    }
+    deps.push(`${f.name} volta de empréstimo com ${f.ovr} de overall`);
+  }
+  p.onLoan = [];
 
   // elenco mínimo: completa com amadores da várzea
   while (p.squad.length < SQUAD_MIN) {

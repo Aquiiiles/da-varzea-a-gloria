@@ -18,3 +18,7 @@ npm run balance    # probe de balanceamento com bots (não roda no npm test)
 - `src/data/`: dados de jogo (pirâmide, cartas, eventos, nomes fictícios).
 - `src/ui/`: interface React.
 - A run fica na URL: `?s=<seed>&n=<nome>&k=<cor1>-<cor2>&o=<p|f|y>&c=<escolhas>`.
+
+## Deploy (GitHub Pages)
+
+O workflow `.github/workflows/pages.yml` roda os testes, faz o build e publica `dist/` no GitHub Pages a cada push na `main` (ou manualmente pela aba Actions). No repositório, a opção *Settings → Pages → Source* precisa estar em **GitHub Actions**.

@@ -72,7 +72,78 @@ export interface Offer {
 /* ------------------------------ Clube do jogador ------------------------------ */
 
 export type Facility = 'ct' | 'academy' | 'medical';
-export type StaffRole = 'coach' | 'scout' | 'fitness';
+export type StaffRole = 'scout' | 'fitness';
+export type CoachStyle = 'ofensivo' | 'retranqueiro' | 'formador' | 'motivador' | 'estrategista';
+export type BusinessId = 'bar' | 'loja' | 'escolinha' | 'estacionamento' | 'foodtruck';
+export type DelegateArea = 'contratos' | 'base' | 'mercado' | 'estadio';
+
+export interface Coach {
+  name: string;
+  style: CoachStyle;
+  /** 0–4: bônus de força de 0,5 por nível */
+  rating: number;
+  /** salário anual (mil £) */
+  wage: number;
+  age: number;
+}
+
+export type CompetitionId = 'copa' | 'cc' | 'le' | 'mundial';
+
+export interface CupMatch {
+  round: string;
+  opponent: string;
+  /** divisão do adversário na pirâmide (null = clube estrangeiro) */
+  opponentTier: Tier | null;
+  home: boolean;
+  result: MatchResult;
+  won: boolean;
+  /** vitória contra clube 3+ divisões acima */
+  giantKill: boolean;
+}
+
+export interface CupRun {
+  id: CompetitionId;
+  name: string;
+  matches: CupMatch[];
+  champion: boolean;
+  /** fase em que caiu (ou "Campeão") */
+  reached: string;
+  prize: number;
+}
+
+export type ObjectiveKind = 'subir' | 'brigar' | 'meio' | 'nao_cair' | 'titulo' | 'top4' | 'classico' | 'copa' | 'base' | 'casa';
+
+export interface Objective {
+  kind: ObjectiveKind;
+  text: string;
+  /** objetivo principal (da diretoria) ou bônus (da torcida) */
+  main: boolean;
+  /** parâmetro (ex.: posição máxima, fase da copa) */
+  target: number;
+  met?: boolean;
+}
+
+/** Lance de um jogo ao vivo. */
+export interface LiveEvent {
+  minute: number;
+  kind: 'gol' | 'chance' | 'defesa' | 'cartao' | 'apito' | 'penaltis';
+  /** true = lance do clube do jogador */
+  mine: boolean;
+  text: string;
+  score: [number, number];
+}
+
+export interface LiveMoment {
+  kind: 'playoff' | 'ultima_rodada' | 'zebra' | 'final_copa' | 'final_cc' | 'final_le' | 'mundial' | 'classico';
+  title: string;
+  stake: string;
+  homeName: string;
+  awayName: string;
+  /** o jogador é o mandante? */
+  playerHome: boolean;
+  result: MatchResult;
+  events: LiveEvent[];
+}
 export type TicketPolicy = 0 | 1 | 2; // popular, normal, caro
 
 export interface Sponsor {
@@ -101,6 +172,18 @@ export interface PlayerClub extends Club {
   ticket: TicketPolicy;
   facilities: Record<Facility, number>; // 0–5
   staff: Record<StaffRole, number>; // 0–4
+  coach: Coach;
+  businesses: Record<BusinessId, number>; // 0–3
+  /** torcedômetro 0–100 */
+  mood: number;
+  /** áreas entregues ao assistente (rodam sozinhas a cada temporada) */
+  delegate: Record<DelegateArea, boolean>;
+  /** competição continental desta temporada */
+  continental: 'cc' | 'le' | null;
+  /** disputa o Mundial nesta temporada */
+  worldCup: boolean;
+  /** histórico do clássico (liga e copas) */
+  derby: { w: number; d: number; l: number };
   sponsors: Sponsor[];
   squad: Footballer[];
   youth: Footballer[];
@@ -178,6 +261,9 @@ export type Action =
   | { t: 'seats'; size: 0 | 1 | 2 }
   | { t: 'facility'; which: Facility }
   | { t: 'staff'; which: StaffRole; dir: 1 | -1 }
+  | { t: 'coach'; idx: number } // contrata o candidato idx a técnico
+  | { t: 'business'; which: BusinessId }
+  | { t: 'delegate'; area: DelegateArea }
   | { t: 'ticket'; level: TicketPolicy }
   | { t: 'loan'; size: 0 | 1 }
   | { t: 'opp'; idx: number } // aceita a oportunidade idx
@@ -195,6 +281,8 @@ export interface MatchResult {
   ag: number;
   pens?: [number, number];
   extraTime?: boolean;
+  /** placar ao fim dos 90 minutos (quando houve prorrogação) */
+  reg?: [number, number];
   winner?: string;
 }
 
@@ -225,6 +313,10 @@ export interface FinanceReport {
   wages: number;
   staff: number;
   upkeep: number;
+  /** comércio local (bar, loja...) */
+  commerce: number;
+  /** premiações de copa e bônus de objetivos */
+  prizes: number;
   net: number;
   cashEnd: number;
   attendance: number;
@@ -253,6 +345,17 @@ export interface SeasonResult {
   departures: string[];
   /** renovações automáticas feitas no fim da temporada */
   renewals: string[];
+  cups: CupRun[];
+  objectives: Objective[];
+  moments: LiveMoment[];
+  derby: { w: number; d: number; l: number } | null;
+  /** torcedômetro no fim da temporada e variação */
+  mood: number;
+  moodDelta: number;
+  /** contratações feitas na janela */
+  signings: number;
+  /** crias da base no time titular */
+  homegrownXI: number;
 }
 
 /* ------------------------------ Estado ------------------------------ */
@@ -275,7 +378,12 @@ export interface SeasonOffice {
   event: GameEvent | null;
   eventChoice: 0 | 1 | null;
   /** ações de obra/estrutura já feitas nesta temporada */
-  built: { seats: boolean; facility: boolean; loan: boolean };
+  built: { seats: boolean; facility: boolean; loan: boolean; business: boolean };
+  coaches: (Coach | null)[];
+  objectives: Objective[];
+  /** contratações e vendas de crias da base nesta janela (torcida e conquistas) */
+  signings: number;
+  soldHomegrown: number;
 }
 
 export interface GameState {

@@ -5,9 +5,11 @@ import { generateWorld, initials } from './clubs';
 import { applyEffects, nextId } from './effects';
 import { foundingSquad, incomingOffers, marketListings, marketWage, round1, tryoutCandidates, tryoutCost, youthIntake } from './footballers';
 import { deriveRng } from './rng';
-import { PLAYER_ID, simulateSeason } from './season';
-import type { Action, Foundation, GameEvent, GameState, Opportunity, Origin, PlayerClub, Tier } from './types';
+import { PLAYER_ID, simulateSeason, teamStrength } from './season';
+import type { Action, DelegateArea, Foundation, GameEvent, GameState, Opportunity, Origin, PlayerClub, Tier } from './types';
 import { runAssistant } from './assistant';
+import { BUSINESSES } from '../data/club';
+import { coachCandidates, coachSeverance, expectedRank, seasonObjectives, startingCoach } from './clubops';
 import { ActionError } from './util';
 export { ActionError };
 import { effectsCashCost, loanFor, releaseCost, seatsFor, sellPrice } from './office';
@@ -75,7 +77,14 @@ export function newGame(seed: number, foundation: Foundation): GameState {
     hype: preset.hype,
     ticket: 1,
     facilities: { ct: 0, academy: 0, medical: 0 },
-    staff: { coach: 0, scout: 0, fitness: 0 },
+    staff: { scout: 0, fitness: 0 },
+    coach: startingCoach(),
+    businesses: { bar: 0, loja: 0, escolinha: 0, estacionamento: 0, foodtruck: 0 },
+    mood: 60,
+    delegate: { contratos: false, base: false, mercado: false, estadio: false },
+    continental: null,
+    worldCup: false,
+    derby: { w: 0, d: 0, l: 0 },
     sponsors: preset.sponsor ? [{ ...preset.sponsor, seasonsLeft: null }] : [],
     squad,
     youth: [],
@@ -107,7 +116,7 @@ export function newGame(seed: number, foundation: Foundation): GameState {
 }
 
 function emptyOffice(): GameState['office'] {
-  return { market: [], offers: [], tryout: null, opportunities: [], event: null, eventChoice: null, built: { seats: false, facility: false, loan: false } };
+  return { market: [], offers: [], tryout: null, opportunities: [], event: null, eventChoice: null, built: { seats: false, facility: false, loan: false, business: false }, coaches: [], objectives: [], signings: 0, soldHomegrown: 0 };
 }
 
 function tierAllowed(tier: Tier, item: { minTier?: Tier; maxTier?: Tier }): boolean {
@@ -148,6 +157,10 @@ function startSeason(state: GameState): void {
   office.opportunities = picked.map((opp) => ({ opp, taken: false }));
 
   office.event = drawEvent(state);
+  office.coaches = coachCandidates(deriveRng(state.seed, s, 'coaches'), p.tier);
+  const rival = state.world[p.tier].find((c) => c.id === p.rivalId);
+  const expected = expectedRank(teamStrength(state), state.world[p.tier].map((c) => c.strength));
+  office.objectives = seasonObjectives(deriveRng(state.seed, s, 'objectives'), p.tier, expected, !!rival);
   state.office = office;
 }
 
@@ -216,6 +229,7 @@ export function applyMut(state: GameState, a: Action): void {
       p.cash -= l.fee;
       p.squad.push({ ...l.player, joined: state.season });
       o.market[a.idx] = null;
+      o.signings++;
       state.news.push(`${p.name} contrata ${l.player.name} (${l.player.pos}, ${l.player.ovr})${l.fee > 0 ? ` por £ ${l.fee} mil` : ' sem custo de transferência'}`);
       return;
     }
@@ -227,7 +241,10 @@ export function applyMut(state: GameState, a: Action): void {
       p.cash += fee;
       p.squad = p.squad.filter((x) => x.id !== a.id);
       p.alumni.push(f);
-      if (f.homegrown) p.soul = Math.max(0, p.soul - 1);
+      if (f.homegrown) {
+        p.soul = Math.max(0, p.soul - 1);
+        o.soldHomegrown++;
+      }
       state.news.push(`${f.name} é vendido por £ ${fee} mil`);
       return;
     }
@@ -257,7 +274,10 @@ export function applyMut(state: GameState, a: Action): void {
       p.cash += of.fee;
       p.squad = p.squad.filter((x) => x.id !== f.id);
       p.alumni.push(f);
-      if (f.homegrown) p.soul = Math.max(0, p.soul - 1);
+      if (f.homegrown) {
+        p.soul = Math.max(0, p.soul - 1);
+        o.soldHomegrown++;
+      }
       o.offers[a.idx] = null;
       state.news.push(`${f.name} é vendido ao ${of.club} por £ ${of.fee} mil`);
       return;
@@ -343,6 +363,32 @@ export function applyMut(state: GameState, a: Action): void {
     case 'ticket':
       p.ticket = a.level;
       return;
+    case 'coach': {
+      const c = o.coaches[a.idx];
+      if (!c) fail('candidato indisponível');
+      const fee = coachSeverance(p.coach);
+      if (p.cash < fee) fail(`caixa insuficiente para a multa do técnico atual (£ ${fee} mil)`);
+      p.cash -= fee;
+      o.coaches[a.idx] = null;
+      state.news.push(`${p.name} anuncia ${c.name} como novo técnico (${c.style})`);
+      p.coach = c;
+      return;
+    }
+    case 'business': {
+      if (o.built.business) fail('um investimento no comércio por temporada');
+      const level = p.businesses[a.which];
+      if (level >= 3) fail('nível máximo');
+      const cost = BUSINESSES.find((b) => b.id === a.which)!.cost[level];
+      if (p.cash < cost) fail('caixa insuficiente');
+      p.cash -= cost;
+      p.businesses[a.which] = level + 1;
+      o.built.business = true;
+      if (a.which === 'escolinha') p.soul = Math.min(100, p.soul + 2);
+      return;
+    }
+    case 'delegate':
+      p.delegate[a.area] = !p.delegate[a.area];
+      return;
     case 'loan': {
       if (o.built.loan) fail('um empréstimo por temporada');
       if (p.sponsors.filter((s) => s.perSeason < 0).length >= 2) fail('o banco não empresta mais: já há dois empréstimos');
@@ -379,6 +425,8 @@ export function applyMut(state: GameState, a: Action): void {
       return;
     case 'play': {
       if (o.event && o.eventChoice === null) fail('responda o evento antes de jogar');
+      const areas = (Object.keys(p.delegate) as DelegateArea[]).filter((k) => p.delegate[k]);
+      if (areas.length > 0) runAssistant(state, applyMut, areas);
       const result = simulateSeason(state);
       state.history.push(result);
       state.news.push(...result.headlines);

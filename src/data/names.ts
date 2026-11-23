@@ -41,3 +41,11 @@ export const SPONSOR_NAMES = [
   'Pastelaria do Zé', 'Auto Peças Trovão', 'Cervejaria Bigode', 'Metalúrgica Aurora',
   'Bet Relâmpago', 'Construtora Pilar', 'Fintech Kripto9', 'Supermercado Bom Preço',
 ];
+
+/** Clubes estrangeiros fictícios para as copas internacionais. */
+export const FOREIGN_PREFIX = ['Deportivo', 'Olympique', 'Dínamo', 'Sporting', 'Atlético', 'Racing', 'Unión', 'Athletic', 'Estrela', 'Inter', 'Lokomotiv', 'Royal', 'Juventude', 'Academica'];
+export const FOREIGN_CITY = [
+  'Valmira', 'Castelbruna', 'Norvik', 'Altamonte', 'Bellagra', 'Kostrava', 'Porto Azul', 'Lemberg', 'Silvara', 'Monterrio',
+  'Dravnik', 'Velaria', 'Ostrova', 'Sanmarc', 'Torvalla', 'Aranjo', 'Brennholm', 'Calvera', 'Duravia', 'Esmeralda',
+];
+export const WORLD_REGIONS = ['América do Sul', 'América do Norte', 'África', 'Ásia', 'Oceania', 'Oriente Médio', 'América Central'];

@@ -12,6 +12,9 @@ export function goalRates(homeStrength: number, awayStrength: number, homeAdv: n
   return [Math.min(6, Math.max(0.12, lh)), Math.min(6, Math.max(0.12, la))];
 }
 
+/** Multiplicadores de gol [mandante, visitante] (estilo de jogo). */
+export type GoalMult = [number, number];
+
 export function playMatch(
   rng: Rng,
   home: string,
@@ -19,9 +22,10 @@ export function playMatch(
   hs: number,
   as: number,
   homeAdv = BASE_HOME_ADVANTAGE,
+  mult: GoalMult = [1, 1],
 ): MatchResult {
   const [lh, la] = goalRates(hs, as, homeAdv);
-  return { home, away, hg: rng.poisson(lh), ag: rng.poisson(la) };
+  return { home, away, hg: rng.poisson(lh * mult[0]), ag: rng.poisson(la * mult[1]) };
 }
 
 /**
@@ -35,11 +39,15 @@ export function playKnockout(
   hs: number,
   as: number,
   homeAdv = BASE_HOME_ADVANTAGE,
+  mult: GoalMult = [1, 1],
 ): MatchResult {
-  const [lh, la] = goalRates(hs, as, homeAdv);
+  const [lh0, la0] = goalRates(hs, as, homeAdv);
+  const lh = lh0 * mult[0];
+  const la = la0 * mult[1];
   const r: MatchResult = { home, away, hg: rng.poisson(lh), ag: rng.poisson(la) };
   if (r.hg === r.ag) {
     r.extraTime = true;
+    r.reg = [r.hg, r.ag];
     r.hg += rng.poisson(lh / 3);
     r.ag += rng.poisson(la / 3);
   }

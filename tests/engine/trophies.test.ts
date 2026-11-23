@@ -13,8 +13,8 @@ describe('sala de troféus e recordes', () => {
     for (const t of trophies(s)) expect(t.years.length).toBeGreaterThan(0);
   });
 
-  it('troféus vêm ordenados da divisão mais alta para a mais baixa', () => {
-    const tiers = trophies(s).map((t) => t.tier ?? 9);
+  it('títulos de liga vêm ordenados da divisão mais alta para a mais baixa', () => {
+    const tiers = trophies(s).filter((t) => t.id.startsWith('liga-')).map((t) => t.tier ?? 9);
     expect(tiers).toEqual(tiers.slice().sort((a, b) => a - b));
   });
 

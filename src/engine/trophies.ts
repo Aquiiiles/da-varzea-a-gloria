@@ -2,6 +2,9 @@ import { START_YEAR, TIERS } from '../data/pyramid';
 import { PLAYER_ID } from './season';
 import type { GameState, Tier } from './types';
 
+const CUP_SIZE: Record<string, Trophy['size']> = { mundial: 3, cc: 3, le: 2, copa: 2 };
+const CUP_RANK: Record<string, number> = { mundial: 0, cc: 1, le: 3, copa: 13 };
+
 export interface Trophy {
   id: string;
   name: string;
@@ -22,9 +25,11 @@ export function trophies(state: GameState): Trophy[] {
   for (const r of state.history) {
     if (r.position === 1) add(`liga-${r.tier}`, `Campeão da ${TIERS[r.tier].name}`, r.tier === 1 ? 3 : r.tier <= 3 ? 2 : 1, r.year, r.tier);
     if (r.outcome === 'acesso_playoff') add(`playoff-${r.tier}`, `Playoff da ${TIERS[r.tier].name}`, 1, r.year, r.tier);
+    for (const c of r.cups) if (c.champion) add(c.id, c.name, CUP_SIZE[c.id], r.year);
   }
-  // ordena: mais importante primeiro (divisão mais alta, depois tamanho)
-  return [...map.values()].sort((a, b) => (a.tier ?? 9) - (b.tier ?? 9) || b.size - a.size);
+  // ordena: copas internacionais, depois ligas da mais alta para a mais baixa
+  const rank = (t: Trophy) => CUP_RANK[t.id] ?? 10 + (t.tier ?? 9) * 2 + (t.id.startsWith('playoff') ? 1 : 0);
+  return [...map.values()].sort((a, b) => rank(a) - rank(b));
 }
 
 export interface ClubRecords {

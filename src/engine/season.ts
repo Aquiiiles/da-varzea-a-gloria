@@ -1,17 +1,67 @@
 import { ALL_TIERS, BOTTOM_TIER, SQUAD_MAX, SQUAD_MIN, START_YEAR, TIERS, YOUTH_AGE_LIMIT, YOUTH_MAX } from '../data/pyramid';
 import { driftClub, makeClub } from './clubs';
 import { nextId } from './effects';
-import { TICKET_POLICY, seasonFinance } from './finance';
+import { TICKET_POLICY, attendance, seasonFinance } from './finance';
 import { bestEleven, develop, makeFootballer, marketValue, marketWage, retires, round1, squadStrength } from './footballers';
 import { renewWage } from './office';
-import { simulateLeague, simulatePlayoff, type LeagueContext } from './league';
-import { BASE_HOME_ADVANTAGE } from './match';
+import { continentalCup, foreignClubs, nationalCup, worldCup } from './cups';
+import { homegrownInXI } from './clubops';
+import { moment } from './live';
+import { applyResult, emptyRow, simulateLeague, simulatePlayoff, sortTable, type LeagueContext } from './league';
+import { BASE_HOME_ADVANTAGE, type GoalMult } from './match';
 import { deriveRng, type Rng } from './rng';
 import { clamp } from './util';
-import type { Club, Footballer, GameState, MatchResult, Outcome, SeasonResult, Tier } from './types';
+import type { Club, CoachStyle, CompetitionId, CupMatch, CupRun, Footballer, GameState, LiveMoment, MatchResult, Outcome, SeasonResult, TableRow, Tier } from './types';
 
 export const PLAYER_ID = 'player';
+
+/** Multiplicadores de gol [a favor, contra] por estilo de técnico. */
+const STYLE_GOALS: Record<CoachStyle, GoalMult> = {
+  ofensivo: [1.15, 1.1],
+  retranqueiro: [0.9, 0.82],
+  formador: [1, 1],
+  motivador: [1, 1],
+  estrategista: [1, 1],
+};
+
+/**
+ * A última rodada vale algo? Olha a tabela antes dela: se o jogador está a até 3 pontos
+ * da zona de acesso/título ou da zona de queda (dos dois lados da linha), é decisiva.
+ */
+function lastRoundStake(rounds: MatchResult[][], ids: string[], deduction: number, rules: (typeof TIERS)[Tier], tier: Tier): { stake: string; match: MatchResult } | null {
+  if (rounds.length === 0) return null;
+  const table = new Map<string, TableRow>();
+  for (const id of ids) table.set(id, emptyRow(id, id === PLAYER_ID ? deduction : 0));
+  for (const r of rounds.slice(0, -1)) for (const m of r) applyResult(table, m);
+  const before = sortTable([...table.values()]);
+  const pos = before.findIndex((r) => r.clubId === PLAYER_ID) + 1;
+  const pts = before[pos - 1].points;
+  const match = rounds[rounds.length - 1].find((m) => m.home === PLAYER_ID || m.away === PLAYER_ID);
+  if (!match) return null;
+  const at = (n: number) => before[Math.min(before.length, Math.max(1, n)) - 1].points;
+  const topLine = tier === 1 ? 1 : rules.autoUp;
+  if (topLine > 0 && Math.abs(pts - at(pos <= topLine ? topLine + 1 : topLine)) <= 3) {
+    return { stake: tier === 1 ? 'Última rodada valendo o título da Premier!' : pos <= topLine ? 'Última rodada: segurar a vaga de acesso!' : 'Última rodada: dá para roubar a vaga de acesso!', match };
+  }
+  const dropLine = before.length - rules.down; // última posição salva
+  if (rules.down > 0 && tier !== 8 && Math.abs(pts - at(pos <= dropLine ? dropLine + 1 : dropLine)) <= 3) {
+    return { stake: pos <= dropLine ? 'Última rodada: não pode perder para não cair!' : 'Última rodada: só a vitória salva do rebaixamento!', match };
+  }
+  return null;
+}
 export const DEDUCTION_POINTS = 10;
+/** Bônus de força por nível do técnico, relativo ao técnico típico da divisão. */
+export const COACH_BONUS = 0.4;
+
+/** Nível de técnico típico de cada divisão (0 na várzea, 3,5 na Premier). */
+export function coachNorm(tier: Tier): number {
+  return (8 - tier) / 2;
+}
+
+/** Vantagem do seu técnico sobre o típico da divisão (pode ser negativa). */
+export function coachEdge(rating: number, tier: Tier): number {
+  return Math.round((rating - coachNorm(tier)) * COACH_BONUS * 100) / 100;
+}
 
 export function playerHomeAdv(state: GameState): number {
   const p = state.player;
@@ -22,7 +72,7 @@ export function playerHomeAdv(state: GameState): number {
 /** Força esperada do time (sem a sorte da temporada): XI + técnico + eventos. */
 export function teamStrength(state: GameState): number {
   const p = state.player;
-  return Math.round((squadStrength(p.squad) + p.staff.coach * 0.5 + p.formMod) * 10) / 10;
+  return Math.round((squadStrength(p.squad) + coachEdge(p.coach.rating, p.tier) + p.formMod) * 10) / 10;
 }
 
 /** O clube pode jogar na divisão `tier` com esse estádio? */
@@ -47,7 +97,7 @@ export function simulateSeason(state: GameState): SeasonResult {
 
   // sorte da temporada: lesões, fase, vestiário. Time de YouTuber oscila muito.
   const formRng = deriveRng(seed, season, 'form');
-  const sd = (p.origin === 'youtuber' ? 2 : 0.9) * (1 - p.facilities.medical * 0.1);
+  const sd = (p.origin === 'youtuber' ? 2 : 0.9) * (1 - p.facilities.medical * 0.1) * (p.coach.style === 'motivador' ? 0.7 : 1);
   const form = formRng.normal(sd);
   const pStrength = teamStrength(state) + form;
   const pHome = playerHomeAdv(state);
@@ -69,7 +119,19 @@ export function simulateSeason(state: GameState): SeasonResult {
     homeAdv(id) {
       return id === PLAYER_ID ? pHome : BASE_HOME_ADVANTAGE;
     },
+    goalMult(h, a) {
+      if (h !== PLAYER_ID && a !== PLAYER_ID) return [1, 1];
+      const [forMe, againstMe] = STYLE_GOALS[p.coach.style];
+      return h === PLAYER_ID ? [forMe, againstMe] : [againstMe, forMe];
+    },
+    knockoutBonus(id) {
+      return id === PLAYER_ID && p.coach.style === 'estrategista' ? 0.4 : 0;
+    },
   };
+  // clubes estrangeiros (copas internacionais) entram no mesmo contexto
+  const foreign = new Map<string, { name: string; strength: number }>();
+  const baseStrength = ctx.strength;
+  ctx.strength = (id, opp) => foreign.get(id)?.strength ?? baseStrength(id, opp);
 
   // obras em andamento ficam prontas no fim da temporada: contam para a vistoria do acesso
   const capacityAtInspection = p.capacity + p.capacityBuilding;
@@ -79,6 +141,7 @@ export function simulateSeason(state: GameState): SeasonResult {
   let playerMatches: MatchResult[] = [];
   let playerPlayoff: SeasonResult['playoff'];
   let barred = false;
+  let lastRound: { stake: string; match: MatchResult } | null = null;
   const deduction = p.pendingDeduction;
 
   for (const t of ALL_TIERS) {
@@ -119,6 +182,7 @@ export function simulateSeason(state: GameState): SeasonResult {
     moves[t] = { promoted, relegated };
 
     if (t === tier) {
+      lastRound = lastRoundStake(run.rounds, ids, deduction, rules, t);
       playerTable = run.table;
       playerMatches = run.rounds.map((r) => r.find((m) => m.home === PLAYER_ID || m.away === PLAYER_ID)).filter((m): m is MatchResult => !!m);
     }
@@ -144,10 +208,95 @@ export function simulateSeason(state: GameState): SeasonResult {
     outcome = 'fica';
   }
 
+  // ---------------------- copas ----------------------
+  const nameOf = (id: string) => (id === PLAYER_ID ? p.name : foreign.get(id)?.name ?? byId.get(id)?.name ?? id);
+  const tierOf = (id: string): Tier | null => (id === PLAYER_ID ? tier : byId.get(id)?.tier ?? null);
+  const env = (label: string) => ({ rng: deriveRng(seed, season, label), ctx, name: nameOf, tierOf, playerTier: tier });
+  const byTier = {} as Record<Tier, string[]>;
+  for (const t of ALL_TIERS) byTier[t] = [...state.world[t].map((c) => c.id), ...(t === tier ? [PLAYER_ID] : [])];
+
+  const cupRuns: CupRun[] = [];
+  const cupMatches: CupMatch[] = [];
+  const national = nationalCup(env('copa'), byTier);
+  if (national.run) cupRuns.push(national.run);
+  cupMatches.push(...national.playerMatches);
+
+  let ccChampion = false;
+  if (p.continental) {
+    const frng = deriveRng(seed, season, 'foreign', p.continental);
+    const domestic = state.world[1].slice().sort((a, b) => b.strength - a.strength || (a.id < b.id ? -1 : 1)).slice(0, p.continental === 'cc' ? 3 : 2).map((c) => c.id);
+    const others = foreignClubs(frng, 32 - 1 - domestic.length, p.continental === 'cc' ? 81 : 76, 3.5, `f${p.continental}`);
+    for (const f of others) foreign.set(f.id, f);
+    const res = continentalCup(env(p.continental), p.continental, [PLAYER_ID, ...domestic, ...others.map((f) => f.id)]);
+    if (res.run) cupRuns.push(res.run);
+    cupMatches.push(...res.playerMatches);
+    ccChampion = p.continental === 'cc' && res.championId === PLAYER_ID;
+  }
+  if (p.worldCup) {
+    const others = foreignClubs(deriveRng(seed, season, 'foreign', 'mundial'), 7, 77, 4, 'fwc');
+    for (const f of others) foreign.set(f.id, f);
+    const res = worldCup(env('mundial'), [PLAYER_ID, ...others.map((f) => f.id)]);
+    if (res.run) cupRuns.push(res.run);
+    cupMatches.push(...res.playerMatches);
+  }
+  const cupPrizes = cupRuns.reduce((sum, c) => sum + c.prize, 0);
+
+  // ---------------------- clássico ----------------------
+  const derbyGames = [...playerMatches, ...cupMatches.map((m) => m.result)].filter((m) => m.home === p.rivalId || m.away === p.rivalId);
+  let derby: SeasonResult['derby'] = null;
+  if (derbyGames.length > 0) {
+    derby = { w: 0, d: 0, l: 0 };
+    for (const m of derbyGames) {
+      const mine = m.home === PLAYER_ID ? m.hg : m.ag;
+      const theirs = m.home === PLAYER_ID ? m.ag : m.hg;
+      const won = m.winner ? m.winner === PLAYER_ID : mine > theirs;
+      const lost = m.winner ? m.winner !== PLAYER_ID : mine < theirs;
+      if (won) derby.w++;
+      else if (lost) derby.l++;
+      else derby.d++;
+    }
+    p.derby.w += derby.w;
+    p.derby.d += derby.d;
+    p.derby.l += derby.l;
+  }
+
+  // ---------------------- objetivos ----------------------
+  const xiIds = bestEleven(p.squad).ids;
+  const homegrownXI = homegrownInXI(p.squad, xiIds);
+  const nationalWins = national.playerMatches.filter((m) => m.won).length;
+  const occupancy = (Math.min(p.capacity, attendance(p)) / Math.max(1, p.capacity)) * 100;
+  const objectives = state.office.objectives.map((o) => {
+    let met: boolean;
+    switch (o.kind) {
+      case 'subir': met = nextTier < tier; break;
+      case 'titulo': met = position === 1; break;
+      case 'top4': case 'brigar': case 'meio': case 'nao_cair': met = position <= o.target && nextTier <= tier; break;
+      case 'classico': met = derby !== null && derby.l === 0; break;
+      case 'copa': met = nationalWins >= o.target - 1; break;
+      case 'base': met = homegrownXI >= o.target; break;
+      case 'casa': met = occupancy >= o.target; break;
+    }
+    return { ...o, met };
+  });
+  const ms = TIERS[tier].moneyScale;
+  const objectiveBonus = objectives.reduce((sum, o) => sum + (o.met ? Math.round((o.main ? 6 : 2) * ms) : 0), 0);
+
   const topScorer = distributeGoals(deriveRng(seed, season, 'scorers'), p.squad, row.gf, row.played);
+  const idolGoals = Math.max(0, ...p.squad.map((f) => f.goals));
+
+  // ---------------------- momentos ao vivo ----------------------
+  const moments = buildMoments(deriveRng(seed, season, 'live'), {
+    p,
+    nameOf,
+    playoff: playerPlayoff,
+    lastRound,
+    cupRuns,
+    leagueMatches: playerMatches,
+    tier,
+  });
 
   // ---------------------- finanças ----------------------
-  const finance = seasonFinance(p, tier, playerTable.length - 1, position, playerTable.length);
+  const finance = seasonFinance(p, tier, playerTable.length - 1, position, playerTable.length, cupPrizes + objectiveBonus, idolGoals);
   p.cash = finance.cashEnd;
   for (const s of p.sponsors) if (s.seasonsLeft !== null) s.seasonsLeft--;
   p.sponsors = p.sponsors.filter((s) => s.seasonsLeft === null || s.seasonsLeft > 0);
@@ -215,6 +364,41 @@ export function simulateSeason(state: GameState): SeasonResult {
       headlines.unshift(`${name} termina a ${tierName} em ${position}º`);
   }
   if (topScorer && topScorer.goals > 0) headlines.push(`${topScorer.name} anota ${topScorer.goals} gols na temporada`);
+  for (const c of cupRuns) {
+    if (c.champion) headlines.splice(1, 0, `${name} É CAMPEÃO DA ${c.name.toUpperCase()}!`);
+    else headlines.push(`${c.name}: ${c.reached.toLowerCase()}`);
+    for (const m of c.matches) if (m.giantKill) headlines.splice(1, 0, `ZEBRA! ${name} elimina o ${m.opponent} na ${c.name}`);
+  }
+  if (derby && derby.w > 0 && derby.l === 0) headlines.push(`Clássico é nosso: ${name} invicto contra o rival`);
+
+  // ---------------------- torcedômetro ----------------------
+  const moodBefore = p.mood;
+  let dm = 0;
+  for (const o of objectives) dm += o.met ? (o.main ? 12 : 5) : o.main ? -14 : -2;
+  dm += { campeao: 10, acesso: 12, acesso_playoff: 12, barrado_estadio: -10, fica: 0, queda: -18, falencia: -30 }[outcome];
+  if (derby) dm += (derby.w - derby.l) * 3;
+  dm += cupMatches.filter((m) => m.giantKill).length * 6;
+  dm += cupRuns.filter((c) => c.champion).length * 10;
+  dm += p.ticket === 0 ? 3 : p.ticket === 2 ? -4 : 0;
+  dm -= state.office.soldHomegrown * 4;
+  if (p.coach.style === 'motivador') dm += 3;
+  p.mood = clamp(Math.round(p.mood + dm + (55 - p.mood) * 0.1), 0, 100);
+  if (p.mood < 25) {
+    p.soul = clamp(p.soul - 2, 0, 100);
+    headlines.push(`Protesto na porta do estádio: torcida do ${name} pede mudanças`);
+  } else if (p.mood >= 85) {
+    p.hype = clamp(p.hype + 5, 0, 100);
+    headlines.push(`Torcida do ${name} em festa: estádio vira caldeirão`);
+  }
+
+  // vagas para a próxima temporada
+  const copaChampion = national.championId === PLAYER_ID;
+  const nextContinental: PlayerClubContinental = !bankrupt && nextTier === 1 && tier === 1 ? (position <= 4 ? 'cc' : position === 5 || copaChampion ? 'le' : null) : copaChampion && nextTier <= 2 ? 'le' : null;
+  if (nextContinental === 'cc') headlines.push(`${name} garante vaga na Copa dos Campeões`);
+  else if (nextContinental === 'le') headlines.push(`${name} vai disputar a Liga Europa`);
+  if (ccChampion) headlines.push(`${name} vai ao Mundial de Clubes!`);
+  p.continental = nextContinental;
+  p.worldCup = ccChampion;
 
   const result: SeasonResult = {
     season,
@@ -236,6 +420,14 @@ export function simulateSeason(state: GameState): SeasonResult {
     headlines,
     departures,
     renewals: [],
+    cups: cupRuns,
+    objectives,
+    moments,
+    derby,
+    mood: p.mood,
+    moodDelta: p.mood - moodBefore,
+    signings: state.office.signings,
+    homegrownXI,
   };
 
   // ---------------------- evolução para a próxima temporada ----------------------
@@ -249,7 +441,45 @@ export function simulateSeason(state: GameState): SeasonResult {
   return result;
 }
 
+type PlayerClubContinental = GameState['player']['continental'];
+
 const GOAL_WEIGHT = { GOL: 0, DEF: 0.5, MEI: 2, ATA: 5 };
+
+interface MomentInput {
+  p: GameState['player'];
+  nameOf: (id: string) => string;
+  playoff: SeasonResult['playoff'];
+  lastRound: { stake: string; match: MatchResult } | null;
+  cupRuns: CupRun[];
+  leagueMatches: MatchResult[];
+  tier: Tier;
+}
+
+/** Escolhe até 3 jogos da temporada para mostrar ao vivo (os mais importantes primeiro). */
+function buildMoments(rng: Rng, m: MomentInput): LiveMoment[] {
+  const out: LiveMoment[] = [];
+  const add = (kind: LiveMoment['kind'], title: string, stake: string, r: MatchResult) =>
+    out.push(moment(rng, kind, title, stake, r, PLAYER_ID, m.nameOf, m.p.squad));
+  const finals: Record<CompetitionId, LiveMoment['kind']> = { copa: 'final_copa', cc: 'final_cc', le: 'final_le', mundial: 'mundial' };
+  for (const c of m.cupRuns.slice().sort((a, b) => CUP_PRIORITY[a.id] - CUP_PRIORITY[b.id])) {
+    const final = c.matches.find((x) => x.round === 'Final');
+    if (final) add(finals[c.id], `Final da ${c.name}`, c.id === 'mundial' ? 'O mundo inteiro está assistindo.' : 'Uma taça em jogo.', final.result);
+  }
+  if (m.playoff && (m.playoff.final.home === PLAYER_ID || m.playoff.final.away === PLAYER_ID)) {
+    add('playoff', `Final do playoff da ${TIERS[m.tier].name}`, 'Quem vencer sobe de divisão.', m.playoff.final);
+  }
+  if (m.lastRound) add('ultima_rodada', 'Última rodada', m.lastRound.stake, m.lastRound.match);
+  const copa = m.cupRuns.find((c) => c.id === 'copa');
+  const zebra = copa?.matches.filter((x) => x.opponentTier !== null && x.opponentTier <= m.tier - 3 && x.round !== 'Final').pop();
+  if (zebra) add('zebra', `${copa!.name} · ${zebra.round}`, `Cheiro de zebra: o adversário joga ${m.tier - zebra.opponentTier!} divisões acima.`, zebra.result);
+  if (out.length < 3) {
+    const derby = m.leagueMatches.find((x) => x.home === m.p.rivalId || x.away === m.p.rivalId);
+    if (derby) add('classico', 'Clássico', 'O jogo que a cidade espera o ano inteiro.', derby);
+  }
+  return out.slice(0, 3);
+}
+
+const CUP_PRIORITY: Record<CompetitionId, number> = { mundial: 0, cc: 1, le: 2, copa: 3 };
 
 /** Distribui os gols do time entre o elenco (titulares marcam mais). */
 function distributeGoals(rng: Rng, squad: Footballer[], goals: number, games: number) {
@@ -292,7 +522,7 @@ function evolveClub(state: GameState, result: SeasonResult): void {
   const { ids } = bestEleven(p.squad);
   const stay: Footballer[] = [];
   for (const f of p.squad) {
-    develop(rng, f, { ct: p.facilities.ct, fitness: p.staff.fitness, inEleven: ids.has(f.id) });
+    develop(rng, f, { ct: p.facilities.ct + (p.coach.style === 'formador' && f.age <= 23 ? 2 : 0), fitness: p.staff.fitness, inEleven: ids.has(f.id) });
     f.contract--;
     if (retires(rng, f)) {
       deps.push(`${f.name} (${f.age} anos) pendura as chuteiras`);

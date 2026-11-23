@@ -1,4 +1,4 @@
-import { playKnockout, playMatch } from './match';
+import { playKnockout, playMatch, type GoalMult } from './match';
 import type { Rng } from './rng';
 import type { MatchResult, PlayoffResult, TableRow } from './types';
 
@@ -7,6 +7,10 @@ export interface LeagueContext {
   strength(clubId: string, opponentId: string): number;
   /** vantagem de mando do clube quando joga em casa */
   homeAdv(clubId: string): number;
+  /** multiplicadores de gol (estilo do técnico); padrão [1, 1] */
+  goalMult?(homeId: string, awayId: string): GoalMult;
+  /** bônus de força em mata-mata (técnico estrategista) */
+  knockoutBonus?(clubId: string): number;
 }
 
 /** Tabela de turno e returno pelo método do círculo. Retorna rodadas com pares [mandante, visitante]. */
@@ -93,7 +97,7 @@ export function simulateLeague(
   for (const round of schedule) {
     const results: MatchResult[] = [];
     for (const [h, a] of round) {
-      const m = playMatch(rng, h, a, ctx.strength(h, a), ctx.strength(a, h), ctx.homeAdv(h));
+      const m = playMatch(rng, h, a, ctx.strength(h, a), ctx.strength(a, h), ctx.homeAdv(h), ctx.goalMult?.(h, a));
       applyResult(table, m);
       results.push(m);
     }
@@ -102,14 +106,20 @@ export function simulateLeague(
   return { table: sortTable([...table.values()]), rounds };
 }
 
+/** Jogo eliminatório usando o contexto (bônus de mata-mata e estilos inclusos). */
+export function knockout(rng: Rng, ctx: LeagueContext, h: string, a: string, neutral: boolean): MatchResult {
+  const hs = ctx.strength(h, a) + (ctx.knockoutBonus?.(h) ?? 0);
+  const as = ctx.strength(a, h) + (ctx.knockoutBonus?.(a) ?? 0);
+  return playKnockout(rng, h, a, hs, as, neutral ? 0 : ctx.homeAdv(h), ctx.goalMult?.(h, a));
+}
+
 /**
  * Playoff de 4 clubes por 1 vaga: semis em jogo único na casa do melhor colocado
  * (1º x 4º, 2º x 3º do grupo), final em campo neutro.
  */
 export function simulatePlayoff(rng: Rng, seeds: readonly string[], ctx: LeagueContext): PlayoffResult {
   if (seeds.length !== 4) throw new Error('playoff exige 4 clubes');
-  const ko = (h: string, a: string, neutral: boolean) =>
-    playKnockout(rng, h, a, ctx.strength(h, a), ctx.strength(a, h), neutral ? 0 : ctx.homeAdv(h));
+  const ko = (h: string, a: string, neutral: boolean) => knockout(rng, ctx, h, a, neutral);
   const s1 = ko(seeds[0], seeds[3], false);
   const s2 = ko(seeds[1], seeds[2], false);
   const final = ko(s1.winner!, s2.winner!, true);

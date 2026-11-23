@@ -1,0 +1,125 @@
+import {
+  FACILITY_COST, SEAT_PACKS, TICKET_POLICY, TIERS, attendance, seatsFor, stadiumAllows, type Facility, type Tier,
+} from '../../engine';
+import { money, num } from '../format';
+import type { TabProps } from './Office';
+import { Section } from './common';
+
+const FACILITIES: { id: Facility; name: string; effect: string }[] = [
+  { id: 'ct', name: 'Centro de treinamento', effect: 'Jogadores até 26 anos evoluem mais rápido.' },
+  { id: 'academy', name: 'Categorias de base', effect: 'Mais garotos por temporada, com mais potencial e evolução mais rápida na base.' },
+  { id: 'medical', name: 'Departamento médico', effect: 'Menos lesões: o time oscila menos ao longo da temporada.' },
+];
+
+export function StadiumTab({ state, dispatch }: TabProps) {
+  const p = state.player;
+  const o = state.office;
+  const total = p.capacity + p.capacityBuilding;
+  const next = (p.tier > 1 ? p.tier - 1 : 1) as Tier;
+  const ok = p.tier === 1 || stadiumAllows(total, next);
+  const att = attendance(p);
+
+  return (
+    <div className="tab-stack">
+      <Section
+        title="Estádio"
+        note={
+          p.tier === 1 ? (
+            'Você está na Premier. Estádio maior = mais bilheteria.'
+          ) : (
+            <>
+              Para subir para a <strong>{TIERS[next].name}</strong>, o regulamento exige <strong>{num(TIERS[next].minStadium)} lugares</strong>. As obras ficam
+              prontas no fim da temporada e já contam na vistoria do acesso.
+            </>
+          )
+        }
+      >
+        <div className="stadium-meter">
+          <div className="meter">
+            <span className="meter-fill" style={{ width: `${Math.min(100, (p.capacity / Math.max(1, TIERS[next].minStadium || p.capacity)) * 100)}%` }} />
+            {p.capacityBuilding > 0 && (
+              <span
+                className="meter-build"
+                style={{ width: `${Math.min(100, (p.capacityBuilding / Math.max(1, TIERS[next].minStadium || total)) * 100)}%` }}
+              />
+            )}
+          </div>
+          <p className={ok ? 'good' : 'bad'}>
+            {num(p.capacity)} lugares{p.capacityBuilding > 0 ? ` + ${num(p.capacityBuilding)} em obras` : ''}
+            {p.tier > 1 ? ` · exigido: ${num(TIERS[next].minStadium)}` : ''}
+          </p>
+          <p className="muted">
+            Público médio previsto: {num(att)} ({Math.round((att / Math.max(1, p.capacity)) * 100)}% de ocupação) · torcida: {num(p.fans)}
+          </p>
+        </div>
+
+        <div className="build-grid">
+          {SEAT_PACKS.map((pack, i) => {
+            const { seats, cost } = seatsFor(total, i as 0 | 1 | 2);
+            return (
+              <button
+                key={pack.label}
+                type="button"
+                className="build"
+                disabled={o.built.seats || p.cash < cost}
+                onClick={() => dispatch({ t: 'seats', size: i as 0 | 1 | 2 })}
+              >
+                <strong>{pack.label}</strong>
+                <span>+{num(seats)} lugares</span>
+                <b className={p.cash < cost ? 'bad' : ''}>{money(cost)}</b>
+              </button>
+            );
+          })}
+        </div>
+        {o.built.seats && <p className="muted">Já há uma obra no estádio nesta temporada.</p>}
+      </Section>
+
+      <Section title="Preço do ingresso" note="Mais caro rende mais por torcedor, mas enche menos o estádio e esfria a torcida. Mais barato faz a torcida crescer e aquece a alma.">
+        <div className="seg">
+          {TICKET_POLICY.map((t, i) => (
+            <button key={t.label} type="button" className={`seg-btn${p.ticket === i ? ' is-on' : ''}`} onClick={() => dispatch({ t: 'ticket', level: i as 0 | 1 | 2 })}>
+              <strong>{t.label}</strong>
+              <small>
+                preço x{t.price} · público x{t.demand}
+              </small>
+            </button>
+          ))}
+        </div>
+      </Section>
+
+      <Section title="Estrutura" note={`Uma obra de estrutura por temporada. Cada nível custa manutenção anual de 10% do investido.${o.built.facility ? ' A obra desta temporada já foi feita.' : ''}`}>
+        <ul className="facilities">
+          {FACILITIES.map((f) => {
+            const level = p.facilities[f.id];
+            const cost = level < 5 ? FACILITY_COST[level] : 0;
+            return (
+              <li key={f.id} className="facility">
+                <div>
+                  <strong>{f.name}</strong>
+                  <span className="pips" aria-label={`nível ${level} de 5`}>
+                    {[0, 1, 2, 3, 4].map((i) => (
+                      <i key={i} className={i < level ? 'on' : ''} />
+                    ))}
+                  </span>
+                  <p>{f.effect}</p>
+                </div>
+                {level < 5 ? (
+                  <button
+                    type="button"
+                    className="btn btn-small"
+                    disabled={o.built.facility || p.cash < cost}
+                    onClick={() => dispatch({ t: 'facility', which: f.id })}
+                  >
+                    Nível {level + 1}: {money(cost)}
+                  </button>
+                ) : (
+                  <span className="done">Máximo</span>
+                )}
+              </li>
+            );
+          })}
+        </ul>
+      </Section>
+    </div>
+  );
+}

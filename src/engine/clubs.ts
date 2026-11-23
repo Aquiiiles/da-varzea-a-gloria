@@ -3,9 +3,8 @@ import { ALL_TIERS, TIERS } from '../data/pyramid';
 import type { Rng } from './rng';
 import type { Club, Tier } from './types';
 
-export function clamp(v: number, min: number, max: number): number {
-  return v < min ? min : v > max ? max : v;
-}
+import { clamp } from './util';
+export { clamp };
 
 export function initials(name: string): string {
   const words = name
@@ -57,7 +56,7 @@ export function makeClub(rng: Rng, id: string, tier: Tier, taken: Set<string>): 
     name,
     short: initials(name),
     colors: randomColors(rng),
-    strength: Math.round(clamp(rules.meanStrength + rng.normal(rules.spread), 5, 99) * 10) / 10,
+    strength: Math.round(clamp(rules.meanStrength + rng.normal(rules.spread), 30, 95) * 10) / 10,
     tier,
   };
 }
@@ -76,10 +75,10 @@ export function generateWorld(rng: Rng, taken: Set<string>): { world: Record<Tie
     // na Premier existe uma elite: os 4 mais fortes ganham um empurrão
     if (tier === 1) {
       clubs.sort((a, b) => b.strength - a.strength);
-      const prestige = [9, 7, 6, 5, 3, 2];
+      const prestige = [7, 5, 4, 3, 2, 1];
       for (let i = 0; i < prestige.length; i++) {
         clubs[i].prestige = prestige[i];
-        clubs[i].strength = Math.min(97, clubs[i].strength + prestige[i]);
+        clubs[i].strength = Math.min(92, clubs[i].strength + prestige[i]);
       }
     }
     world[tier] = clubs;
@@ -92,5 +91,5 @@ export function driftClub(rng: Rng, club: Club): void {
   const rules = TIERS[club.tier];
   const target = rules.meanStrength + (club.prestige ?? 0);
   const pull = 0.3 * (target - club.strength);
-  club.strength = Math.round(clamp(club.strength + pull + rng.normal(2.5), 5, 99) * 10) / 10;
+  club.strength = Math.round(clamp(club.strength + pull + rng.normal(1.1), 30, 95) * 10) / 10;
 }

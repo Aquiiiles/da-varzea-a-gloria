@@ -2,13 +2,13 @@ import type { Rng } from './rng';
 import type { MatchResult } from './types';
 
 /** Vantagem padrão de jogar em casa, em pontos de força. */
-export const BASE_HOME_ADVANTAGE = 3;
+export const BASE_HOME_ADVANTAGE = 1.5;
 
-/** Médias de gols (Poisson) a partir da diferença de força. */
+/** Médias de gols (Poisson) a partir da diferença de força (escala de overall: ~4 pontos por divisão). */
 export function goalRates(homeStrength: number, awayStrength: number, homeAdv: number): [number, number] {
   const d = homeStrength - awayStrength + homeAdv;
-  const lh = 1.25 * Math.exp(0.045 * d);
-  const la = 1.25 * Math.exp(-0.045 * d);
+  const lh = 1.25 * Math.exp(0.1 * d);
+  const la = 1.25 * Math.exp(-0.1 * d);
   return [Math.min(6, Math.max(0.12, lh)), Math.min(6, Math.max(0.12, la))];
 }
 
@@ -45,7 +45,7 @@ export function playKnockout(
   }
   if (r.hg === r.ag) {
     // pênaltis: quase moeda, com leve viés para o mais forte
-    const pHome = 0.5 + Math.max(-0.1, Math.min(0.1, (hs - as) / 200));
+    const pHome = 0.5 + Math.max(-0.1, Math.min(0.1, (hs - as) / 90));
     let ph = 0;
     let pa = 0;
     for (let i = 0; i < 5; i++) {

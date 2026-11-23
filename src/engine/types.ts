@@ -5,107 +5,127 @@ export type Origin = 'pub' | 'fabrica' | 'youtuber';
 /** Nível da pirâmide: 1 = Premier (topo) ... 8 = Liga Regional (fundo). */
 export type Tier = 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8;
 
+/** Clube da IA: uma força só (overall médio do time titular). */
 export interface Club {
   id: string;
   name: string;
   short: string;
   colors: [string, string];
-  /** força 0–100 */
+  /** overall médio do time (escala 30–95) */
   strength: number;
   tier: Tier;
   /** gigantes históricos: puxam a força para cima ano após ano */
   prestige?: number;
 }
 
-export interface Squadman {
-  id: string;
+/* ------------------------------ Jogadores ------------------------------ */
+
+export type Position = 'GOL' | 'DEF' | 'MEI' | 'ATA';
+
+export interface Footballer {
+  id: number;
   name: string;
-  /** peso na divisão de gols do clube */
-  finishing: number;
+  pos: Position;
+  age: number;
+  /** overall atual (inteiro) */
+  ovr: number;
+  /** potencial real (escondido; a UI mostra a faixa do olheiro) */
+  pot: number;
+  /** faixa de potencial que o olheiro enxerga */
+  potLo: number;
+  potHi: number;
+  /** salário anual (mil £) */
+  wage: number;
+  /** temporadas restantes de contrato, contando a atual (1 = último ano) */
+  contract: number;
   goals: number;
-  seasons: number;
+  apps: number;
+  /** temporada em que chegou */
   joined: number;
-  active: boolean;
+  /** cria da base? */
+  homegrown: boolean;
 }
+
+/** Jogador à venda no mercado. */
+export interface Listing {
+  player: Footballer;
+  fee: number;
+  /** clube vendedor (texto) */
+  from: string;
+}
+
+/* ------------------------------ Clube do jogador ------------------------------ */
+
+export type Facility = 'ct' | 'academy' | 'medical';
+export type StaffRole = 'coach' | 'scout' | 'fitness';
+export type TicketPolicy = 0 | 1 | 2; // popular, normal, caro
 
 export interface Sponsor {
   name: string;
-  /** receita por temporada (mil £) */
+  /** receita por temporada (mil £); negativo = dívida parcelada */
   perSeason: number;
   /** temporadas restantes; null = permanente */
   seasonsLeft: number | null;
 }
 
-export interface Staff {
-  coach: number; // 0–3: bônus de força em jogo
-  scout: number; // 0–3: crescimento anual
-  fitness: number; // 0–3: reduz desgaste anual
-  academy: number; // 0–3: base, crescimento anual
-}
-
 export interface PlayerClub extends Club {
   origin: Origin;
-  founded: number;
   /** caixa em mil £ */
   cash: number;
   negativeSeasons: number;
-  /** pontos a descontar na próxima temporada */
+  /** pontos a descontar na temporada atual */
   pendingDeduction: number;
   capacity: number;
+  /** lugares em obra: ficam prontos no fim da temporada */
+  capacityBuilding: number;
   fans: number;
   /** 0–100 */
   soul: number;
   /** 0–100 */
   hype: number;
-  staff: Staff;
+  ticket: TicketPolicy;
+  facilities: Record<Facility, number>; // 0–5
+  staff: Record<StaffRole, number>; // 0–4
   sponsors: Sponsor[];
-  squad: Squadman[];
+  squad: Footballer[];
+  youth: Footballer[];
+  /** ex-jogadores (para o ídolo) */
+  alumni: Footballer[];
   rivalId: string;
   /** 0–100: ódio do clássico */
   rivalHatred: number;
+  /** modificador de forma só desta temporada (eventos) */
+  formMod: number;
 }
 
 /* ---------------------------- Efeitos (dados) ---------------------------- */
 
-export type Stat =
-  | 'strength'
-  | 'cash'
-  | 'fans'
-  | 'soul'
-  | 'capacity'
-  | 'hype'
-  | 'rivalStrength'
-  | 'rivalHatred'
-  | 'coach'
-  | 'scout'
-  | 'fitness'
-  | 'academy';
+export type Stat = 'cash' | 'fans' | 'soul' | 'capacity' | 'hype' | 'rivalStrength' | 'rivalHatred' | 'form';
 
 export type Effect =
   /** soma valor; se `scale`, multiplica pela escala de dinheiro da divisão atual */
   | { type: 'add'; stat: Stat; value: number; scale?: boolean }
-  /** multiplica (ex.: torcida x1.2) */
-  | { type: 'mul'; stat: 'fans' | 'cash' | 'capacity'; value: number }
+  | { type: 'mul'; stat: 'fans' | 'capacity'; value: number }
   | { type: 'sponsor'; name: string; perSeason: number; seasons: number | null; scale?: boolean }
-  /** contrata um jogador nomeado (nome sorteado pela seed) */
-  | { type: 'signing'; finishing: number }
-  /** craque mais artilheiro ativo sai */
-  | { type: 'loseStar' }
+  /** contrata um jogador: overall relativo à média da divisão, idade [min,max], posição opcional */
+  | { type: 'sign'; rel: number; age: [number, number]; pos?: Position }
+  /** vende o melhor jogador pelo valor de mercado x `mult` */
+  | { type: 'sellStar'; mult: number }
   /** muda as cores do clube (gera par novo pela seed) */
   | { type: 'recolor' };
 
-export type CardKind = 'reforco' | 'staff' | 'infra' | 'dinheiro' | 'aliciar';
-
-export interface Card {
+export interface Opportunity {
   id: string;
-  kind: CardKind;
   title: string;
   text: string;
-  /** peso de sorteio */
   weight: number;
   minTier?: Tier;
   maxTier?: Tier;
+  once?: boolean;
+  /** rótulo do botão de aceitar */
+  accept: string;
   effects: Effect[];
+  headline: string;
 }
 
 export interface EventOption {
@@ -121,10 +141,31 @@ export interface GameEvent {
   weight: number;
   minTier?: Tier;
   maxTier?: Tier;
-  /** só aparece uma vez por run */
   once?: boolean;
   options: [EventOption, EventOption];
 }
+
+/* ------------------------------ Ações (log da run) ------------------------------ */
+
+export type Action =
+  | { t: 'buy'; idx: number } // compra a listagem idx do mercado
+  | { t: 'sell'; id: number }
+  | { t: 'release'; id: number }
+  | { t: 'renew'; id: number }
+  | { t: 'promote'; id: number } // base → profissional
+  | { t: 'cut'; id: number } // dispensa da base
+  | { t: 'tryout' } // faz a peneira
+  | { t: 'sign'; idx: number } // contrata candidato idx da peneira
+  | { t: 'seats'; size: 0 | 1 | 2 }
+  | { t: 'facility'; which: Facility }
+  | { t: 'staff'; which: StaffRole; dir: 1 | -1 }
+  | { t: 'ticket'; level: TicketPolicy }
+  | { t: 'loan'; size: 0 | 1 }
+  | { t: 'opp'; idx: number } // aceita a oportunidade idx
+  | { t: 'event'; choice: 0 | 1 }
+  | { t: 'auto' } // assistente faz a gestão da temporada
+  | { t: 'play' } // simula a temporada
+  | { t: 'next' }; // sai do resumo para a próxima temporada
 
 /* ------------------------------ Partidas ------------------------------ */
 
@@ -133,7 +174,6 @@ export interface MatchResult {
   away: string;
   hg: number;
   ag: number;
-  /** pênaltis (só mata-mata) */
   pens?: [number, number];
   extraTime?: boolean;
   winner?: string;
@@ -157,33 +197,18 @@ export interface PlayoffResult {
   winner: string;
 }
 
-export type Outcome =
-  | 'campeao' // campeão e sobe (ou campeão da Premier)
-  | 'acesso' // sobe direto sem título
-  | 'acesso_playoff'
-  | 'barrado_estadio' // teria subido, mas o estádio não permite
-  | 'fica'
-  | 'queda'
-  | 'falencia';
-
-export interface LeagueSeason {
-  tier: Tier;
-  table: TableRow[];
-  /** rodadas do clube do jogador (na ordem) — para momentos ao vivo */
-  playerMatches: MatchResult[];
-  playoff?: PlayoffResult;
-  promoted: string[];
-  relegated: string[];
-}
+export type Outcome = 'campeao' | 'acesso' | 'acesso_playoff' | 'barrado_estadio' | 'fica' | 'queda' | 'falencia';
 
 export interface FinanceReport {
   tickets: number;
   tv: number;
   sponsors: number;
   wages: number;
+  staff: number;
   upkeep: number;
   net: number;
   cashEnd: number;
+  attendance: number;
 }
 
 export interface SeasonResult {
@@ -194,24 +219,24 @@ export interface SeasonResult {
   points: number;
   deduction: number;
   outcome: Outcome;
-  /** divisão em que o clube vai jogar a próxima temporada */
   nextTier: Tier;
-  /** se foi barrado pelo estádio: capacidade exigida */
   stadiumRequired?: number;
   playoff?: PlayoffResult;
   table: TableRow[];
-  /** nomes dos clubes da tabela (snapshot) */
   clubNames: Record<string, string>;
   playerMatches: MatchResult[];
   topScorer: { name: string; goals: number } | null;
   finance: FinanceReport;
+  /** força do time titular na temporada */
   strength: number;
   headlines: string[];
+  /** saídas e chegadas automáticas (aposentadoria, contrato) */
+  departures: string[];
 }
 
 /* ------------------------------ Estado ------------------------------ */
 
-export type Phase = 'draft' | 'event' | 'summary' | 'over';
+export type Phase = 'office' | 'summary' | 'over';
 
 export interface Foundation {
   name: string;
@@ -219,27 +244,31 @@ export interface Foundation {
   origin: Origin;
 }
 
+export interface SeasonOffice {
+  market: (Listing | null)[];
+  /** candidatos da peneira (null = já contratado) */
+  tryout: (Footballer | null)[] | null;
+  opportunities: { opp: Opportunity; taken: boolean }[];
+  event: GameEvent | null;
+  eventChoice: 0 | 1 | null;
+  /** ações de obra/estrutura já feitas nesta temporada */
+  built: { seats: boolean; facility: boolean; loan: boolean };
+}
+
 export interface GameState {
-  version: 1;
+  version: 2;
   seed: number;
   foundation: Foundation;
-  /** temporada atual (1..MAX_SEASONS) */
   season: number;
-  /** todas as escolhas feitas até agora, na ordem (uma por decisão) */
-  choices: number[];
+  /** todas as ações feitas, na ordem (replay e URL) */
+  actions: Action[];
   phase: Phase;
   player: PlayerClub;
-  /** clubes da IA, por nível */
   world: Record<Tier, Club[]>;
-  /** cartas oferecidas na temporada atual */
-  offer: Card[];
-  /** evento pendente (se houver) */
-  event: GameEvent | null;
-  seenEvents: string[];
+  office: SeasonOffice;
+  seenOnce: string[];
   history: SeasonResult[];
-  /** manchetes acumuladas (ticker) */
   news: string[];
   over: null | 'falencia' | 'fim';
-  /** contador para ids únicos determinísticos */
   serial: number;
 }

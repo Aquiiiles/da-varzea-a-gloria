@@ -1,30 +1,57 @@
-import { TIERS } from '../data/pyramid';
-import type { FinanceReport, PlayerClub } from './types';
+import { FACILITY_COST, FACILITY_UPKEEP_RATE, SEAT_UPKEEP, STAFF_WAGE, TIERS } from '../data/pyramid';
+import type { FinanceReport, PlayerClub, Tier } from './types';
 
-/** Folha salarial anual (mil £) cresce exponencialmente com a força do elenco. */
-export function wageBill(strength: number): number {
-  return Math.round(4 * Math.pow(1.075, strength));
+/** Política de ingresso: multiplicador de preço e de procura. */
+export const TICKET_POLICY = [
+  { label: 'Popular', price: 0.7, demand: 1.2, fanGrowth: 0.04, soul: 1 },
+  { label: 'Normal', price: 1, demand: 1, fanGrowth: 0, soul: 0 },
+  { label: 'Caro', price: 1.5, demand: 0.75, fanGrowth: -0.05, soul: -1 },
+] as const;
+
+export function payroll(p: PlayerClub): number {
+  return p.squad.reduce((s, f) => s + f.wage, 0) + p.youth.reduce((s, f) => s + f.wage, 0);
 }
 
-export function ticketPrice(tier: PlayerClub['tier']): number {
-  void tier;
-  return 0.0024;
+export function staffCost(p: PlayerClub): number {
+  return STAFF_WAGE[p.staff.coach] + STAFF_WAGE[p.staff.scout] + STAFF_WAGE[p.staff.fitness];
+}
+
+export function facilityInvested(level: number): number {
+  let total = 0;
+  for (let i = 0; i < level; i++) total += FACILITY_COST[i];
+  return total;
+}
+
+export function upkeep(p: PlayerClub): number {
+  const fac = facilityInvested(p.facilities.ct) + facilityInvested(p.facilities.academy) + facilityInvested(p.facilities.medical);
+  return Math.round(p.capacity * SEAT_UPKEEP + fac * FACILITY_UPKEEP_RATE);
 }
 
 export function attendance(p: PlayerClub): number {
-  return Math.min(p.capacity, p.fans);
+  return Math.round(Math.min(p.capacity, p.fans * TICKET_POLICY[p.ticket].demand));
 }
 
-/** Calcula as finanças da temporada que acabou de ser jogada (na divisão `tier`). */
-export function seasonFinance(p: PlayerClub, homeGames: number): FinanceReport {
-  const rules = TIERS[p.tier];
-  const tickets = Math.round(attendance(p) * homeGames * ticketPrice(p.tier));
-  const merch = Math.round(p.hype * 0.15 * rules.moneyScale);
-  const tv = rules.tv + merch;
-  const sponsors = p.sponsors.reduce((sum, s) => sum + s.perSeason, 0);
-  const wages = wageBill(p.strength);
-  const staffLevels = p.staff.coach + p.staff.scout + p.staff.fitness + p.staff.academy;
-  const upkeep = Math.round(p.capacity * 0.0015 + staffLevels * 1.5 * rules.moneyScale);
-  const net = tickets + tv + sponsors - wages - upkeep;
-  return { tickets, tv, sponsors, wages, upkeep, net, cashEnd: p.cash + net };
+/** Patrocínio master: depende da divisão, do tamanho da torcida e do hype. */
+export function masterSponsor(p: PlayerClub, tier: Tier): number {
+  const r = TIERS[tier];
+  const fanRatio = Math.min(1.6, Math.sqrt(p.fans / r.typicalFans));
+  return Math.round(r.sponsor * (0.5 + 0.4 * fanRatio) * (1 + p.hype / 250));
+}
+
+/**
+ * Finanças de uma temporada. `position`/`size` dão a premiação por colocação
+ * (use a posição esperada para projeções).
+ */
+export function seasonFinance(p: PlayerClub, tier: Tier, homeGames: number, position: number, size: number): FinanceReport {
+  const r = TIERS[tier];
+  const att = attendance(p);
+  const tickets = Math.round(att * homeGames * r.ticket * TICKET_POLICY[p.ticket].price);
+  const prize = Math.round(r.tv * 0.4 * ((size - position) / (size - 1)));
+  const tv = r.tv + prize;
+  const sponsors = masterSponsor(p, tier) + p.sponsors.reduce((sum, s) => sum + s.perSeason, 0);
+  const wages = Math.round(payroll(p));
+  const staff = staffCost(p);
+  const up = upkeep(p);
+  const net = tickets + tv + sponsors - wages - staff - up;
+  return { tickets, tv, sponsors, wages, staff, upkeep: up, net, cashEnd: p.cash + net, attendance: att };
 }

@@ -5,7 +5,7 @@ export { seatsFor, loanFor, sellPrice, releaseCost, renewWage, projectFinance, e
 export { negotiationFor, MAX_ROUNDS } from './negotiation';
 export { trophies, clubRecords, type Trophy, type ClubRecords } from './trophies';
 export { achievements, type Achievement } from './achievements';
-export { coachSeverance, moodLabel, commerce, businessInvested } from './clubops';
+export { coachSeverance, coachAccepts, moraleEdge, moodLabel, commerce, businessInvested } from './clubops';
 export { hashSeed } from './rng';
 export { encodeRun, decodeRun, encodeAction, decodeAction, seedFromEntropy, type RunCode } from './codec';
 export { runStats, computeScore, levelFor, LEVELS, type RunStats, type LevelInfo } from './score';

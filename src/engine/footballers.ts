@@ -2,7 +2,7 @@ import { TIERS } from '../data/pyramid';
 import { personName as brName } from './names';
 import { clamp } from './util';
 import type { Rng } from './rng';
-import type { Footballer, Listing, ListingProfile, Offer, Position, Tier } from './types';
+import type { Footballer, Formation, Listing, ListingProfile, Offer, Position, Tier } from './types';
 
 /**
  * Pontos (overall, salário anual em R$ mil) — interpolação em escala log.
@@ -119,12 +119,19 @@ export function foundingSquad(rng: Rng, mean: number, firstId: number, names?: S
 
 /* ------------------------------ Time titular ------------------------------ */
 
-const FORMATION: Record<Position, number> = { GOL: 1, DEF: 4, MEI: 4, ATA: 2 };
+/** Vagas por posição em cada esquema. */
+export const FORMATIONS: Record<Formation, Record<Position, number>> = {
+  '4-4-2': { GOL: 1, DEF: 4, MEI: 4, ATA: 2 },
+  '4-3-3': { GOL: 1, DEF: 4, MEI: 3, ATA: 3 },
+  '3-5-2': { GOL: 1, DEF: 3, MEI: 5, ATA: 2 },
+  '4-5-1': { GOL: 1, DEF: 4, MEI: 5, ATA: 1 },
+};
 /** Penalidade de jogar fora de posição. */
 const OUT_OF_POSITION = 8;
 
 /** Melhor XI no 4-4-2. Retorna ids e o overall efetivo de cada vaga. */
-export function bestEleven(squad: readonly Footballer[]): { ids: Set<number>; ratings: number[] } {
+export function bestEleven(squad: readonly Footballer[], formation: Formation = '4-4-2'): { ids: Set<number>; ratings: number[] } {
+  const FORMATION = FORMATIONS[formation];
   const sorted = squad.slice().sort((a, b) => b.ovr - a.ovr || a.id - b.id);
   const used = new Set<number>();
   const ratings: number[] = [];
@@ -153,9 +160,9 @@ export function bestEleven(squad: readonly Footballer[]): { ids: Set<number>; ra
 }
 
 /** Força do time = média do XI + profundidade do banco (até ±1). */
-export function squadStrength(squad: readonly Footballer[]): number {
+export function squadStrength(squad: readonly Footballer[], formation: Formation = '4-4-2'): number {
   if (squad.length === 0) return 30;
-  const { ids, ratings } = bestEleven(squad);
+  const { ids, ratings } = bestEleven(squad, formation);
   const xi = ratings.reduce((s, r) => s + r, 0) / ratings.length;
   const bench = squad.filter((p) => !ids.has(p.id)).sort((a, b) => b.ovr - a.ovr).slice(0, 7);
   const benchAvg = bench.length > 0 ? bench.reduce((s, p) => s + p.ovr, 0) / bench.length : xi - 15;

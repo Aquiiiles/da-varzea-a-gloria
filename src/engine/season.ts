@@ -1,7 +1,7 @@
 import { SERIE_D_SPOTS, SQUAD_MAX, SQUAD_MIN, START_YEAR, TIERS, YOUTH_AGE_LIMIT, YOUTH_MAX } from '../data/pyramid';
 import { aiScorers, evolveAiClubs, refreshStrength, type AiTransfer } from './aisquad';
 import { levelOf, makeClub, syncTier } from './clubs';
-import { homegrownInXI } from './clubops';
+import { homegrownInXI, moraleEdge, startingCoach } from './clubops';
 import { estadual, pointsLeague, serieC, serieD, PLAYER, type CompEnv, type LeagueOutcome } from './competitions';
 import { continentalCup, foreignClubs, nationalCup, stateCup, worldCup, type CupEnv, type CupResult } from './cups';
 import { nextId } from './effects';
@@ -51,7 +51,7 @@ export function playerHomeAdv(state: GameState): number {
 /** Força esperada do time (sem a sorte da temporada): XI + técnico + eventos. */
 export function teamStrength(state: GameState): number {
   const p = state.player;
-  return Math.round((squadStrength(p.squad) + coachEdge(p.coach.rating, p.tier) + p.formMod) * 10) / 10;
+  return Math.round((squadStrength(p.squad, p.coach.formation) + coachEdge(p.coach.rating, p.tier) + moraleEdge(p.coach.morale) + p.formMod) * 10) / 10;
 }
 
 /** O clube pode jogar no nível `tier` com esse estádio? */
@@ -307,7 +307,7 @@ export function simulateSeason(state: GameState): SeasonResult {
   }
 
   // ---------------------- objetivos ----------------------
-  const xiIds = bestEleven(p.squad).ids;
+  const xiIds = bestEleven(p.squad, p.coach.formation).ids;
   const homegrownXI = homegrownInXI(p.squad, xiIds);
   const cupWins = cupMatches.filter((m) => m.advanced === true).length;
   const occupancy = (Math.min(p.capacity, attendance(p)) / Math.max(1, p.capacity)) * 100;
@@ -502,7 +502,9 @@ export function simulateSeason(state: GameState): SeasonResult {
     homegrownXI,
     comps,
     worldNews: [],
+    coachReport: { name: p.coach.name, request: null, met: null, morale: p.coach.morale, moraleDelta: 0, left: null },
   };
+  settleCoach(state, result);
 
   // ---------------------- evolução para a próxima temporada ----------------------
   p.capacity += p.capacityBuilding;
@@ -668,7 +670,7 @@ function distributeGoals(rng: Rng, squad: Footballer[], goals: number, games: nu
 export function decideIntents(state: GameState): void {
   const p = state.player;
   const rng = deriveRng(state.seed, state.season, 'intents');
-  const { ids } = bestEleven(p.squad);
+  const { ids } = bestEleven(p.squad, p.coach.formation);
   for (const f of p.squad) {
     delete f.intent;
     if (f.age >= 33 && retires(rng, { ...f, age: f.age + 1 })) {
@@ -681,6 +683,49 @@ export function decideIntents(state: GameState): void {
     else if (rng.chance(refusalChance(f, ids.has(f.id)))) f.intent = 'sai';
     else f.intent = ask > f.wage * 1.15 ? 'aumento' : 'renova';
   }
+}
+
+/**
+ * Técnico no fim da temporada: o pedido da janela foi atendido? A moral sobe ou desce com o pedido e com o resultado.
+ * Moral muito baixa = pede demissão. No fim do contrato, renova se estiver satisfeito.
+ */
+function settleCoach(state: GameState, result: SeasonResult): void {
+  const p = state.player;
+  const c = p.coach;
+  const req = state.office.request;
+  const before = c.morale;
+  let met: boolean | null = null;
+  if (req) {
+    switch (req.kind) {
+      case 'contratar':
+        met = p.squad.some((f) => f.pos === req.pos && f.ovr >= (req.minOvr ?? 0) && f.joined === state.season);
+        break;
+      case 'promover':
+      case 'nao_vender':
+        met = p.squad.some((f) => f.id === req.playerId);
+        break;
+      case 'estrutura':
+        met = p.facilities.ct >= (req.level ?? 0);
+        break;
+    }
+  }
+  let dm = met === true ? 15 : met === false ? -12 : 0;
+  dm += { campeao: 10, acesso: 10, acesso_playoff: 10, barrado_estadio: -5, fica: 0, queda: -15, falencia: -20 }[result.outcome];
+  c.morale = clamp(Math.round(c.morale + dm), 0, 100);
+  c.contract--;
+  let left: string | null = null;
+  if (c.morale < 20) left = `${c.name} pede demissão: diz que não tem o apoio da diretoria`;
+  else if (c.contract <= 0 && c.morale < 40) left = `${c.name} não renova e deixa o clube`;
+  else if (c.contract <= 0) {
+    c.contract = 2;
+    c.wage = Math.round(c.wage * 1.1);
+    result.headlines.push(`${c.name} renova por mais 2 temporadas`);
+  }
+  if (left) {
+    result.headlines.push(left);
+    p.coach = { ...startingCoach(), name: 'Auxiliar Juca (interino)', rating: Math.max(0, Math.round(coachNorm(result.nextTier)) - 1), contract: 1, formation: c.formation };
+  }
+  result.coachReport = { name: c.name, request: req, met, morale: c.morale, moraleDelta: c.morale - before, left };
 }
 
 /** Chance de o jogador recusar a renovação automática. */
@@ -701,7 +746,7 @@ function evolveClub(state: GameState, result: SeasonResult): void {
   const deps = result.departures;
 
   // elenco profissional
-  const { ids } = bestEleven(p.squad);
+  const { ids } = bestEleven(p.squad, p.coach.formation);
   const stay: Footballer[] = [];
   for (const f of p.squad) {
     develop(rng, f, { ct: p.facilities.ct + (p.coach.style === 'formador' && f.age <= 23 ? 2 : 0), fitness: p.staff.fitness, inEleven: ids.has(f.id) });

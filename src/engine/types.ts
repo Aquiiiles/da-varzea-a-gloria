@@ -133,14 +133,35 @@ export type CoachStyle = 'ofensivo' | 'retranqueiro' | 'formador' | 'motivador' 
 export type BusinessId = 'bar' | 'loja' | 'escolinha' | 'estacionamento' | 'foodtruck';
 export type DelegateArea = 'contratos' | 'base' | 'mercado' | 'estadio';
 
+export type Formation = '4-4-2' | '4-3-3' | '3-5-2' | '4-5-1';
+
 export interface Coach {
   name: string;
   style: CoachStyle;
-  /** 0–4: bônus de força de 0,5 por nível */
+  /** 0–4 (1 a 5 estrelas) */
   rating: number;
-  /** salário anual (mil £) */
+  /** salário anual (R$ mil) */
   wage: number;
   age: number;
+  /** esquema tático preferido: define o time titular */
+  formation: Formation;
+  /** temporadas restantes de contrato (contando a atual) */
+  contract: number;
+  /** 0–100: moral com a diretoria; atender pedidos sobe, ignorar desce */
+  morale: number;
+}
+
+export type CoachRequestKind = 'contratar' | 'nao_vender' | 'promover' | 'estrutura';
+
+/** Pedido do técnico para a janela (avaliado ao jogar a temporada). */
+export interface CoachRequest {
+  kind: CoachRequestKind;
+  text: string;
+  pos?: Position;
+  minOvr?: number;
+  playerId?: number;
+  /** nível de CT pedido */
+  level?: number;
 }
 
 export type CompetitionId = 'estado' | 'copa' | 'cc' | 'le' | 'mundial';
@@ -325,6 +346,7 @@ export type Action =
   | { t: 'facility'; which: Facility }
   | { t: 'staff'; which: StaffRole; dir: 1 | -1 }
   | { t: 'coach'; idx: number } // contrata o candidato idx a técnico
+  | { t: 'formation'; f: Formation } // pede ao técnico outro esquema (custa moral)
   | { t: 'business'; which: BusinessId }
   | { t: 'delegate'; area: DelegateArea }
   | { t: 'ticket'; level: TicketPolicy }
@@ -421,6 +443,8 @@ export interface SeasonResult {
   homegrownXI: number;
   /** competições de liga do jogador na temporada (estadual e nacional) */
   comps: CompResult[];
+  /** técnico: pedido da janela, se foi atendido, moral no fim e se saiu */
+  coachReport: { name: string; request: CoachRequest | null; met: boolean | null; morale: number; moraleDelta: number; left: string | null };
   /** notícias do mundo da bola */
   worldNews: string[];
 }
@@ -448,6 +472,10 @@ export interface SeasonOffice {
   built: { seats: boolean; facility: boolean; loan: boolean; business: boolean };
   coaches: (Coach | null)[];
   negotiations: Negotiation[];
+  /** pedido do técnico nesta janela */
+  request: CoachRequest | null;
+  /** ids no elenco quando a janela abriu (para o pedido "não venda") */
+  formationChanged: boolean;
   objectives: Objective[];
   /** contratações e vendas de crias da base nesta janela (torcida e conquistas) */
   signings: number;

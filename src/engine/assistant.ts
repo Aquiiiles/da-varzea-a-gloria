@@ -1,6 +1,6 @@
 import { BUSINESSES } from '../data/club';
 import { FACILITY_COST, MAX_LOANS, STAFF_WAGE, TIERS, YOUTH_MAX } from '../data/pyramid';
-import { coachSeverance } from './clubops';
+import { coachAccepts, coachSeverance } from './clubops';
 import { scaled } from './effects';
 import { payroll } from './finance';
 import { bestEleven, marketValue, squadStrength, tryoutCost } from './footballers';
@@ -142,7 +142,7 @@ export function runAssistant(state: GameState, apply: Apply, areas?: DelegateAre
     // técnico: troca por um claramente melhor que caiba no orçamento
     let bestCoach = -1;
     o.coaches.forEach((c, idx) => {
-      if (!c || c.rating <= p.coach.rating) return;
+      if (!c || c.rating <= p.coach.rating || !coachAccepts(c, p.tier)) return;
       if (c.wage * 4 + coachSeverance(p.coach) > spare()) return;
       if (bestCoach < 0 || c.rating > o.coaches[bestCoach]!.rating) bestCoach = idx;
     });

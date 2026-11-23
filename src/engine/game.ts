@@ -3,7 +3,7 @@ import { OPPORTUNITIES } from '../data/opportunities';
 import { FACILITY_COST, LOAN_AGE_LIMIT, MAX_LOANS, MAX_SEASONS, SQUAD_MAX, SQUAD_MIN, STAFF_WAGE, TIERS, YOUTH_MAX } from '../data/pyramid';
 import { generateWorld, initials } from './clubs';
 import { applyEffects, nextId } from './effects';
-import { foundingSquad, incomingOffers, marketListings, marketWage, round1, tryoutCandidates, tryoutCost, youthIntake } from './footballers';
+import { bestEleven, foundingSquad, incomingOffers, marketListings, marketWage, round1, tryoutCandidates, tryoutCost, youthIntake } from './footballers';
 import { deriveRng } from './rng';
 import { PLAYER_ID, decideIntents, simulateSeason, teamStrength } from './season';
 import { MAX_ROUNDS, evaluateBid, negotiationFor } from './negotiation';
@@ -11,7 +11,7 @@ import { replacementFor } from './aisquad';
 import type { Action, Club, DelegateArea, Footballer, Foundation, GameEvent, GameState, Opportunity, Origin, PlayerClub, Tier } from './types';
 import { runAssistant } from './assistant';
 import { BUSINESSES } from '../data/club';
-import { coachCandidates, coachSeverance, expectedRank, seasonObjectives, startingCoach } from './clubops';
+import { coachAccepts, coachCandidates, coachRequest, coachSeverance, expectedRank, seasonObjectives, startingCoach } from './clubops';
 import { ActionError } from './util';
 export { ActionError };
 import { effectsCashCost, loanFor, releaseCost, renewalOffer, seatsFor, sellPrice } from './office';
@@ -123,7 +123,7 @@ export function newGame(seed: number, foundation: Foundation): GameState {
 }
 
 function emptyOffice(): GameState['office'] {
-  return { market: [], offers: [], tryout: null, opportunities: [], event: null, eventChoice: null, built: { seats: false, facility: false, loan: false, business: false }, coaches: [], negotiations: [], objectives: [], signings: 0, soldHomegrown: 0 };
+  return { market: [], offers: [], tryout: null, opportunities: [], event: null, eventChoice: null, built: { seats: false, facility: false, loan: false, business: false }, coaches: [], negotiations: [], request: null, formationChanged: false, objectives: [], signings: 0, soldHomegrown: 0 };
 }
 
 function tierAllowed(tier: Tier, item: { minTier?: Tier; maxTier?: Tier }): boolean {
@@ -167,6 +167,7 @@ function startSeason(state: GameState): void {
 
   office.event = drawEvent(state);
   office.coaches = coachCandidates(deriveRng(state.seed, s, 'coaches'), p.tier);
+  office.request = coachRequest(p, p.coach.formation, TIERS[p.tier].meanStrength, bestEleven(p.squad, p.coach.formation).ids);
   const comp = mainCompClubs(state);
   const rival = comp.find((c) => c.id === p.rivalId) ?? state.clubs.find((c) => c.id === p.rivalId && c.stateDiv === p.stateDiv && c.stateDiv !== null);
   const expected = expectedRank(teamStrength(state), comp.map((c) => c.strength));
@@ -386,7 +387,7 @@ export function applyMut(state: GameState, a: Action): void {
       if (!y) fail('garoto não encontrado');
       if (p.squad.length >= SQUAD_MAX) fail('elenco cheio');
       p.youth = p.youth.filter((x) => x.id !== a.id);
-      p.squad.push({ ...y, wage: round1(marketWage(y.ovr) * 0.8), contract: 4 });
+      p.squad.push({ ...y, wage: round1(marketWage(y.ovr) * 0.8), contract: 4, joined: state.season });
       state.news.push(`Cria da base, ${y.name} sobe para o profissional`);
       return;
     }
@@ -450,12 +451,22 @@ export function applyMut(state: GameState, a: Action): void {
     case 'coach': {
       const c = o.coaches[a.idx];
       if (!c) fail('candidato indisponível');
+      if (!coachAccepts(c, p.tier)) fail(`${c.name} não aceita treinar um clube da ${TIERS[p.tier].name}`);
       const fee = coachSeverance(p.coach);
       if (p.cash < fee) fail(`caixa insuficiente para a multa do técnico atual (R$ ${fee} mil)`);
       p.cash -= fee;
       o.coaches[a.idx] = null;
       state.news.push(`${p.name} anuncia ${c.name} como novo técnico (${c.style})`);
       p.coach = c;
+      return;
+    }
+    case 'formation': {
+      if (o.formationChanged) fail('o técnico só aceita mudar o esquema uma vez por janela');
+      if (p.coach.formation === a.f) fail('já é o esquema atual');
+      p.coach.formation = a.f;
+      p.coach.morale = Math.max(0, p.coach.morale - 10);
+      o.formationChanged = true;
+      state.news.push(`${p.coach.name} muda o esquema para o ${a.f} a pedido da diretoria`);
       return;
     }
     case 'business': {

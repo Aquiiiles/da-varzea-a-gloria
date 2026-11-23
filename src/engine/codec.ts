@@ -1,4 +1,4 @@
-import type { Action, BusinessId, DelegateArea, Facility, Foundation, GameState, Origin, StaffRole } from './types';
+import type { Action, BusinessId, DelegateArea, Facility, Formation, Foundation, GameState, Origin, StaffRole } from './types';
 
 /**
  * Codificação da run na URL:
@@ -17,6 +17,8 @@ const BIZ: Record<BusinessId, string> = { bar: 'b', loja: 'l', escolinha: 'e', e
 const ZIB: Record<string, BusinessId> = { b: 'bar', l: 'loja', e: 'escolinha', p: 'estacionamento', f: 'foodtruck' };
 const DEL: Record<DelegateArea, string> = { contratos: 'c', base: 'b', mercado: 'm', estadio: 'e' };
 const LED: Record<string, DelegateArea> = { c: 'contratos', b: 'base', m: 'mercado', e: 'estadio' };
+
+const FORMS: Formation[] = ['4-4-2', '4-3-3', '3-5-2', '4-5-1'];
 
 export interface RunCode {
   seed: number;
@@ -43,6 +45,7 @@ export function encodeAction(a: Action): string {
     case 'staff': return `h${STAFF[a.which]}${a.dir > 0 ? 'u' : 'd'}`;
     case 'ticket': return `k${a.level}`;
     case 'coach': return `c${a.idx}`;
+    case 'formation': return `i${FORMS.indexOf(a.f)}`;
     case 'business': return `u${BIZ[a.which]}`;
     case 'delegate': return `m${DEL[a.area]}`;
     case 'loan': return `l${a.size}`;
@@ -80,6 +83,7 @@ export function decodeAction(tok: string): Action | null {
     case 'f': return CAF[rest] ? { t: 'facility', which: CAF[rest] } : null;
     case 'h': return FFATS[rest[0]] && (rest[1] === 'u' || rest[1] === 'd') && rest.length === 2 ? { t: 'staff', which: FFATS[rest[0]], dir: rest[1] === 'u' ? 1 : -1 } : null;
     case 'c': return Number.isNaN(n) ? null : { t: 'coach', idx: n };
+    case 'i': return n >= 0 && n < FORMS.length ? { t: 'formation', f: FORMS[n] } : null;
     case 'u': return ZIB[rest] ? { t: 'business', which: ZIB[rest] } : null;
     case 'm': return LED[rest] ? { t: 'delegate', area: LED[rest] } : null;
     case 'k': return n === 0 || n === 1 || n === 2 ? { t: 'ticket', level: n } : null;

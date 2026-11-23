@@ -9,7 +9,7 @@ export const COACH_STYLES: Record<CoachStyle, { label: string; effect: string }>
 };
 
 /** Salário anual de referência por nível de técnico (mil £). */
-export const COACH_WAGE = [0, 15, 60, 250, 1000];
+export const COACH_WAGE = [0, 40, 160, 650, 2600];
 
 export const COACH_FIRST = ['Seu Zé', 'Professor', 'Mister', 'Velho', 'Doutor', 'Capitão'];
 

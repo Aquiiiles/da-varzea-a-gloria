@@ -2,6 +2,7 @@ import { apply, canApply, newGame } from '../../src/engine/game';
 import { simulateSeason, PLAYER_ID } from '../../src/engine/season';
 import { decodeAction, encodeAction } from '../../src/engine/codec';
 import { achievements } from '../../src/engine/achievements';
+import { coachAccepts } from '../../src/engine/clubops';
 import { runStats, levelFor } from '../../src/engine/score';
 import { FOUNDATION, playRun } from './helpers';
 import type { GameState } from '../../src/engine/types';
@@ -96,10 +97,11 @@ describe('jogo ao vivo', () => {
 describe('técnico, comércio, delegação, torcida', () => {
   it('contratar técnico cobra a multa do atual e troca o técnico', () => {
     const s = setup((s) => (s.player.cash = 1e6));
-    const c = s.office.coaches[0]!;
-    const after = apply(s, { t: 'coach', idx: 0 });
+    const idx = s.office.coaches.findIndex((c) => c && coachAccepts(c, s.player.tier));
+    const c = s.office.coaches[idx]!;
+    const after = apply(s, { t: 'coach', idx });
     expect(after.player.coach.name).toBe(c.name);
-    expect(after.office.coaches[0]).toBeNull();
+    expect(after.office.coaches[idx]).toBeNull();
   });
 
   it('comércio: um investimento por temporada e gera receita', () => {

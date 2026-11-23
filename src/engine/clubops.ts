@@ -3,37 +3,81 @@ import { LAST_NAMES } from '../data/names';
 import { TIERS } from '../data/pyramid';
 import type { Rng } from './rng';
 import { clamp } from './util';
-import type { BusinessId, Coach, CoachStyle, Footballer, Objective, PlayerClub, Tier } from './types';
+import { FORMATIONS } from './footballers';
+import type { BusinessId, Coach, CoachRequest, CoachStyle, Footballer, Formation, Objective, PlayerClub, Position, Tier } from './types';
 
 /* ------------------------------ Técnico ------------------------------ */
 
 const STYLES: CoachStyle[] = ['ofensivo', 'retranqueiro', 'formador', 'motivador', 'estrategista'];
 
+const FORMATION_LIST: Formation[] = ['4-4-2', '4-3-3', '3-5-2', '4-5-1'];
+
 export function startingCoach(): Coach {
-  return { name: 'Seu Zé', style: 'motivador', rating: 0, wage: 0, age: 58 };
+  return { name: 'Seu Zé', style: 'motivador', rating: 0, wage: 0, age: 58, formation: '4-4-2', contract: 2, morale: 60 };
 }
 
-/** 3 candidatos por janela; o nível típico acompanha a divisão do clube. */
+/** 4 candidatos por janela; o nível típico acompanha a divisão do clube. */
 export function coachCandidates(rng: Rng, tier: Tier): Coach[] {
   const base = clamp(Math.round((7 - tier) / 2), 0, 3);
   const out: Coach[] = [];
   const styles = rng.shuffle(STYLES);
-  for (let i = 0; i < 3; i++) {
-    const rating = clamp(base + rng.int(-1, 1) + (i === 0 ? 1 : 0), 0, 4);
+  for (let i = 0; i < 4; i++) {
+    const rating = clamp(base + rng.int(-1, 1) + (i === 0 ? 2 : i === 1 ? 1 : 0), 0, 4);
     out.push({
       name: `${rng.pick(COACH_FIRST)} ${rng.pick(LAST_NAMES)}`,
-      style: styles[i],
+      style: styles[i % styles.length],
       rating,
       wage: Math.round(COACH_WAGE[rating] * rng.float(0.85, 1.3)),
       age: rng.int(34, 66),
+      formation: rng.pick(FORMATION_LIST),
+      contract: rng.int(2, 3),
+      morale: 65,
     });
   }
   return out;
 }
 
-/** Multa para trocar de técnico: metade do salário anual do atual. */
+/** Técnico muito acima do nível do clube não aceita o convite (a não ser que o clube seja de série nacional). */
+export function coachAccepts(c: Coach, tier: Tier): boolean {
+  return c.rating - (7 - tier) / 2 <= 1.6;
+}
+
+/** Multa rescisória: metade dos salários que faltam no contrato do técnico atual. */
 export function coachSeverance(c: Coach): number {
-  return Math.round(c.wage * 0.5);
+  return Math.round(c.wage * Math.max(1, c.contract) * 0.5);
+}
+
+/** Efeito da moral do técnico na força (−1 a +1). */
+export function moraleEdge(morale: number): number {
+  return Math.round(((morale - 50) / 50) * 100) / 100;
+}
+
+/**
+ * Pedido do técnico para a janela: o que o elenco mais precisa no esquema dele.
+ * Prioridade: posição carente → garoto pronto na base → manter o craque → estrutura.
+ */
+export function coachRequest(p: PlayerClub, formation: Formation, mean: number, xi: Set<number>): CoachRequest | null {
+  const slots = FORMATIONS[formation];
+  let worst: { pos: Position; gap: number } | null = null;
+  for (const pos of ['GOL', 'DEF', 'MEI', 'ATA'] as Position[]) {
+    const players = p.squad.filter((f) => f.pos === pos).sort((a, b) => b.ovr - a.ovr);
+    const starters = players.slice(0, slots[pos]);
+    const short = slots[pos] - starters.length;
+    const weakest = starters.length > 0 ? starters[starters.length - 1].ovr : 0;
+    const gap = short > 0 ? 99 : mean - weakest;
+    if (gap > 1 && (!worst || gap > worst.gap)) worst = { pos, gap };
+  }
+  if (worst) {
+    const minOvr = Math.round(mean);
+    const label = { GOL: 'goleiro', DEF: 'defensor', MEI: 'meia', ATA: 'atacante' }[worst.pos];
+    return { kind: 'contratar', pos: worst.pos, minOvr, text: `Preciso de um ${label} com overall ${minOvr} ou mais para o ${formation}.` };
+  }
+  const ready = p.youth.filter((y) => y.ovr >= mean - 6).sort((a, b) => b.ovr - a.ovr)[0];
+  if (ready) return { kind: 'promover', playerId: ready.id, text: `O garoto ${ready.name} está pronto. Promova ele ao profissional.` };
+  const star = p.squad.filter((f) => xi.has(f.id)).sort((a, b) => b.ovr - a.ovr)[0];
+  if (star && p.facilities.ct >= 2) return { kind: 'nao_vender', playerId: star.id, text: `Não venda o ${star.name}: ele é a base do time.` };
+  if (p.facilities.ct < 5) return { kind: 'estrutura', level: p.facilities.ct + 1, text: `Melhore o centro de treinamento (nível ${p.facilities.ct + 1}).` };
+  return star ? { kind: 'nao_vender', playerId: star.id, text: `Não venda o ${star.name}: ele é a base do time.` } : null;
 }
 
 /* ------------------------------ Comércio local ------------------------------ */

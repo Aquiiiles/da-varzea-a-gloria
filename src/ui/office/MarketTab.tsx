@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { SQUAD_MAX, squadStrength, type ListingProfile, type Position } from '../../engine';
-import { money, weekly } from '../format';
+import { money, monthly } from '../format';
 import type { TabProps } from './Office';
 import { PlayerLine, Section } from './common';
 
@@ -72,7 +72,7 @@ export function MarketTab({ state, dispatch }: TabProps) {
                 aside={
                   <>
                     <b className={afford ? '' : 'bad'}>{l.fee === 0 ? 'Livre' : money(l.fee)}</b>
-                    <small>{weekly(l.player.wage)}</small>
+                    <small>{monthly(l.player.wage)}</small>
                   </>
                 }
                 open={open === l.player.id}
@@ -84,7 +84,7 @@ export function MarketTab({ state, dispatch }: TabProps) {
                   disabled={!afford || full}
                   onClick={() => dispatch({ t: 'buy', idx }) && setOpen(null)}
                 >
-                  Contratar ({l.fee === 0 ? 'sem taxa' : money(l.fee)} + {weekly(l.player.wage)}, {l.player.contract} ano{l.player.contract > 1 ? 's' : ''})
+                  Contratar ({l.fee === 0 ? 'sem taxa' : money(l.fee)} + {monthly(l.player.wage)}, {l.player.contract} ano{l.player.contract > 1 ? 's' : ''})
                 </button>
                 {!afford && <small className="bad">Caixa insuficiente.</small>}
                 {full && <small className="bad">Elenco cheio.</small>}

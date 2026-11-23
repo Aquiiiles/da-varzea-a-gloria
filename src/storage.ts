@@ -6,8 +6,8 @@
 import { computeScore, encodeRun, levelFor, runStats, TIERS, type GameState } from './engine';
 import { dailyLabel } from './ui/daily';
 
-const CAREERS_KEY = 'dvg:careers:v2';
-const HALL_KEY = 'dvg:hall:v2';
+const CAREERS_KEY = 'dvg:careers:v3';
+const HALL_KEY = 'dvg:hall:v3';
 const MAX_CAREERS = 5;
 const MAX_HALL = 10;
 

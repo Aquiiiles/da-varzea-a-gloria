@@ -1,5 +1,5 @@
 import {
-  BUSINESSES, FACILITY_COST, SEAT_PACKS, TICKET_POLICY, TIERS, attendance, commerce, seatsFor, stadiumAllows, type Facility, type Tier,
+  BUSINESSES, expectedHomeGames, FACILITY_COST, SEAT_PACKS, TICKET_POLICY, TIERS, attendance, commerce, seatsFor, stadiumAllows, type Facility, type Tier,
 } from '../../engine';
 import { money, num } from '../format';
 import type { TabProps } from './Office';
@@ -18,7 +18,7 @@ export function StadiumTab({ state, dispatch }: TabProps) {
   const next = (p.tier > 1 ? p.tier - 1 : 1) as Tier;
   const ok = p.tier === 1 || stadiumAllows(total, next);
   const att = attendance(p);
-  const homeGames = TIERS[p.tier].size - 1;
+  const homeGames = expectedHomeGames(p);
   const idolGoals = Math.max(0, ...p.squad.map((f) => f.goals));
   const shop = commerce(p, att, homeGames, idolGoals);
 
@@ -28,7 +28,7 @@ export function StadiumTab({ state, dispatch }: TabProps) {
         title="Estádio"
         note={
           p.tier === 1 ? (
-            'Você está na Premier. Estádio maior = mais bilheteria.'
+            'Você está na Série A. Estádio maior = mais bilheteria.'
           ) : (
             <>
               Para subir para a <strong>{TIERS[next].name}</strong>, o regulamento exige <strong>{num(TIERS[next].minStadium)} lugares</strong>. As obras ficam

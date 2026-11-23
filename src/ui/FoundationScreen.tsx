@@ -105,8 +105,8 @@ export function FoundationScreen({ onStart, onResume }: { onStart: (f: Foundatio
       <p className="kicker">Fundação</p>
       <h1 className="headline">Todo gigante já foi um time de bairro.</h1>
       <p className="lede">
-        Você é o dono. Funde um clube na Liga Regional, a 8ª divisão, e tente chegar à Premier, à Copa dos
-        Campeões e ao Mundial em 25 temporadas.
+        Você é o dono. Funde um time na Várzea e suba pelo Estadual, pelas Séries D, C e B até a Série A, a Copa Continental e o
+        Mundial em 50 temporadas.
       </p>
 
       <label className="field">

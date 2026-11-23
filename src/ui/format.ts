@@ -1,19 +1,21 @@
 import { scaled, TIERS, type Effect, type Footballer, type GameState, type Tier } from '../engine';
 
-/** Valores do motor estão em mil £. */
+/** Valores do motor estão em R$ mil. */
 export function money(k: number): string {
   const sign = k < 0 ? '-' : '';
   const v = Math.abs(k);
-  if (v >= 1000) return `${sign}£ ${(v / 1000).toLocaleString('pt-BR', { maximumFractionDigits: 1 })} mi`;
-  if (v >= 1) return `${sign}£ ${Math.round(v).toLocaleString('pt-BR')} mil`;
-  return `${sign}£ ${Math.round(v * 1000).toLocaleString('pt-BR')}`;
+  if (v >= 1000000) return `${sign}R$ ${(v / 1000000).toLocaleString('pt-BR', { maximumFractionDigits: 1 })} bi`;
+  if (v >= 1000) return `${sign}R$ ${(v / 1000).toLocaleString('pt-BR', { maximumFractionDigits: 1 })} mi`;
+  if (v >= 1) return `${sign}R$ ${Math.round(v).toLocaleString('pt-BR')} mil`;
+  return `${sign}R$ ${Math.round(v * 1000).toLocaleString('pt-BR')}`;
 }
 
-/** Salário anual (mil £) mostrado por semana, como nos modos carreira. */
-export function weekly(k: number): string {
-  const perWeek = (k * 1000) / 52;
-  if (perWeek >= 1000) return `£ ${(perWeek / 1000).toLocaleString('pt-BR', { maximumFractionDigits: 1 })} mil/sem`;
-  return `£ ${Math.round(perWeek).toLocaleString('pt-BR')}/sem`;
+/** Salário anual (R$ mil) mostrado por mês, como no Brasil. */
+export function monthly(k: number): string {
+  const perMonth = (k * 1000) / 12;
+  if (perMonth >= 1000000) return `R$ ${(perMonth / 1000000).toLocaleString('pt-BR', { maximumFractionDigits: 1 })} mi/mês`;
+  if (perMonth >= 1000) return `R$ ${(perMonth / 1000).toLocaleString('pt-BR', { maximumFractionDigits: 1 })} mil/mês`;
+  return `R$ ${Math.round(perMonth).toLocaleString('pt-BR')}/mês`;
 }
 
 export function num(n: number): string {
@@ -21,7 +23,7 @@ export function num(n: number): string {
 }
 
 export function tierLabel(t: Tier): string {
-  return `${TIERS[t].name} · ${t}ª divisão`;
+  return t <= 4 ? `${TIERS[t].name} + Estadual` : TIERS[t].name;
 }
 
 export function potLabel(f: Footballer): string {

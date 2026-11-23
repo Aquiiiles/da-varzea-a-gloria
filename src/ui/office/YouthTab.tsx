@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { MAX_LOANS, SQUAD_MAX, YOUTH_AGE_LIMIT, YOUTH_MAX, marketWage, tryoutCost } from '../../engine';
-import { money, weekly } from '../format';
+import { money, monthly } from '../format';
 import type { TabProps } from './Office';
 import { PlayerLine, Section } from './common';
 
@@ -36,7 +36,7 @@ export function YouthTab({ state, dispatch, goTo }: TabProps) {
                 key={y.id}
                 f={y}
                 tier={p.tier}
-                meta={y.age >= YOUTH_AGE_LIMIT ? <span className="bad">última temporada na base</span> : `bolsa ${weekly(y.wage)}`}
+                meta={y.age >= YOUTH_AGE_LIMIT ? <span className="bad">última temporada na base</span> : `bolsa ${monthly(y.wage)}`}
                 open={open === y.id}
                 onToggle={() => setOpen(open === y.id ? null : y.id)}
               >
@@ -46,7 +46,7 @@ export function YouthTab({ state, dispatch, goTo }: TabProps) {
                   disabled={p.squad.length >= SQUAD_MAX}
                   onClick={() => dispatch({ t: 'promote', id: y.id }) && setOpen(null)}
                 >
-                  Promover ao profissional ({weekly(marketWage(y.ovr) * 0.8)}, 4 anos)
+                  Promover ao profissional ({monthly(marketWage(y.ovr) * 0.8)}, 4 anos)
                 </button>
                 <button type="button" className="btn btn-small" disabled={p.onLoan.length >= MAX_LOANS} onClick={() => dispatch({ t: 'lend', id: y.id }) && setOpen(null)}>
                   Emprestar por 1 temporada (joga mais, evolui mais)

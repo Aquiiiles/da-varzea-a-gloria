@@ -410,3 +410,26 @@ h3 { font: 700 14px/1.2 var(--font-display); text-transform: uppercase; letter-s
   .cup-run li em { grid-column: 3; }
 }
 @media (min-width: 640px) { .achievements { grid-template-columns: 1fr 1fr; } }
+
+/* ------------------------------ Brasil ------------------------------ */
+.next-tier { margin: 0 0 12px; font-weight: 600; }
+.comps { display: flex; flex-direction: column; gap: 8px; margin-top: 12px; }
+.comp { background: var(--bg); border-radius: 6px; padding: 10px 12px; }
+.comp summary { cursor: pointer; display: flex; justify-content: space-between; gap: 8px; align-items: baseline; list-style: none; }
+.comp summary::-webkit-details-marker { display: none; }
+.comp-name { font: 700 16px var(--font-display); text-transform: uppercase; letter-spacing: 0.03em; }
+.comp-name::before { content: '▸ '; color: var(--muted); }
+.comp[open] .comp-name::before { content: '▾ '; }
+.comp-finish { font-weight: 700; font-size: 13px; color: var(--muted); }
+.comp-finish.good { color: var(--accent); }
+.comp h4 { margin: 12px 0 4px; font: 700 13px var(--font-display); text-transform: uppercase; color: var(--muted); letter-spacing: 0.06em; }
+.comp-tabs { margin: 10px 0 0; grid-template-columns: repeat(auto-fit, minmax(80px, 1fr)); }
+.tie-list { list-style: none; margin: 0; padding: 0; font-size: 13px; }
+.tie-list li { display: grid; grid-template-columns: 130px 1fr auto auto; gap: 6px; padding: 3px 0; border-bottom: 1px solid #1c2531; align-items: center; }
+.news { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+.news li { background: var(--bg); border-left: 3px solid var(--line); border-radius: 4px; padding: 8px 10px; font-size: 14px; }
+.news li.news-hot { border-left-color: var(--live); font-weight: 700; }
+.news-archive { margin-top: 6px; }
+.news-archive summary { cursor: pointer; font: 700 14px var(--font-display); color: var(--muted); }
+@media (max-width: 420px) { .tie-list li { grid-template-columns: 96px 1fr auto; } .tie-list li em { grid-column: 3; } }
+@media (min-width: 640px) { .summary-grid { grid-template-columns: 1fr 1fr; } }

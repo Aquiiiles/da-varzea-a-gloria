@@ -3,7 +3,7 @@ import {
   LOAN_AGE_LIMIT, MAX_LOANS, SQUAD_MAX, SQUAD_MIN, bestEleven, marketValue, payroll, releaseCost, renewWage, renewalCap, sellPrice, squadStrength,
   type Position,
 } from '../../engine';
-import { money, POS_LABEL, weekly } from '../format';
+import { money, POS_LABEL, monthly } from '../format';
 import type { TabProps } from './Office';
 import { PlayerLine, Section } from './common';
 
@@ -55,7 +55,7 @@ export function SquadTab({ state, dispatch }: TabProps) {
                     }
                     aside={
                       <>
-                        <b>{weekly(f.wage)}</b>
+                        <b>{monthly(f.wage)}</b>
                         <small>valor {money(marketValue(f))}</small>
                       </>
                     }
@@ -78,7 +78,7 @@ export function SquadTab({ state, dispatch }: TabProps) {
                           ? 'Manter: renovar no fim do contrato'
                           : renewWage(f.ovr, f.wage, f.homegrown) > renewalCap(p.tier, f.wage)
                             ? 'Liberar (ele vai pedir salário alto demais)'
-                            : `Não renovar (renovaria por ${weekly(renewWage(f.ovr, f.wage, f.homegrown))})`}
+                            : `Não renovar (renovaria por ${monthly(renewWage(f.ovr, f.wage, f.homegrown))})`}
                       </button>
                     )}
                     {f.age <= LOAN_AGE_LIMIT && (

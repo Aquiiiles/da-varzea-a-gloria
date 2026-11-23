@@ -2,7 +2,7 @@ import { SEAT_PACKS, TIERS, seatCost } from '../data/pyramid';
 import { scaled } from './effects';
 import { seasonFinance } from './finance';
 import { marketValue, marketWage, round1 } from './footballers';
-import type { Effect, GameState, Tier } from './types';
+import type { Effect, Footballer, GameState, Tier } from './types';
 
 /* ------------------------------ Custos (também usados pela UI) ------------------------------ */
 
@@ -57,3 +57,15 @@ export function projectFinance(state: GameState) {
   return seasonFinance(p, p.tier, expectedHomeGames(p), 10, 20);
 }
 
+
+/**
+ * Proposta de renovação antecipada (ou para convencer quem quer sair).
+ * Quem quer sair aceita ganhando 30% acima do mercado; quem cresceu demais exige salário de clube grande.
+ */
+export function renewalOffer(f: Footballer): { wage: number; label: string } | null {
+  if (f.intent === 'aposenta') return null;
+  const base = renewWage(f.ovr, f.wage, f.homegrown);
+  if (f.intent === 'sai') return { wage: round1(base * 1.3), label: 'Convencer a ficar' };
+  if (f.intent === 'clube_maior') return { wage: round1(Math.max(base, marketWage(f.ovr) * 1.15) * 1.1), label: 'Cobrir o salário do clube grande' };
+  return { wage: base, label: 'Renovar agora' };
+}

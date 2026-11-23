@@ -30,6 +30,8 @@ export function encodeAction(a: Action): string {
     case 'sell': return `s${a.id}`;
     case 'release': return `r${a.id}`;
     case 'leave': return `q${a.id}`;
+    case 'renew': return `n${a.id}`;
+    case 'bid': return `y${a.club.replace(/^c/, '')}_${a.player}_${a.fee}_${Math.round(a.wage * 10)}_${a.years}`;
     case 'offer': return `w${a.idx}`;
     case 'lend': return `d${a.id}`;
     case 'promote': return `p${a.id}`;
@@ -61,6 +63,13 @@ export function decodeAction(tok: string): Action | null {
     case 's': return Number.isNaN(n) ? null : { t: 'sell', id: n };
     case 'r': return Number.isNaN(n) ? null : { t: 'release', id: n };
     case 'q': return Number.isNaN(n) ? null : { t: 'leave', id: n };
+    case 'n': return Number.isNaN(n) ? null : { t: 'renew', id: n };
+    case 'y': {
+      const parts = rest.split('_');
+      if (parts.length !== 5 || !parts.every((x) => /^\d{1,9}$/.test(x))) return null;
+      const [club, player, fee, wage10, years] = parts.map(Number);
+      return { t: 'bid', club: `c${club}`, player, fee, wage: wage10 / 10, years };
+    }
     case 'w': return Number.isNaN(n) ? null : { t: 'offer', idx: n };
     case 'd': return Number.isNaN(n) ? null : { t: 'lend', id: n };
     case 'p': return Number.isNaN(n) ? null : { t: 'promote', id: n };

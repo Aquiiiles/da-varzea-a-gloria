@@ -11,7 +11,14 @@ export function OverviewTab({ state, dispatch, goTo }: TabProps) {
   const proj = projectFinance(state);
   const alerts: { text: string; tab: Parameters<TabProps['goTo']>[0] }[] = [];
 
-  const renewing = p.squad.filter((f) => f.contract === 1 && !f.leaving);
+  const leavingSoon = p.squad.filter((f) => f.intent === 'aposenta' || (f.contract === 1 && (f.intent === 'sai' || f.intent === 'clube_maior')));
+  if (leavingSoon.length > 0) {
+    alerts.push({
+      text: `Saídas previstas no fim da temporada: ${leavingSoon.map((f) => `${f.name} (${f.intent === 'aposenta' ? 'aposenta' : f.intent === 'sai' ? 'quer sair' : 'vai a um clube maior'})`).join(', ')}. Dá para tentar convencer ou vender antes.`,
+      tab: 'elenco',
+    });
+  }
+  const renewing = p.squad.filter((f) => f.contract === 1 && !f.leaving && f.intent !== 'sai' && f.intent !== 'clube_maior' && f.intent !== 'aposenta');
   const raise = renewing.reduce((s, f) => s + Math.max(0, renewWage(f.ovr, f.wage, f.homegrown) - f.wage), 0);
   if (renewing.length > 0 && raise > proj.wages * 0.08) {
     alerts.push({ text: `${renewing.length} contrato(s) renovam sozinhos no fim da temporada, somando +${money(raise)} na folha. Libere quem você não quer manter.`, tab: 'elenco' });

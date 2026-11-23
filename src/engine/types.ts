@@ -24,6 +24,8 @@ export interface Club {
   stateDiv: StateDiv | null;
   /** gigantes históricos: puxam a força para cima ano após ano */
   prestige?: number;
+  /** elenco do clube (a força é o time titular dele) */
+  squad: Footballer[];
 }
 
 export type CompId = 'varzea' | 'estadual_b' | 'estadual_a' | 'serie_d' | 'serie_c' | 'serie_b' | 'serie_a';
@@ -76,6 +78,32 @@ export interface Footballer {
   leaving?: boolean;
   /** emprestado a partir da base (volta para a base) */
   loanFromYouth?: boolean;
+  /** intenção para o fim da temporada (decidida na abertura da janela, visível para o presidente) */
+  intent?: ContractIntent;
+}
+
+/**
+ * renova: aceita renovar pelo salário de mercado · aumento: renova, mas pede aumento grande ·
+ * sai: não quer renovar · clube_maior: cresceu demais e vai para um clube maior · aposenta: pendura as chuteiras.
+ */
+export type ContractIntent = 'renova' | 'aumento' | 'sai' | 'clube_maior' | 'aposenta';
+
+export type NegotiationStatus = 'aceita' | 'recusada' | 'contra_clube' | 'contra_jogador' | 'encerrada';
+
+/** Negociação por um jogador de outro clube nesta janela. */
+export interface Negotiation {
+  clubId: string;
+  playerId: number;
+  rounds: number;
+  status: NegotiationStatus;
+  /** contraproposta do clube (taxa) ou do jogador (salário anual) */
+  askFee?: number;
+  askWage?: number;
+  /** últimos valores oferecidos */
+  fee: number;
+  wage: number;
+  years: number;
+  message: string;
 }
 
 export type ListingProfile = 'promessa' | 'pronto' | 'veterano' | 'livre';
@@ -285,6 +313,8 @@ export type Action =
   | { t: 'sell'; id: number }
   | { t: 'release'; id: number }
   | { t: 'leave'; id: number } // alterna "não renovar" (sai de graça no fim do contrato)
+  | { t: 'renew'; id: number } // renova agora (ou tenta convencer quem quer sair)
+  | { t: 'bid'; club: string; player: number; fee: number; wage: number; years: number } // proposta por jogador de outro clube
   | { t: 'offer'; idx: number } // aceita a proposta idx
   | { t: 'lend'; id: number } // empresta um jovem por uma temporada
   | { t: 'promote'; id: number } // base → profissional
@@ -417,6 +447,7 @@ export interface SeasonOffice {
   /** ações de obra/estrutura já feitas nesta temporada */
   built: { seats: boolean; facility: boolean; loan: boolean; business: boolean };
   coaches: (Coach | null)[];
+  negotiations: Negotiation[];
   objectives: Objective[];
   /** contratações e vendas de crias da base nesta janela (torcida e conquistas) */
   signings: number;

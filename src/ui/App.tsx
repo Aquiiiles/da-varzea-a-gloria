@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ActionError, apply, decodeRun, encodeRun, newGame, replay, seedFromEntropy, type Action, type Foundation, type GameState } from '../engine';
+import { ActionError, apply, decodeRun, encodeRun, negotiationFor, newGame, replay, seedFromEntropy, type Action, type Foundation, type GameState } from '../engine';
 import { FoundationScreen } from './FoundationScreen';
 import { GameScreen } from './GameScreen';
 import { Ticker } from './Ticker';
@@ -36,7 +36,7 @@ export type Dispatch = (...actions: Action[]) => boolean;
 export function App() {
   const [state, setState] = useState<GameState | null>(() => loadFromUrl());
   const [fromLink] = useState(() => state !== null);
-  const [toast, setToast] = useState<string | null>(null);
+  const [toast, setToast] = useState<{ text: string; ok?: boolean } | null>(null);
   const stateRef = useRef(state);
   stateRef.current = state;
 
@@ -56,11 +56,11 @@ export function App() {
   /** Continua uma carreira salva (reconstrói pelo log de ações). */
   const resume = useCallback((query: string) => {
     const code = decodeRun(query);
-    if (!code) return setToast('Save inválido.');
+    if (!code) return setToast({ text: 'Save inválido.' });
     try {
       setState(replay(code.seed, code.foundation, code.actions));
     } catch {
-      setToast('Não foi possível carregar este save.');
+      setToast({ text: 'Não foi possível carregar este save.' });
     }
   }, []);
 
@@ -73,7 +73,7 @@ export function App() {
         s = apply(s, a);
       } catch (e) {
         if (e instanceof ActionError) {
-          setToast(e.message);
+          setToast({ text: e.message });
           stateRef.current = s;
           setState(s);
           saveCareer(s);
@@ -85,6 +85,12 @@ export function App() {
     stateRef.current = s;
     setState(s);
     saveCareer(s);
+    // acerto fechado numa negociação: o jogador sai da lista do outro clube, então avisamos aqui
+    const last = actions[actions.length - 1];
+    if (last?.t === 'bid') {
+      const n = negotiationFor(s, last.club, last.player);
+      if (n?.status === 'aceita') setToast({ text: n.message, ok: true });
+    }
     return true;
   }, []);
 
@@ -107,8 +113,8 @@ export function App() {
         )}
       </main>
       {toast && (
-        <div className="toast" role="status">
-          {toast}
+        <div className={`toast${toast.ok ? ' toast-ok' : ''}`} role="status">
+          {toast.text}
         </div>
       )}
     </div>

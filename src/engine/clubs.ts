@@ -1,5 +1,6 @@
 import { PALETTE } from '../data/names';
 import { OUR_STATE_NATIONAL, SIZES, TIERS } from '../data/pyramid';
+import { generateSquad, refreshStrength, type IdSource } from './aisquad';
 import { proClubName, uniqueName, varzeaClubName } from './names';
 import type { Rng } from './rng';
 import { clamp } from './util';
@@ -41,11 +42,11 @@ export function syncTier(c: Club): void {
   c.tier = levelOf(c.national, c.stateDiv);
 }
 
-export function makeClub(rng: Rng, id: string, national: NationalDiv | null, stateDiv: StateDiv | null, taken: Set<string>): Club {
+export function makeClub(rng: Rng, id: string, national: NationalDiv | null, stateDiv: StateDiv | null, taken: Set<string>, ids?: IdSource): Club {
   const tier = levelOf(national, stateDiv);
   const rules = TIERS[tier];
   const name = uniqueName(() => (stateDiv === 'V' ? varzeaClubName(rng) : proClubName(rng)), taken);
-  return {
+  const club: Club = {
     id,
     name,
     short: initials(name),
@@ -54,7 +55,13 @@ export function makeClub(rng: Rng, id: string, national: NationalDiv | null, sta
     tier,
     national,
     stateDiv,
+    squad: [],
   };
+  if (ids) {
+    club.squad = generateSquad(rng, club.strength, ids);
+    refreshStrength(club);
+  }
+  return club;
 }
 
 /**
@@ -64,7 +71,7 @@ export function makeClub(rng: Rng, id: string, national: NationalDiv | null, sta
  * - Estadual Série B: 16 · Várzea: 19 (+ o clube do jogador);
  * - Outros estados sem divisão nacional: fonte das vagas da Série D e da Copa Nacional.
  */
-export function generateWorld(rng: Rng, taken: Set<string>): { clubs: Club[]; serial: number } {
+export function generateWorld(rng: Rng, taken: Set<string>, ids: IdSource): { clubs: Club[]; serial: number } {
   const clubs: Club[] = [];
   let serial = 0;
   const add = (national: NationalDiv | null, stateDiv: StateDiv | null) => clubs.push(makeClub(rng, `c${serial++}`, national, stateDiv, taken));
@@ -88,13 +95,9 @@ export function generateWorld(rng: Rng, taken: Set<string>): { clubs: Club[]; se
     serieA[i].prestige = p;
     serieA[i].strength = Math.min(90, serieA[i].strength + p);
   });
+  for (const c of clubs) {
+    c.squad = generateSquad(rng, c.strength, ids);
+    refreshStrength(c);
+  }
   return { clubs, serial };
-}
-
-/** Variação anual da IA: puxa para a média do nível atual + ruído. */
-export function driftClub(rng: Rng, club: Club): void {
-  const rules = TIERS[club.tier];
-  const target = rules.meanStrength + (club.prestige ?? 0);
-  const pull = 0.3 * (target - club.strength);
-  club.strength = Math.round(clamp(club.strength + pull + rng.normal(1.1), 30, 95) * 10) / 10;
 }

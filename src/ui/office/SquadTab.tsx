@@ -1,13 +1,21 @@
 import { useState } from 'react';
 import {
-  LOAN_AGE_LIMIT, MAX_LOANS, SQUAD_MAX, SQUAD_MIN, bestEleven, marketValue, payroll, releaseCost, renewWage, renewalCap, sellPrice, squadStrength,
-  type Position,
+  LOAN_AGE_LIMIT, MAX_LOANS, SQUAD_MAX, SQUAD_MIN, bestEleven, marketValue, payroll, releaseCost, renewalOffer, sellPrice, squadStrength,
+  type ContractIntent, type Position,
 } from '../../engine';
 import { money, POS_LABEL, monthly } from '../format';
 import type { TabProps } from './Office';
 import { PlayerLine, Section } from './common';
 
 const ORDER: Position[] = ['GOL', 'DEF', 'MEI', 'ATA'];
+
+export const INTENT_LABEL: Record<ContractIntent, { text: string; tone: 'good' | 'warnc' | 'bad' }> = {
+  renova: { text: 'renova no fim do contrato', tone: 'good' },
+  aumento: { text: 'renova, mas pede aumento', tone: 'warnc' },
+  sai: { text: 'não quer renovar', tone: 'bad' },
+  clube_maior: { text: 'vai para um clube maior', tone: 'bad' },
+  aposenta: { text: 'vai se aposentar no fim da temporada', tone: 'bad' },
+};
 
 export function SquadTab({ state, dispatch }: TabProps) {
   const p = state.player;
@@ -44,8 +52,12 @@ export function SquadTab({ state, dispatch }: TabProps) {
                     badge={xi.has(f.id) ? '★' : undefined}
                     meta={
                       <>
-                        {f.contract === 1 ? (
-                          f.leaving ? <span className="bad">sai no fim da temporada</span> : <span className="warnc">último ano · renova sozinho</span>
+                        {f.leaving ? (
+                          <span className="bad">liberado: sai no fim da temporada</span>
+                        ) : f.intent ? (
+                          <span className={INTENT_LABEL[f.intent].tone}>{f.contract === 1 && f.intent !== 'aposenta' ? 'último ano · ' : ''}{INTENT_LABEL[f.intent].text}</span>
+                        ) : f.contract === 1 ? (
+                          <span className="warnc">último ano · renova sozinho</span>
                         ) : (
                           `${f.contract} anos de contrato`
                         )}{' '}
@@ -72,13 +84,14 @@ export function SquadTab({ state, dispatch }: TabProps) {
                         Aceitar proposta do {offerFor.get(f.id)!.club}: {money(offerFor.get(f.id)!.fee)}
                       </button>
                     )}
-                    {f.contract === 1 && (
+                    {f.contract === 1 && renewalOffer(f) && (
+                      <button type="button" className="btn btn-small btn-primary" onClick={() => dispatch({ t: 'renew', id: f.id })}>
+                        {renewalOffer(f)!.label}: {monthly(renewalOffer(f)!.wage)} por {f.age >= 32 ? '1 ano' : '3 anos'}
+                      </button>
+                    )}
+                    {f.contract === 1 && f.intent !== 'aposenta' && (
                       <button type="button" className="btn btn-small" onClick={() => dispatch({ t: 'leave', id: f.id })}>
-                        {f.leaving
-                          ? 'Manter: renovar no fim do contrato'
-                          : renewWage(f.ovr, f.wage, f.homegrown) > renewalCap(p.tier, f.wage)
-                            ? 'Liberar (ele vai pedir salário alto demais)'
-                            : `Não renovar (renovaria por ${monthly(renewWage(f.ovr, f.wage, f.homegrown))})`}
+                        {f.leaving ? 'Manter: deixar renovar no fim do contrato' : 'Liberar no fim do contrato'}
                       </button>
                     )}
                     {f.age <= LOAN_AGE_LIMIT && (

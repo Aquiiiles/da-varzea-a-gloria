@@ -92,9 +92,12 @@ export const SEAT_PACKS: { pct: number; min: number; label: string }[] = [
   { pct: 1.2, min: 2000, label: 'Estádio novo' },
 ];
 
-/** Custo por lugar (R$ mil): fica mais caro em estádios grandes. */
+/**
+ * Custo por lugar (R$ mil): fica mais caro em estádios grandes.
+ * Calibrado para cada degrau exigido pelo regulamento custar ~1 a 1,5 temporada de lucro do nível.
+ */
 export function seatCost(capacity: number): number {
-  return 0.4 + (capacity / 20000) * 1.3;
+  return 0.22 + (capacity / 20000) * 0.9;
 }
 
 export function tierUp(t: Tier): Tier {

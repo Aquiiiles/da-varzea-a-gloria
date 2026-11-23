@@ -84,16 +84,17 @@ export function runAssistant(state: GameState, apply: Apply, areas?: DelegateAre
 
   if (on.has('estadio') && p.tier > 1) {
     const need = TIERS[(p.tier - 1) as Tier].minStadium - (p.capacity + p.capacityBuilding);
-    const contender = squadStrength(p.squad) >= mean + 0.5;
     const crowded = p.fans > p.capacity * 1.15;
-    if ((need > 0 && (contender || crowded)) || (need <= 0 && crowded && spare() > 0)) {
-      for (const size of [0, 1, 2] as const) {
-        const { seats, cost } = seatsFor(p.capacity + p.capacityBuilding, size);
-        if ((need <= 0 || seats >= need || size === 2) && cost <= spare()) {
-          tryDo({ t: 'seats', size });
-          break;
-        }
-      }
+    if (need > 0) {
+      // estádio abaixo do exigido para subir: a menor obra que resolve, ou a maior que couber no caixa
+      const options = ([0, 1, 2] as const).map((size) => ({ size, ...seatsFor(p.capacity + p.capacityBuilding, size) }));
+      const solves = options.find((o) => o.seats >= need && o.cost <= spare());
+      const biggest = [...options].reverse().find((o) => o.cost <= spare());
+      const pick = solves ?? biggest;
+      if (pick) tryDo({ t: 'seats', size: pick.size });
+    } else if (crowded && spare() > 0) {
+      const { cost } = seatsFor(p.capacity + p.capacityBuilding, 0);
+      if (cost <= spare()) tryDo({ t: 'seats', size: 0 });
     }
   }
 

@@ -44,10 +44,16 @@ export function effectsCashCost(state: GameState, effects: readonly Effect[]): n
   return c < 0 ? -c : 0;
 }
 
-/** Projeção das finanças da temporada (posição no meio da tabela). */
+/** Jogos em casa esperados na temporada (estadual + série nacional). */
+export function expectedHomeGames(p: GameState['player']): number {
+  const est = p.stateDiv === 'A' ? 8 : p.stateDiv === 'B' ? 8 : p.stateDiv === 'V' ? 10 : 0;
+  const nat = p.national === 1 || p.national === 2 ? 19 : p.national === 3 ? 11 : p.national === 4 ? 4 : 0;
+  return est + nat;
+}
+
+/** Projeção das finanças da temporada (campanha de meio de tabela). */
 export function projectFinance(state: GameState) {
   const p = state.player;
-  const size = TIERS[p.tier].size;
-  return seasonFinance(p, p.tier, size - 1, Math.ceil(size / 2), size);
+  return seasonFinance(p, p.tier, expectedHomeGames(p), 10, 20);
 }
 

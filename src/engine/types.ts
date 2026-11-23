@@ -2,8 +2,11 @@
 
 export type Origin = 'pub' | 'fabrica' | 'youtuber';
 
-/** Nível da pirâmide: 1 = Premier (topo) ... 8 = Liga Regional (fundo). */
-export type Tier = 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8;
+/** Nível da escada: 1 Série A · 2 Série B · 3 Série C · 4 Série D · 5 Estadual · 6 Estadual Série B · 7 Várzea. */
+export type Tier = 1 | 2 | 3 | 4 | 5 | 6 | 7;
+export type NationalDiv = 1 | 2 | 3 | 4;
+/** Divisão no estado: A (Estadual), B (Estadual Série B), V (Várzea). */
+export type StateDiv = 'A' | 'B' | 'V';
 
 /** Clube da IA: uma força só (overall médio do time titular). */
 export interface Club {
@@ -13,9 +16,34 @@ export interface Club {
   colors: [string, string];
   /** overall médio do time (escala 30–95) */
   strength: number;
+  /** nível atual (derivado de `national` e `stateDiv`) */
   tier: Tier;
+  /** divisão nacional (null = não disputa) */
+  national: NationalDiv | null;
+  /** divisão no nosso estado (null = clube de outro estado) */
+  stateDiv: StateDiv | null;
   /** gigantes históricos: puxam a força para cima ano após ano */
   prestige?: number;
+}
+
+export type CompId = 'varzea' | 'estadual_b' | 'estadual_a' | 'serie_d' | 'serie_c' | 'serie_b' | 'serie_a';
+
+/** Resultado de uma competição de liga (com fases) do ponto de vista do jogador. */
+export interface CompResult {
+  id: CompId;
+  name: string;
+  tier: Tier;
+  /** tabelas: 1ª fase, grupos, quadrangulares */
+  tables: { name: string; rows: TableRow[] }[];
+  /** jogos de mata-mata do jogador */
+  ties: CupMatch[];
+  /** nome do campeão */
+  champion: string;
+  /** como o jogador terminou: "Campeão", "Vice", "Semifinal", "7º na 1ª fase" */
+  finish: string;
+  /** o jogador foi campeão */
+  won: boolean;
+  clubNames: Record<string, string>;
 }
 
 /* ------------------------------ Jogadores ------------------------------ */
@@ -87,7 +115,7 @@ export interface Coach {
   age: number;
 }
 
-export type CompetitionId = 'copa' | 'cc' | 'le' | 'mundial';
+export type CompetitionId = 'estado' | 'copa' | 'cc' | 'le' | 'mundial';
 
 export interface CupMatch {
   round: string;
@@ -96,8 +124,11 @@ export interface CupMatch {
   opponentTier: Tier | null;
   home: boolean;
   result: MatchResult;
+  /** venceu o jogo (ou avançou, em jogo único) */
   won: boolean;
-  /** vitória contra clube 3+ divisões acima */
+  /** passou de fase neste jogo (null = jogo de ida) */
+  advanced: boolean | null;
+  /** eliminou um clube 3+ níveis acima */
   giantKill: boolean;
 }
 
@@ -134,7 +165,7 @@ export interface LiveEvent {
 }
 
 export interface LiveMoment {
-  kind: 'playoff' | 'ultima_rodada' | 'zebra' | 'final_copa' | 'final_cc' | 'final_le' | 'mundial' | 'classico';
+  kind: 'playoff' | 'ultima_rodada' | 'zebra' | 'final_copa' | 'final_cc' | 'final_le' | 'mundial' | 'classico' | 'final_estadual' | 'final_estado';
   title: string;
   stake: string;
   homeName: string;
@@ -184,6 +215,8 @@ export interface PlayerClub extends Club {
   worldCup: boolean;
   /** histórico do clássico (liga e copas) */
   derby: { w: number; d: number; l: number };
+  /** vaga na Copa Nacional desta temporada (campeão da Copa do Estado do ano anterior) */
+  copaSpot: boolean;
   sponsors: Sponsor[];
   squad: Footballer[];
   youth: Footballer[];
@@ -356,6 +389,10 @@ export interface SeasonResult {
   signings: number;
   /** crias da base no time titular */
   homegrownXI: number;
+  /** competições de liga do jogador na temporada (estadual e nacional) */
+  comps: CompResult[];
+  /** notícias do mundo da bola */
+  worldNews: string[];
 }
 
 /* ------------------------------ Estado ------------------------------ */
@@ -387,7 +424,7 @@ export interface SeasonOffice {
 }
 
 export interface GameState {
-  version: 2;
+  version: 3;
   seed: number;
   foundation: Foundation;
   season: number;
@@ -395,7 +432,8 @@ export interface GameState {
   actions: Action[];
   phase: Phase;
   player: PlayerClub;
-  world: Record<Tier, Club[]>;
+  /** todos os clubes da IA (nacionais, do estado e de outros estados) */
+  clubs: Club[];
   office: SeasonOffice;
   seenOnce: string[];
   history: SeasonResult[];

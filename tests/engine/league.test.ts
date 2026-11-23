@@ -1,6 +1,5 @@
 import { roundRobin, simulateLeague, simulatePlayoff, sortTable, emptyRow } from '../../src/engine/league';
 import { createRng } from '../../src/engine/rng';
-import { ALL_TIERS, TIERS } from '../../src/data/pyramid';
 
 const ids = Array.from({ length: 24 }, (_, i) => `c${i}`);
 const flat = { strength: () => 50, homeAdv: () => 3 };
@@ -63,11 +62,4 @@ describe('liga', () => {
     expect(po.semis).toHaveLength(2);
   });
 
-  it('a pirâmide fecha a conta: quem sobe de N+1 = quem cai de N', () => {
-    for (const t of ALL_TIERS) {
-      if (t === 8) continue;
-      const below = TIERS[(t + 1) as 1];
-      expect(below.autoUp + (below.playoff ? 1 : 0)).toBe(TIERS[t].down);
-    }
-  });
 });

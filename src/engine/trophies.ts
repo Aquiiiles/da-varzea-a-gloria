@@ -1,9 +1,9 @@
-import { START_YEAR, TIERS } from '../data/pyramid';
+import { START_YEAR } from '../data/pyramid';
 import { PLAYER_ID } from './season';
 import type { GameState, Tier } from './types';
 
-const CUP_SIZE: Record<string, Trophy['size']> = { mundial: 3, cc: 3, le: 2, copa: 2 };
-const CUP_RANK: Record<string, number> = { mundial: 0, cc: 1, le: 3, copa: 13 };
+const CUP_SIZE: Record<string, Trophy['size']> = { mundial: 3, cc: 3, le: 2, copa: 2, estado: 1 };
+const CUP_RANK: Record<string, number> = { mundial: 0, cc: 1, le: 3, copa: 13, estado: 22 };
 
 export interface Trophy {
   id: string;
@@ -23,8 +23,11 @@ export function trophies(state: GameState): Trophy[] {
     map.set(id, t);
   };
   for (const r of state.history) {
-    if (r.position === 1) add(`liga-${r.tier}`, `Campeão da ${TIERS[r.tier].name}`, r.tier === 1 ? 3 : r.tier <= 3 ? 2 : 1, r.year, r.tier);
-    if (r.outcome === 'acesso_playoff') add(`playoff-${r.tier}`, `Playoff da ${TIERS[r.tier].name}`, 1, r.year, r.tier);
+    for (const c of r.comps) {
+      if (!c.won) continue;
+      const title = c.id === 'estadual_a' ? 'Campeão Estadual' : c.id === 'estadual_b' ? 'Campeão do Estadual Série B' : c.id === 'varzea' ? 'Rei da Várzea' : `Campeão da ${c.name}`;
+      add(`liga-${c.id}`, title, c.tier === 1 ? 3 : c.tier <= 3 || c.id === 'estadual_a' ? 2 : 1, r.year, c.tier);
+    }
     for (const c of r.cups) if (c.champion) add(c.id, c.name, CUP_SIZE[c.id], r.year);
   }
   // ordena: copas internacionais, depois ligas da mais alta para a mais baixa

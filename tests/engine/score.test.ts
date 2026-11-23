@@ -2,17 +2,17 @@ import { computeScore, levelFor, runStats, type RunStats } from '../../src/engin
 import { playRun } from './helpers';
 
 const base: RunStats = {
-  seasons: 25, promotions: 0, relegations: 0, leagueTitles: 0, premierTitles: 0, bestTier: 8, barred: 0,
+  seasons: 50, promotions: 0, relegations: 0, leagueTitles: 0, premierTitles: 0, bestTier: 7, barred: 0,
   giantKills: 0, biggestUpset: null, cupWins: 0, championsWins: 0, worldWins: 0, bankrupt: false, soul: 80,
-  idol: null, trajectory: Array(25).fill(8),
+  idol: null, trajectory: Array(50).fill(7),
 };
 
 describe('escada de níveis', () => {
   it('falência = Fechou as portas', () => {
     expect(levelFor({ ...base, bankrupt: true, premierTitles: 2, bestTier: 1 }).level).toBe(1);
   });
-  it('nunca saiu do fundo = Time de pub', () => {
-    expect(levelFor(base).title).toBe('Time de pub');
+  it('nunca saiu do fundo = Time de várzea', () => {
+    expect(levelFor(base).title).toBe('Time de várzea');
   });
   it('níveis intermediários', () => {
     expect(levelFor({ ...base, giantKills: 1 }).level).toBe(3);

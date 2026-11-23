@@ -1,13 +1,16 @@
 import { TIERS } from '../data/pyramid';
-import { FIRST_NAMES, LAST_NAMES } from '../data/names';
+import { personName as brName } from './names';
 import { clamp } from './util';
 import type { Rng } from './rng';
 import type { Footballer, Listing, ListingProfile, Offer, Position, Tier } from './types';
 
-/** Pontos (overall, salário anual em mil £) — interpolação em escala log. */
+/**
+ * Pontos (overall, salário anual em R$ mil) — interpolação em escala log.
+ * Várzea ~R$ 1 mil/mês; Série A média ~R$ 330 mil/mês; craque 86 ~R$ 2,5 mi/mês.
+ */
 const WAGE_CURVE: [number, number][] = [
-  [30, 0.5], [35, 0.8], [40, 1.5], [45, 3], [50, 5.5], [54, 10], [58, 22], [62, 50],
-  [66, 130], [70, 320], [74, 950], [78, 5500], [82, 11000], [86, 20000], [90, 32000], [99, 50000],
+  [30, 2], [35, 4], [40, 8], [45, 15], [50, 30], [54, 55], [58, 110], [62, 240],
+  [66, 520], [70, 1300], [74, 4000], [78, 9000], [82, 18000], [86, 30000], [90, 45000], [99, 70000],
 ];
 
 export function marketWage(ovr: number): number {
@@ -50,8 +53,8 @@ export function scoutRange(rng: Rng, pot: number, scout: number): [number, numbe
   return [clamp(center - width, 30, 99), clamp(center + width, 30, 99)];
 }
 
-export function personName(rng: Rng): string {
-  return `${rng.pick(FIRST_NAMES)} ${rng.pick(LAST_NAMES)}`;
+export function personName(rng: Rng, taken?: Set<string>): string {
+  return brName(rng, taken);
 }
 
 const POS_WEIGHTS: [Position, number][] = [['GOL', 2], ['DEF', 7], ['MEI', 7], ['ATA', 4]];
@@ -68,18 +71,20 @@ export interface NewPlayerOpts {
   contract?: number;
   homegrown?: boolean;
   wageMult?: number;
+  /** nomes já usados (evita repetição) */
+  names?: Set<string>;
 }
 
 export function makeFootballer(rng: Rng, o: NewPlayerOpts): Footballer {
   const pos = o.pos ?? rng.weighted(POS_WEIGHTS, (x) => x[1])[0];
   const ovr = Math.round(clamp(o.ovr, 25, 95));
   // margem de crescimento depende da idade
-  const room = o.age <= 18 ? rng.int(8, 26) : o.age <= 21 ? rng.int(4, 16) : o.age <= 25 ? rng.int(0, 8) : rng.int(0, 2);
+  const room = o.age <= 18 ? rng.int(6, 22) : o.age <= 21 ? rng.int(3, 14) : o.age <= 25 ? rng.int(0, 7) : rng.int(0, 2);
   const pot = clamp(ovr + room + (o.potBoost ?? 0), ovr, 95);
   const [potLo, potHi] = scoutRange(rng, pot, o.scout);
   return {
     id: o.id,
-    name: personName(rng),
+    name: personName(rng, o.names),
     pos,
     age: o.age,
     ovr,
@@ -96,7 +101,7 @@ export function makeFootballer(rng: Rng, o: NewPlayerOpts): Footballer {
 }
 
 /** Elenco inicial de um clube de várzea. */
-export function foundingSquad(rng: Rng, mean: number, firstId: number): Footballer[] {
+export function foundingSquad(rng: Rng, mean: number, firstId: number, names?: Set<string>): Footballer[] {
   const plan: Position[] = ['GOL', 'GOL', 'DEF', 'DEF', 'DEF', 'DEF', 'DEF', 'DEF', 'MEI', 'MEI', 'MEI', 'MEI', 'MEI', 'MEI', 'ATA', 'ATA', 'ATA', 'ATA'];
   return plan.map((pos, i) =>
     makeFootballer(rng, {
@@ -107,6 +112,7 @@ export function foundingSquad(rng: Rng, mean: number, firstId: number): Football
       scout: 0,
       season: 1,
       contract: rng.int(1, 3),
+      names,
     }),
   );
 }
@@ -194,22 +200,23 @@ export function retires(rng: Rng, p: Footballer): boolean {
 }
 
 /** Garotos que aparecem na base a cada temporada. */
-export function youthIntake(rng: Rng, academy: number, scout: number, tier: Tier, nextId: () => number, season: number): Footballer[] {
+export function youthIntake(rng: Rng, academy: number, scout: number, tier: Tier, nextId: () => number, season: number, names?: Set<string>): Footballer[] {
   const count = 1 + Math.floor(academy / 2) + (rng.chance(0.5) ? 1 : 0);
   const out: Footballer[] = [];
   for (let i = 0; i < count; i++) {
     const age = rng.int(15, 17);
-    const base = 34 + academy * 2.5 + (8 - tier) * 0.6;
+    const base = 34 + academy * 2.5 + (7 - tier) * 0.6;
     const p = makeFootballer(rng, {
       id: nextId(),
       ovr: base + rng.normal(4),
       age,
-      potBoost: academy * 3 + (rng.chance(0.08) ? 10 : 0),
+      potBoost: academy * 2 + (rng.chance(0.06) ? 8 : 0),
       scout,
       season,
       contract: 3,
       homegrown: true,
       wageMult: 0,
+      names,
     });
     p.wage = youthWage(tier);
     out.push(p);
@@ -219,11 +226,11 @@ export function youthIntake(rng: Rng, academy: number, scout: number, tier: Tier
 
 /** Bolsa anual de um garoto da base. */
 export function youthWage(tier: Tier): number {
-  return round1(0.6 * Math.sqrt(TIERS[tier].moneyScale));
+  return round1(1.2 * Math.sqrt(TIERS[tier].moneyScale));
 }
 
 /** Candidatos da peneira. Sem base forte, mais loteria; olheiro melhora a leitura. */
-export function tryoutCandidates(rng: Rng, tier: Tier, scout: number, nextId: () => number, season: number): Footballer[] {
+export function tryoutCandidates(rng: Rng, tier: Tier, scout: number, nextId: () => number, season: number, names?: Set<string>): Footballer[] {
   const out: Footballer[] = [];
   const mean = TIERS[tier].meanStrength;
   for (let i = 0; i < 5; i++) {
@@ -238,6 +245,7 @@ export function tryoutCandidates(rng: Rng, tier: Tier, scout: number, nextId: ()
       contract: 3,
       homegrown: true,
       wageMult: 0,
+      names,
     });
     p.wage = youthWage(tier);
     out.push(p);
@@ -268,7 +276,7 @@ const MARKET_MIX: ProfileSpec[] = [
   { profile: 'livre', count: 2, age: [28, 34], rel: [-4, 2], potBoost: 0, wage: [1.4, 1.7], fee: [0, 0], contract: [1, 1] },
 ];
 
-export function marketListings(rng: Rng, tier: Tier, scout: number, nextId: () => number, season: number, clubNames: string[]): Listing[] {
+export function marketListings(rng: Rng, tier: Tier, scout: number, nextId: () => number, season: number, clubNames: string[], names?: Set<string>): Listing[] {
   const mean = TIERS[tier].meanStrength;
   const out: Listing[] = [];
   for (const spec of MARKET_MIX) {
@@ -284,6 +292,7 @@ export function marketListings(rng: Rng, tier: Tier, scout: number, nextId: () =
         season,
         contract: rng.int(spec.contract[0], spec.contract[1]),
         wageMult: rng.float(spec.wage[0], spec.wage[1]),
+        names,
       });
       const fee = spec.fee[1] === 0 ? 0 : Math.round(marketValue(p) * rng.float(spec.fee[0], spec.fee[1]));
       out.push({ player: p, fee, from: spec.profile === 'livre' ? 'Sem clube' : rng.pick(clubNames), profile: spec.profile });

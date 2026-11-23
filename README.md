@@ -24,9 +24,9 @@ npm run balance    # probe de balanceamento com bots (não roda no npm test)
 A cada temporada você abre o **Escritório do Presidente**:
 
 - **Painel:** evento da temporada, oportunidades (propostas opcionais), alertas e orçamento previsto.
-- **Elenco:** jogadores com overall, potencial (faixa lida pelo olheiro), idade, salário, contrato e valor. Contratos renovam sozinhos; você só marca quem não quer manter. Venda, dispense, empreste jovens e aceite propostas de outros clubes.
+- **Elenco:** jogadores com overall, potencial (faixa lida pelo olheiro), idade, salário, contrato e valor. No começo da janela cada jogador mostra a intenção para o fim da temporada (renova, pede aumento, quer sair, vai para um clube maior, vai se aposentar); dá para renovar antes ou tentar convencer, e nada acontece de surpresa. Venda, dispense, empreste jovens e aceite propostas de outros clubes.
 - **Base:** garotos que surgem todo ano (mais e melhores com a base investida) e a peneira (1 por temporada).
-- **Mercado:** 12 jogadores por janela (promessas, prontos, veteranos e sem clube), com filtros, taxa à vista e salário na folha.
+- **Mercado:** a janela (12 jogadores livres ou à venda), a **busca** de qualquer jogador do mundo e o **elenco de qualquer clube**. Proposta com taxa, salário e anos: o clube aceita, recusa (com dica de valor) ou faz contraproposta, e o jogador decide o salário (não gosta de descer de divisão). Até 3 rodadas por jogador em cada janela.
 - **Estádio:** ampliações (ficam prontas no fim da temporada e contam na vistoria do acesso), preço do ingresso e estrutura (CT, base, departamento médico).
 - **Clube:** comissão técnica, patrocínios, empréstimos e identidade.
 - **Troféus:** sala de troféus e recordes do clube.

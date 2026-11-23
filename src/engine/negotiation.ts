@@ -5,6 +5,15 @@ import type { Club, Footballer, GameState, Negotiation, Tier } from './types';
 
 export const MAX_ROUNDS = 3;
 
+/** Valor "de boca", arredondado (o presidente não sabe o número exato). */
+function roughValue(v: number): number {
+  const step = v >= 10000 ? 1000 : v >= 1000 ? 100 : v >= 100 ? 10 : 1;
+  return Math.round(v / step) * step;
+}
+function roughly(v: number): string {
+  return roughValue(v).toLocaleString('pt-BR');
+}
+
 /** Traço de personalidade estável por jogador (0..1), derivado da seed. */
 function trait(state: GameState, f: Footballer, label: string): number {
   return (hashSeed(state.seed, label, f.id) % 1000) / 1000;
@@ -50,7 +59,11 @@ export function evaluateBid(state: GameState, club: Club, f: Footballer, fee: nu
   const last = rounds >= MAX_ROUNDS;
   if (fee < ask) {
     if (fee >= ask * 0.8 && !last) return { status: 'contra_clube', message: `${club.name} pede R$ ${ask} mil para liberar ${f.name}.`, askFee: ask };
-    return { status: last ? 'encerrada' : 'recusada', message: last ? `${club.name} encerra a conversa.` : `${club.name} recusa: proposta muito abaixo do que vale ${f.name}.` };
+    return {
+      status: last ? 'encerrada' : 'recusada',
+      message: last ? `${club.name} encerra a conversa.` : `${club.name} recusa: proposta muito abaixo. Por ${f.name}, quer algo em torno de R$ ${roughly(ask)} mil.`,
+      askFee: last ? undefined : roughValue(ask),
+    };
   }
   const tooFar = !willingToDrop(state, club);
   const needed = tooFar ? want * 1.4 : want;
@@ -64,7 +77,10 @@ export function evaluateBid(state: GameState, club: Club, f: Footballer, fee: nu
     }
     return {
       status: last ? 'encerrada' : 'recusada',
-      message: tooFar ? `${f.name} não quer descer para a ${TIERS[state.player.tier].name} por esse salário.` : `${f.name} recusa o salário oferecido.`,
+      message: tooFar
+        ? `${f.name} não quer descer para a ${TIERS[state.player.tier].name} por esse salário (pensa em uns R$ ${roughly(needed)} mil por ano).`
+        : `${f.name} recusa o salário: pensa em uns R$ ${roughly(needed)} mil por ano.`,
+      askWage: last ? undefined : round1(roughValue(needed)),
     };
   }
   return { status: 'aceita', message: `Acerto fechado! ${f.name} é do ${state.player.name}.` };

@@ -5,14 +5,16 @@ import { generateWorld, initials } from './clubs';
 import { applyEffects, nextId } from './effects';
 import { foundingSquad, incomingOffers, marketListings, marketWage, round1, tryoutCandidates, tryoutCost, youthIntake } from './footballers';
 import { deriveRng } from './rng';
-import { PLAYER_ID, simulateSeason, teamStrength } from './season';
-import type { Action, Club, DelegateArea, Foundation, GameEvent, GameState, Opportunity, Origin, PlayerClub, Tier } from './types';
+import { PLAYER_ID, decideIntents, simulateSeason, teamStrength } from './season';
+import { MAX_ROUNDS, evaluateBid, negotiationFor } from './negotiation';
+import { replacementFor } from './aisquad';
+import type { Action, Club, DelegateArea, Footballer, Foundation, GameEvent, GameState, Opportunity, Origin, PlayerClub, Tier } from './types';
 import { runAssistant } from './assistant';
 import { BUSINESSES } from '../data/club';
 import { coachCandidates, coachSeverance, expectedRank, seasonObjectives, startingCoach } from './clubops';
 import { ActionError } from './util';
 export { ActionError };
-import { effectsCashCost, loanFor, releaseCost, seatsFor, sellPrice } from './office';
+import { effectsCashCost, loanFor, releaseCost, renewalOffer, seatsFor, sellPrice } from './office';
 
 interface OriginPreset {
   label: string;
@@ -54,10 +56,12 @@ export function newGame(seed: number, foundation: Foundation): GameState {
   const f: Foundation = { ...foundation, name: sanitizeName(foundation.name) };
   const rng = deriveRng(seedU, 'world');
   const taken = new Set<string>([f.name]);
-  const { clubs, serial } = generateWorld(rng, taken);
+  const playerNames = new Set<string>();
+  let pid = 100;
+  const { clubs, serial } = generateWorld(rng, taken, { next: () => pid++, names: playerNames, season: 1 });
   const preset = ORIGINS[f.origin];
   const rival = rng.pick(clubs.filter((c) => c.stateDiv === 'V'));
-  const squad = foundingSquad(deriveRng(seedU, 'squad'), preset.squadMean, 1, new Set<string>());
+  const squad = foundingSquad(deriveRng(seedU, 'squad'), preset.squadMean, 1, playerNames);
 
   const player: PlayerClub = {
     id: PLAYER_ID,
@@ -112,14 +116,14 @@ export function newGame(seed: number, foundation: Foundation): GameState {
     history: [],
     news: [`Nasce o ${f.name}: time de bairro se inscreve na ${TIERS[7].name}`, `${rival.name} será o grande rival`],
     over: null,
-    serial: Math.max(serial, 1000) + squad.length + 1,
+    serial: Math.max(serial, pid) + 1,
   };
   startSeason(state);
   return state;
 }
 
 function emptyOffice(): GameState['office'] {
-  return { market: [], offers: [], tryout: null, opportunities: [], event: null, eventChoice: null, built: { seats: false, facility: false, loan: false, business: false }, coaches: [], objectives: [], signings: 0, soldHomegrown: 0 };
+  return { market: [], offers: [], tryout: null, opportunities: [], event: null, eventChoice: null, built: { seats: false, facility: false, loan: false, business: false }, coaches: [], negotiations: [], objectives: [], signings: 0, soldHomegrown: 0 };
 }
 
 function tierAllowed(tier: Tier, item: { minTier?: Tier; maxTier?: Tier }): boolean {
@@ -140,6 +144,7 @@ function startSeason(state: GameState): void {
   const near = state.clubs.filter((c) => Math.abs(c.tier - p.tier) <= 1).map((c) => c.name);
   office.market = marketListings(deriveRng(state.seed, s, 'market'), p.tier, p.staff.scout, ids, s, near, usedNames);
   const buyers = state.clubs.filter((c) => c.tier <= p.tier && c.tier >= p.tier - 2).map((c) => ({ name: c.name, tier: c.tier }));
+  decideIntents(state);
   const offers = incomingOffers(deriveRng(state.seed, s, 'offers'), p.squad, p.tier, buyers);
   office.offers = offers;
   for (const of of offers) {
@@ -169,16 +174,29 @@ function startSeason(state: GameState): void {
   state.office = office;
 }
 
+/** Jogador vendido vai para um clube de verdade (o comprador ou um do mesmo nível ou acima). */
+function moveToAiClub(state: GameState, f: Footballer, rng: ReturnType<typeof deriveRng>, clubName?: string): string {
+  const p = state.player;
+  const named = clubName ? state.clubs.find((c) => c.name === clubName) : undefined;
+  const pool = state.clubs.filter((c) => c.tier <= p.tier && c.tier >= Math.max(1, p.tier - 2));
+  const club = named ?? (pool.length > 0 ? rng.pick(pool) : undefined);
+  if (!club) return 'exterior';
+  club.squad.push({ ...f, contract: 3, intent: undefined, leaving: undefined });
+  return club.name;
+}
+
 /** Clubes da competição principal do jogador (série nacional ou divisão estadual). */
 export function mainCompClubs(state: GameState): Club[] {
   const p = state.player;
   return p.national !== null ? state.clubs.filter((c) => c.national === p.national) : state.clubs.filter((c) => c.stateDiv === p.stateDiv);
 }
 
-/** Nomes de jogadores já em uso no clube (evita repetição em base, mercado e peneira). */
+/** Nomes de jogadores em uso no mundo (evita repetição em base, mercado, peneira e elencos da IA). */
 export function usedPlayerNames(state: GameState): Set<string> {
   const p = state.player;
-  return new Set([...p.squad, ...p.youth, ...p.onLoan, ...p.alumni].map((f) => f.name));
+  const names = new Set([...p.squad, ...p.youth, ...p.onLoan, ...p.alumni].map((f) => f.name));
+  for (const c of state.clubs) for (const f of c.squad) names.add(f.name);
+  return names;
 }
 
 function drawEvent(state: GameState): GameEvent | null {
@@ -262,7 +280,8 @@ export function applyMut(state: GameState, a: Action): void {
         p.soul = Math.max(0, p.soul - 1);
         o.soldHomegrown++;
       }
-      state.news.push(`${f.name} é vendido por R$ ${fee} mil`);
+      const buyer = moveToAiClub(state, f, actionRng());
+      state.news.push(`${f.name} é vendido ao ${buyer} por R$ ${fee} mil`);
       return;
     }
     case 'release': {
@@ -274,6 +293,53 @@ export function applyMut(state: GameState, a: Action): void {
       p.cash -= cost;
       p.squad = p.squad.filter((x) => x.id !== a.id);
       p.alumni.push(f);
+      return;
+    }
+    case 'renew': {
+      const f = p.squad.find((x) => x.id === a.id);
+      if (!f) fail('jogador não encontrado');
+      if (f.contract !== 1) fail('só dá para renovar no último ano de contrato');
+      const offer = renewalOffer(f);
+      if (!offer) fail(`${f.name} já decidiu se aposentar`);
+      f.wage = offer.wage;
+      f.contract = f.age >= 32 ? 2 : 4;
+      f.leaving = false;
+      delete f.intent;
+      state.news.push(`${f.name} renova contrato com o ${p.name}`);
+      return;
+    }
+    case 'bid': {
+      const club = state.clubs.find((c) => c.id === a.club);
+      const f = club?.squad.find((x) => x.id === a.player);
+      if (!club || !f) fail('o jogador não está mais nesse clube');
+      if (p.squad.length >= SQUAD_MAX) fail('elenco cheio');
+      if (!Number.isInteger(a.fee) || a.fee < 0 || !(a.wage > 0) || Math.round(a.wage * 10) !== a.wage * 10 || !Number.isInteger(a.years) || a.years < 1 || a.years > 5) {
+        fail('proposta inválida');
+      }
+      if (p.cash < a.fee) fail('caixa insuficiente para pagar a taxa');
+      let n = negotiationFor(state, club.id, f.id);
+      if (n && (n.status === 'aceita' || n.status === 'encerrada' || n.rounds >= MAX_ROUNDS)) fail('negociação encerrada nesta janela');
+      if (!n) {
+        n = { clubId: club.id, playerId: f.id, rounds: 0, status: 'recusada', fee: 0, wage: 0, years: 1, message: '' };
+        o.negotiations.push(n);
+      }
+      n.rounds++;
+      n.fee = a.fee;
+      n.wage = a.wage;
+      n.years = a.years;
+      const out = evaluateBid(state, club, f, a.fee, a.wage, n.rounds);
+      n.status = out.status;
+      n.message = out.message;
+      n.askFee = out.askFee;
+      n.askWage = out.askWage;
+      if (out.status === 'aceita') {
+        p.cash -= a.fee;
+        club.squad = club.squad.filter((x) => x.id !== f.id);
+        club.squad.push(replacementFor(actionRng(), club, { next: () => nextId(state), names: usedPlayerNames(state), season: state.season }));
+        p.squad.push({ ...f, wage: round1(a.wage), contract: a.years, joined: state.season, goals: 0, apps: 0, homegrown: false });
+        o.signings++;
+        state.news.push(`${p.name} contrata ${f.name} (${f.pos}, ${f.ovr}) do ${club.name} por R$ ${a.fee} mil`);
+      }
       return;
     }
     case 'leave': {
@@ -296,6 +362,7 @@ export function applyMut(state: GameState, a: Action): void {
         o.soldHomegrown++;
       }
       o.offers[a.idx] = null;
+      moveToAiClub(state, f, actionRng(), of.club);
       state.news.push(`${f.name} é vendido ao ${of.club} por R$ ${of.fee} mil`);
       return;
     }

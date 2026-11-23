@@ -313,7 +313,8 @@ export function incomingOffers(rng: Rng, squad: readonly Footballer[], tier: Tie
     if (offers.length >= 3 || buyers.length === 0) break;
     const star = Math.max(0, f.ovr - mean) * 0.03;
     const prospect = f.age <= 23 && f.potHi >= mean + 5 ? 0.12 : 0;
-    if (!rng.chance(Math.min(0.4, 0.03 + star + prospect))) continue;
+    const leaving = f.intent === 'sai' || f.intent === 'clube_maior' ? 0.3 : 0;
+    if (!rng.chance(Math.min(0.6, 0.03 + star + prospect + leaving))) continue;
     const buyer = rng.pick(buyers);
     const premium = 1 + (tier - buyer.tier) * 0.08;
     offers.push({ playerId: f.id, fee: Math.round(marketValue(f) * rng.float(0.75, 1.15) * premium), club: buyer.name, clubTier: buyer.tier });

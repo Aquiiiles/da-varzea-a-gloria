@@ -1,5 +1,6 @@
 import { SERIE_D_SPOTS, SQUAD_MAX, SQUAD_MIN, START_YEAR, TIERS, YOUTH_AGE_LIMIT, YOUTH_MAX } from '../data/pyramid';
-import { driftClub, levelOf, makeClub, syncTier } from './clubs';
+import { aiScorers, evolveAiClubs, refreshStrength, type AiTransfer } from './aisquad';
+import { levelOf, makeClub, syncTier } from './clubs';
 import { homegrownInXI } from './clubops';
 import { estadual, pointsLeague, serieC, serieD, PLAYER, type CompEnv, type LeagueOutcome } from './competitions';
 import { continentalCup, foreignClubs, nationalCup, stateCup, worldCup, type CupEnv, type CupResult } from './cups';
@@ -9,7 +10,6 @@ import { bestEleven, develop, makeFootballer, marketValue, marketWage, retires, 
 import { applyResult, emptyRow, sortTable, type LeagueContext } from './league';
 import { moment } from './live';
 import { BASE_HOME_ADVANTAGE, type GoalMult } from './match';
-import { personName } from './names';
 import { renewWage } from './office';
 import { deriveRng, type Rng } from './rng';
 import { clamp } from './util';
@@ -108,7 +108,10 @@ export function simulateSeason(state: GameState): SeasonResult {
   const rivalBonus = p.rivalHatred / 50;
 
   const byId = new Map<string, Club>();
-  for (const c of state.clubs) byId.set(c.id, c);
+  for (const c of state.clubs) {
+    refreshStrength(c); // a força vem do elenco atual (quem vendeu o craque enfraqueceu)
+    byId.set(c.id, c);
+  }
   const foreign = new Map<string, { name: string; strength: number }>();
 
   const ctx: LeagueContext = {
@@ -329,7 +332,7 @@ export function simulateSeason(state: GameState): SeasonResult {
   const idolGoals = Math.max(0, ...p.squad.map((f) => f.goals));
 
   // ---------------------- momentos ao vivo ----------------------
-  const moments = buildMoments(deriveRng(seed, season, 'live'), { p, nameOf, comps, lastRound, cupRuns, leagueMatches, tier, serD: p.national === 4 ? serD : null });
+  const moments = buildMoments(deriveRng(seed, season, 'live'), { p, nameOf, comps, lastRound, cupRuns, leagueMatches, tier, serD: p.national === 4 ? serD : null, squadOf: (id) => byId.get(id)?.squad ?? [] });
 
   // ---------------------- finanças ----------------------
   const homeGames = allMatches.filter((m) => m.home === PLAYER).length;
@@ -448,7 +451,17 @@ export function simulateSeason(state: GameState): SeasonResult {
   p.copaSpot = copaEstado.championId === PLAYER;
   if (p.copaSpot) headlines.push(`${name} garante vaga na Copa Nacional pela Copa do Estado`);
 
-  const worldNews = buildWorldNews(deriveRng(seed, season, 'news'), {
+  // gols dos jogadores da IA em todas as ligas (artilharia real)
+  const goalRng = deriveRng(seed, season, 'ai-goals');
+  let serieAScorer: { name: string; club: string; goals: number } | null = null;
+  for (const out of [serA, serB, serC, serD, estA, estB, varzea]) {
+    for (const t of out.tables ?? []) {
+      const top = aiScorers(goalRng, t, byId);
+      if (out === serA && top && (!serieAScorer || top.goals > serieAScorer.goals)) serieAScorer = top;
+    }
+  }
+
+  const newsInput: NewsInput = {
     state,
     nameOf,
     natOut,
@@ -456,7 +469,9 @@ export function simulateSeason(state: GameState): SeasonResult {
     cups: { estado: copaEstado.championId, copa: copa.championId },
     nextNat,
     dQualified,
-  });
+    serieAScorer,
+    transfers: [],
+  };
 
   const result: SeasonResult = {
     season,
@@ -486,7 +501,7 @@ export function simulateSeason(state: GameState): SeasonResult {
     signings: state.office.signings,
     homegrownXI,
     comps,
-    worldNews,
+    worldNews: [],
   };
 
   // ---------------------- evolução para a próxima temporada ----------------------
@@ -495,14 +510,28 @@ export function simulateSeason(state: GameState): SeasonResult {
   p.national = nextNat.get(PLAYER) ?? null;
   p.stateDiv = nextState.get(PLAYER) ?? p.stateDiv;
   evolveClub(state, result);
-  applyMovements(state, nextNat, nextState, leaveState);
-  const driftRng = deriveRng(seed, season, 'drift');
-  for (const c of state.clubs) driftClub(driftRng, c);
+  const ids = { next: () => nextId(state), names: allNames(state), season: season + 1 };
+  applyMovements(state, nextNat, nextState, leaveState, ids);
+  newsInput.transfers = evolveAiClubs(deriveRng(seed, season, 'ai-evolve'), state.clubs, ids);
+  result.worldNews = buildWorldNews(deriveRng(seed, season, 'news'), newsInput);
   if (bankrupt) state.over = 'falencia';
   return result;
 }
 
-function applyMovements(state: GameState, nextNat: Map<string, NationalDiv | null>, nextState: Map<string, StateDiv | null>, leaveState: Set<string>): void {
+function allNames(state: GameState): Set<string> {
+  const p = state.player;
+  const names = new Set([...p.squad, ...p.youth, ...p.onLoan, ...p.alumni].map((f) => f.name));
+  for (const c of state.clubs) for (const f of c.squad) names.add(f.name);
+  return names;
+}
+
+function applyMovements(
+  state: GameState,
+  nextNat: Map<string, NationalDiv | null>,
+  nextState: Map<string, StateDiv | null>,
+  leaveState: Set<string>,
+  ids: { next: () => number; names: Set<string>; season: number },
+): void {
   const rng = deriveRng(state.seed, state.season, 'newclubs');
   const kept: Club[] = [];
   for (const c of state.clubs) {
@@ -514,7 +543,7 @@ function applyMovements(state: GameState, nextNat: Map<string, NationalDiv | nul
   }
   const taken = new Set<string>([state.player.name, ...kept.map((c) => c.name)]);
   const varzeaCount = kept.filter((c) => c.stateDiv === 'V').length + (state.player.stateDiv === 'V' ? 1 : 0);
-  for (let i = varzeaCount; i < 20; i++) kept.push(makeClub(rng, `c${state.serial++}`, null, 'V', taken));
+  for (let i = varzeaCount; i < 20; i++) kept.push(makeClub(rng, `c${state.serial++}`, null, 'V', taken, ids));
   state.clubs = kept;
 }
 
@@ -526,6 +555,8 @@ interface NewsInput {
   cups: { estado: string; copa: string };
   nextNat: Map<string, NationalDiv | null>;
   dQualified: string[];
+  serieAScorer: { name: string; club: string; goals: number } | null;
+  transfers: AiTransfer[];
 }
 
 /** Notícias do mundo da bola (o que aconteceu com os outros clubes). */
@@ -554,15 +585,13 @@ function buildWorldNews(rng: Rng, n: NewsInput): string[] {
     if (nextLevel < rival.tier) out.push(`O rival ${rival.name} sobe para a ${TIERS[nextLevel].name}`);
     else if (nextLevel > rival.tier) out.push(`O rival ${rival.name} cai para a ${TIERS[nextLevel].name}`);
   }
-  // artilheiro e bastidores (ficção para dar vida ao mundo)
-  const scorer = personName(rng);
-  const club = rng.pick(n.natOut[1].ranking.filter((id) => id !== PLAYER));
-  out.push(`${scorer} (${nm(club)}) é o artilheiro da Série A com ${rng.int(17, 29)} gols`);
+  if (n.serieAScorer) out.push(`${n.serieAScorer.name} (${n.serieAScorer.club}) é o artilheiro da Série A com ${n.serieAScorer.goals} gols`);
   const bottom = n.natOut[1].ranking.slice(-6).filter((id) => id !== PLAYER);
   if (bottom.length > 0) out.push(`${nm(rng.pick(bottom))} demite o técnico após sequência ruim`);
-  const buyers = n.natOut[1].ranking.slice(0, 6).filter((id) => id !== PLAYER);
-  const sellers = n.natOut[2].ranking.filter((id) => id !== PLAYER);
-  if (buyers.length > 0 && sellers.length > 0) out.push(`${nm(rng.pick(buyers))} contrata ${personName(rng)}, destaque do ${nm(rng.pick(sellers))}`);
+  // transferências reais entre clubes da IA (as mais relevantes)
+  for (const t of n.transfers.slice().sort((a, b) => b.ovr - a.ovr).slice(0, 4)) {
+    out.push(`MERCADO: ${t.to} contrata ${t.player} (${t.ovr}), destaque do ${t.from}`);
+  }
   return out;
 }
 
@@ -577,12 +606,13 @@ interface MomentInput {
   leagueMatches: MatchResult[];
   tier: Tier;
   serD: LeagueOutcome | null;
+  squadOf: (id: string) => Footballer[];
 }
 
 /** Até 3 jogos da temporada para mostrar ao vivo (os mais importantes primeiro). */
 function buildMoments(rng: Rng, m: MomentInput): LiveMoment[] {
   const out: LiveMoment[] = [];
-  const add = (kind: LiveMoment['kind'], title: string, stake: string, r: MatchResult) => out.push(moment(rng, kind, title, stake, r, PLAYER, m.nameOf, m.p.squad));
+  const add = (kind: LiveMoment['kind'], title: string, stake: string, r: MatchResult) => out.push(moment(rng, kind, title, stake, r, PLAYER, m.nameOf, m.p.squad, m.squadOf));
   const decisive = (matches: CupMatch[], round: string) => matches.filter((x) => x.round === round || x.round === `${round} (volta)`).pop();
   const finals: Record<CompetitionId, LiveMoment['kind']> = { estado: 'final_estado', copa: 'final_copa', cc: 'final_cc', le: 'final_le', mundial: 'mundial' };
   for (const c of m.cupRuns.slice().sort((a, b) => CUP_PRIORITY[a.id] - CUP_PRIORITY[b.id])) {
@@ -631,6 +661,28 @@ function distributeGoals(rng: Rng, squad: Footballer[], goals: number, games: nu
   return top;
 }
 
+/**
+ * Intenção de cada jogador para o fim da temporada, decidida na abertura da janela
+ * (aparece no elenco e no painel; o fim da temporada só cumpre o que foi mostrado).
+ */
+export function decideIntents(state: GameState): void {
+  const p = state.player;
+  const rng = deriveRng(state.seed, state.season, 'intents');
+  const { ids } = bestEleven(p.squad);
+  for (const f of p.squad) {
+    delete f.intent;
+    if (f.age >= 33 && retires(rng, { ...f, age: f.age + 1 })) {
+      f.intent = 'aposenta';
+      continue;
+    }
+    if (f.contract !== 1) continue;
+    const ask = renewWage(f.ovr, f.wage, f.homegrown);
+    if (ask > renewalCap(p.tier, f.wage)) f.intent = 'clube_maior';
+    else if (rng.chance(refusalChance(f, ids.has(f.id)))) f.intent = 'sai';
+    else f.intent = ask > f.wage * 1.15 ? 'aumento' : 'renova';
+  }
+}
+
 /** Chance de o jogador recusar a renovação automática. */
 export function refusalChance(f: Footballer, starter: boolean): number {
   let c = starter ? 0.1 : f.age >= 27 ? 0.4 : 0.2;
@@ -654,20 +706,22 @@ function evolveClub(state: GameState, result: SeasonResult): void {
   for (const f of p.squad) {
     develop(rng, f, { ct: p.facilities.ct + (p.coach.style === 'formador' && f.age <= 23 ? 2 : 0), fitness: p.staff.fitness, inEleven: ids.has(f.id) });
     f.contract--;
-    if (retires(rng, f)) {
+    // o fim da temporada só cumpre o que já estava visível na janela (sem sorteio escondido)
+    const intent = f.intent;
+    delete f.intent;
+    if (intent === 'aposenta') {
       deps.push(`${f.name} (${f.age} anos) pendura as chuteiras`);
       p.alumni.push(f);
     } else if (f.contract <= 0 && f.leaving) {
       deps.push(`${f.name} sai de graça: contrato encerrado`);
       p.alumni.push(f);
-    } else if (f.contract <= 0 && renewWage(f.ovr, f.wage, f.homegrown) > renewalCap(result.nextTier, f.wage)) {
-      // cresceu demais para o clube: pede salário de divisão de cima e é vendido a um gigante
+    } else if (f.contract <= 0 && intent === 'clube_maior') {
       const fee = Math.round(marketValue(f) * 0.1); // fim de contrato: só a compensação por formação
       p.cash += fee;
       p.alumni.push(f);
-      deps.push(`${f.name} (${f.ovr}) recusa renovar e sai para um clube maior (compensação de R$ ${fee} mil)`);
-    } else if (f.contract <= 0 && rng.chance(refusalChance(f, ids.has(f.id)))) {
-      deps.push(`${f.name} não aceita renovar: ${ids.has(f.id) ? 'quer novos ares' : 'quer mais minutos em outro clube'}`);
+      deps.push(`${f.name} (${f.ovr}) sai para um clube maior (compensação de R$ ${fee} mil)`);
+    } else if (f.contract <= 0 && intent === 'sai') {
+      deps.push(`${f.name} não renova e deixa o clube`);
       p.alumni.push(f);
     } else if (f.contract <= 0) {
       // renovação automática: salário de mercado (com o overall novo), veteranos por 1 ano

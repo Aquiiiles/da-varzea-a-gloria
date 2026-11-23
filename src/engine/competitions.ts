@@ -27,6 +27,8 @@ export interface LeagueOutcome {
   playerMatches: MatchResult[];
   /** rodadas da fase de pontos corridos (para "última rodada decisiva") */
   rounds?: MatchResult[][];
+  /** tabelas de pontos (para distribuir os gols da IA) */
+  tables?: TableRow[][];
   roundIds?: string[];
 }
 
@@ -186,6 +188,7 @@ export function pointsLeague(env: CompEnv, id: CompId, name: string, tier: Tier,
     playerMatches: playerLeagueMatches(run.rounds),
     rounds: run.rounds,
     roundIds: ids,
+    tables: [run.table],
   };
 }
 
@@ -243,6 +246,7 @@ export function serieC(env: CompEnv, ids: string[], deductions: Record<string, n
     playerMatches: [...playerLeagueMatches(first.rounds), ...groupTables.flatMap((g) => playerLeagueMatches(g.rounds)), ...final.filter((m) => m.home === PLAYER || m.away === PLAYER)],
     rounds: first.rounds,
     roundIds: ids,
+    tables: [first.table, ...groupTables.map((g) => g.table)],
   };
 }
 
@@ -339,6 +343,7 @@ export function serieD(env: CompEnv, ids: string[]): LeagueOutcome {
     relegated: [],
     barred,
     playerMatches: [...tables.flatMap((t) => playerLeagueMatches(t.rounds)), ...ties.map((t) => t.result)],
+    tables: tables.map((t) => t.table),
   };
 }
 
@@ -407,5 +412,6 @@ export function estadual(env: CompEnv, spec: EstadualSpec, ids: string[], deduct
     playerMatches: [...playerLeagueMatches(first.rounds), ...ties.map((t) => t.result)],
     rounds: first.rounds,
     roundIds: ids,
+    tables: [first.table],
   };
 }

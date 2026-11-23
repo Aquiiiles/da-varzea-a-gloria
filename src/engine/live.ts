@@ -29,12 +29,12 @@ const SCORE_WEIGHT = { GOL: 0, DEF: 0.5, MEI: 2, ATA: 5 };
  * Lances de um jogo já simulado: o placar é o do motor; a narração só distribui os gols no tempo,
  * escolhe os autores (seu elenco tem nome; o adversário ganha nomes fictícios) e acrescenta lances de efeito.
  */
-export function narrate(rng: Rng, r: MatchResult, playerHome: boolean, homeName: string, awayName: string, squad: readonly Footballer[]): LiveEvent[] {
+export function narrate(rng: Rng, r: MatchResult, playerHome: boolean, homeName: string, awayName: string, squad: readonly Footballer[], oppSquad: readonly Footballer[] = []): LiveEvent[] {
   const events: Omit<LiveEvent, 'score'>[] = [];
   const reg = r.reg ?? [r.hg, r.ag];
   const myName = (): string => (squad.length > 0 ? rng.weighted(squad, (f) => SCORE_WEIGHT[f.pos] * Math.pow(1.06, f.ovr - 50)).name : 'o camisa 9');
   const oppNames = [personName(rng), personName(rng), personName(rng)];
-  const oppName = () => rng.pick(oppNames);
+  const oppName = () => (oppSquad.length > 0 ? rng.weighted(oppSquad, (f) => SCORE_WEIGHT[f.pos] * Math.pow(1.06, f.ovr - 50)).name : rng.pick(oppNames));
 
   const goals = (h: number, a: number, from: number, to: number) => {
     const sides = rng.shuffle([...Array(h).fill('h'), ...Array(a).fill('a')] as ('h' | 'a')[]);
@@ -98,9 +98,11 @@ export function moment(
   playerId: string,
   name: (id: string) => string,
   squad: readonly Footballer[],
+  oppSquad: (id: string) => readonly Footballer[] = () => [],
 ): LiveMoment {
   const playerHome = r.home === playerId;
   const homeName = name(r.home);
   const awayName = name(r.away);
-  return { kind, title, stake, homeName, awayName, playerHome, result: r, events: narrate(rng, r, playerHome, homeName, awayName, squad) };
+  const opp = playerHome ? r.away : r.home;
+  return { kind, title, stake, homeName, awayName, playerHome, result: r, events: narrate(rng, r, playerHome, homeName, awayName, squad, oppSquad(opp)) };
 }

@@ -92,10 +92,18 @@ export const SEAT_PACKS: { pct: number; min: number; label: string }[] = [
   { pct: 1.2, min: 2000, label: 'Estádio novo' },
 ];
 
-/** Custo por lugar (R$ mil): fica mais caro em estádios grandes. */
+/**
+ * Custo por lugar (R$ mil): fica mais caro em estádios grandes.
+ * Arquibancada simples sai a ~R$ 130 por lugar; arena de Série A, ~R$ 500.
+ */
 export function seatCost(capacity: number): number {
-  return 0.4 + (capacity / 20000) * 1.3;
+  return 0.12 + (capacity / 20000) * 0.6;
 }
+
+/** Obra parcelada: entrada à vista + o restante com juros em parcelas anuais. */
+export const STADIUM_FINANCE = { down: 0.25, interest: 0.2, seasons: 3 };
+export const LOAN_NAME = 'Parcela do empréstimo';
+export const STADIUM_INSTALLMENT_NAME = 'Parcela da obra do estádio';
 
 export function tierUp(t: Tier): Tier {
   return (t > 1 ? t - 1 : 1) as Tier;

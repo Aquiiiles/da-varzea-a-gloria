@@ -40,7 +40,7 @@ export function encodeAction(a: Action): string {
     case 'cut': return `x${a.id}`;
     case 'tryout': return 't';
     case 'sign': return `g${a.idx}`;
-    case 'seats': return `e${a.size}`;
+    case 'seats': return `e${a.size}${a.financed ? 'p' : ''}`;
     case 'facility': return `f${FAC[a.which]}`;
     case 'staff': return `h${STAFF[a.which]}${a.dir > 0 ? 'u' : 'd'}`;
     case 'ticket': return `k${a.level}`;
@@ -79,7 +79,11 @@ export function decodeAction(tok: string): Action | null {
     case 'x': return Number.isNaN(n) ? null : { t: 'cut', id: n };
     case 't': return rest === '' ? { t: 'tryout' } : null;
     case 'g': return Number.isNaN(n) ? null : { t: 'sign', idx: n };
-    case 'e': return n === 0 || n === 1 || n === 2 ? { t: 'seats', size: n } : null;
+    case 'e': {
+      if (!/^[012]p?$/.test(rest)) return null;
+      const size = Number(rest[0]) as 0 | 1 | 2;
+      return rest.endsWith('p') ? { t: 'seats', size, financed: true } : { t: 'seats', size };
+    }
     case 'f': return CAF[rest] ? { t: 'facility', which: CAF[rest] } : null;
     case 'h': return FFATS[rest[0]] && (rest[1] === 'u' || rest[1] === 'd') && rest.length === 2 ? { t: 'staff', which: FFATS[rest[0]], dir: rest[1] === 'u' ? 1 : -1 } : null;
     case 'c': return Number.isNaN(n) ? null : { t: 'coach', idx: n };

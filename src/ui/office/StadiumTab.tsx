@@ -1,5 +1,5 @@
 import {
-  BUSINESSES, expectedHomeGames, FACILITY_COST, SEAT_PACKS, TIERS, attendance, commerce, seatsFor, stadiumAllows, type Facility, type Tier,
+  BUSINESSES, expectedHomeGames, FACILITY_COST, SEAT_PACKS, STADIUM_FINANCE, STADIUM_INSTALLMENT_NAME, TIERS, attendance, commerce, seatsFor, stadiumAllows, type Facility, type Tier,
 } from '../../engine';
 import { money, num } from '../format';
 import type { TabProps } from './Office';
@@ -15,6 +15,7 @@ export function StadiumTab({ state, dispatch }: TabProps) {
   const p = state.player;
   const o = state.office;
   const total = p.capacity + p.capacityBuilding;
+  const financing = p.sponsors.some((s) => s.name === STADIUM_INSTALLMENT_NAME);
   const next = (p.tier > 1 ? p.tier - 1 : 1) as Tier;
   const ok = p.tier === 1 || stadiumAllows(total, next);
   const att = attendance(p);
@@ -58,22 +59,32 @@ export function StadiumTab({ state, dispatch }: TabProps) {
 
         <div className="build-grid">
           {SEAT_PACKS.map((pack, i) => {
-            const { seats, cost } = seatsFor(total, i as 0 | 1 | 2);
+            const { seats, cost, down, perSeason } = seatsFor(total, i as 0 | 1 | 2);
+            const size = i as 0 | 1 | 2;
             return (
-              <button
-                key={pack.label}
-                type="button"
-                className="build"
-                disabled={o.built.seats || p.cash < cost}
-                onClick={() => dispatch({ t: 'seats', size: i as 0 | 1 | 2 })}
-              >
+              <div key={pack.label} className="build build-card">
                 <strong>{pack.label}</strong>
                 <span>+{num(seats)} lugares</span>
-                <b className={p.cash < cost ? 'bad' : ''}>{money(cost)}</b>
-              </button>
+                <button type="button" className="btn btn-small" disabled={o.built.seats || p.cash < cost} onClick={() => dispatch({ t: 'seats', size })}>
+                  À vista: {money(cost)}
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-small"
+                  disabled={o.built.seats || financing || p.cash < down}
+                  onClick={() => dispatch({ t: 'seats', size, financed: true })}
+                >
+                  Parcelado: {money(down)} + {STADIUM_FINANCE.seasons}× {money(perSeason)}
+                </button>
+              </div>
             );
           })}
         </div>
+        <p className="muted">
+          Parcelado: entrada de {Math.round(STADIUM_FINANCE.down * 100)}% e o resto com {Math.round(STADIUM_FINANCE.interest * 100)}% de juros em{' '}
+          {STADIUM_FINANCE.seasons} parcelas anuais (a primeira já nesta temporada). Uma obra parcelada por vez.
+        </p>
+        {financing && <p className="muted">Ainda há uma obra parcelada sendo paga: só dá para construir à vista.</p>}
         {o.built.seats && <p className="muted">Já há uma obra no estádio nesta temporada.</p>}
       </Section>
 

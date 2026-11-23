@@ -267,6 +267,8 @@ h3 { font: 700 14px/1.2 var(--font-display); text-transform: uppercase; letter-s
 .build:hover:not(:disabled) { border-color: var(--accent); }
 .build strong { font: 700 15px var(--font-display); text-transform: uppercase; }
 .build span { color: var(--muted); font-size: 13px; }
+.build-card { gap: 6px; }
+.build-card .btn { width: 100%; }
 .seg { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
 .seg-btn { background: var(--panel-2); border: 1px solid var(--line); border-radius: 8px; padding: 10px 6px; display: flex; flex-direction: column; gap: 2px; }
 .seg-btn small { color: var(--muted); font-size: 11px; }

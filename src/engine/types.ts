@@ -342,7 +342,7 @@ export type Action =
   | { t: 'cut'; id: number } // dispensa da base
   | { t: 'tryout' } // faz a peneira
   | { t: 'sign'; idx: number } // contrata candidato idx da peneira
-  | { t: 'seats'; size: 0 | 1 | 2 }
+  | { t: 'seats'; size: 0 | 1 | 2; financed?: boolean }
   | { t: 'facility'; which: Facility }
   | { t: 'staff'; which: StaffRole; dir: 1 | -1 }
   | { t: 'coach'; idx: number } // contrata o candidato idx a técnico
@@ -369,6 +369,8 @@ export interface MatchResult {
   /** placar ao fim dos 90 minutos (quando houve prorrogação) */
   reg?: [number, number];
   winner?: string;
+  /** empate no confronto: classificou o de melhor campanha */
+  advantage?: boolean;
 }
 
 export interface TableRow {

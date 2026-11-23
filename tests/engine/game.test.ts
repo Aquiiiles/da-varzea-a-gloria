@@ -291,6 +291,20 @@ describe('estádio e trava de acesso', () => {
     expect(canApply(after, { t: 'seats', size: 1 })).toBe(false);
   });
 
+  it('obra parcelada: paga só a entrada e cria 3 parcelas com juros; uma por vez', () => {
+    const s = setup((s) => (s.player.cash = 1e6));
+    const after = apply(s, { t: 'seats', size: 2, financed: true });
+    const inst = after.player.sponsors.find((x) => x.name === 'Parcela da obra do estádio')!;
+    const paid = s.player.cash - after.player.cash;
+    expect(after.player.capacityBuilding).toBeGreaterThan(0);
+    expect(inst.seasonsLeft).toBe(3);
+    expect(inst.perSeason).toBeLessThan(0);
+    // entrada + parcelas = custo à vista com juros sobre o financiado
+    expect(paid + -inst.perSeason * 3).toBeGreaterThan(paid / 0.25);
+    expect(decodeAction(encodeAction({ t: 'seats', size: 2, financed: true }))).toEqual({ t: 'seats', size: 2, financed: true });
+    expect(decodeAction(encodeAction({ t: 'seats', size: 1 }))).toEqual({ t: 'seats', size: 1 });
+  });
+
   it('Estadual forte com estádio garante vaga na Série D', () => {
     const s = setup((s) => {
       const swap = s.clubs.find((c) => c.stateDiv === 'A' && c.national === null)!;

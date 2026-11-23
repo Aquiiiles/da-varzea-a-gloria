@@ -1,6 +1,6 @@
 import { EVENTS, EVENT_CHANCE } from '../data/events';
 import { OPPORTUNITIES } from '../data/opportunities';
-import { FACILITY_COST, LOAN_AGE_LIMIT, MAX_LOANS, MAX_SEASONS, SQUAD_MAX, SQUAD_MIN, STAFF_WAGE, TIERS, YOUTH_MAX } from '../data/pyramid';
+import { FACILITY_COST, LOAN_AGE_LIMIT, MAX_LOANS, MAX_SEASONS, SQUAD_MAX, SQUAD_MIN, STADIUM_FINANCE, STADIUM_INSTALLMENT_NAME, LOAN_NAME, STAFF_WAGE, TIERS, YOUTH_MAX } from '../data/pyramid';
 import { generateWorld, initials } from './clubs';
 import { applyEffects, nextId } from './effects';
 import { bestEleven, foundingSquad, incomingOffers, marketListings, marketWage, round1, tryoutCandidates, tryoutCost, youthIntake } from './footballers';
@@ -420,9 +420,16 @@ export function applyMut(state: GameState, a: Action): void {
     }
     case 'seats': {
       if (o.built.seats) fail('já há uma obra no estádio nesta temporada');
-      const { seats, cost } = seatsFor(p.capacity + p.capacityBuilding, a.size);
-      if (p.cash < cost) fail('caixa insuficiente');
-      p.cash -= cost;
+      const { seats, cost, down, perSeason } = seatsFor(p.capacity + p.capacityBuilding, a.size);
+      if (a.financed) {
+        if (p.sponsors.some((s) => s.name === STADIUM_INSTALLMENT_NAME)) fail('ainda há uma obra parcelada sendo paga');
+        if (p.cash < down) fail('caixa insuficiente para a entrada');
+        p.cash -= down;
+        p.sponsors.push({ name: STADIUM_INSTALLMENT_NAME, perSeason: -perSeason, seasonsLeft: STADIUM_FINANCE.seasons });
+      } else {
+        if (p.cash < cost) fail('caixa insuficiente');
+        p.cash -= cost;
+      }
       p.capacityBuilding += seats;
       o.built.seats = true;
       state.news.push(`Obras no estádio do ${p.name}: +${seats} lugares até o fim da temporada`);
@@ -486,10 +493,10 @@ export function applyMut(state: GameState, a: Action): void {
       return;
     case 'loan': {
       if (o.built.loan) fail('um empréstimo por temporada');
-      if (p.sponsors.filter((s) => s.perSeason < 0).length >= 2) fail('o banco não empresta mais: já há dois empréstimos');
+      if (p.sponsors.filter((s) => s.name === LOAN_NAME).length >= 2) fail('o banco não empresta mais: já há dois empréstimos');
       const { amount, perSeason } = loanFor(p.tier, a.size);
       p.cash += amount;
-      p.sponsors.push({ name: 'Parcela do empréstimo', perSeason, seasonsLeft: 3 });
+      p.sponsors.push({ name: LOAN_NAME, perSeason, seasonsLeft: 3 });
       o.built.loan = true;
       return;
     }

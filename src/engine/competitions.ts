@@ -54,7 +54,11 @@ function shootout(rng: Rng, hs: number, as: number): [number, number] {
  * Ida e volta: `better` decide em casa (2º jogo). Empate no agregado vai para os pênaltis.
  * Retorna os dois jogos; o vencedor fica em `legs[1].winner`.
  */
-export function twoLegs(rng: Rng, ctx: LeagueContext, better: string, other: string): [MatchResult, MatchResult] {
+/**
+ * Confronto de ida e volta; o de melhor campanha (`better`) decide em casa.
+ * Com `advantage`, empate no agregado classifica o de melhor campanha (sem pênaltis), como nos mata-matas regionais.
+ */
+export function twoLegs(rng: Rng, ctx: LeagueContext, better: string, other: string, advantage = false): [MatchResult, MatchResult] {
   const bonus = (id: string) => ctx.knockoutBonus?.(id) ?? 0;
   const s = (a: string, b: string) => ctx.strength(a, b) + bonus(a);
   const m1 = playMatch(rng, other, better, s(other, better), s(better, other), ctx.homeAdv(other), ctx.goalMult?.(other, better));
@@ -63,7 +67,10 @@ export function twoLegs(rng: Rng, ctx: LeagueContext, better: string, other: str
   const aggOther = m1.hg + m2.ag;
   if (aggBetter > aggOther) m2.winner = better;
   else if (aggOther > aggBetter) m2.winner = other;
-  else {
+  else if (advantage) {
+    m2.winner = better;
+    m2.advantage = true;
+  } else {
     m2.pens = shootout(rng, s(better, other), s(other, better));
     m2.winner = m2.pens[0] > m2.pens[1] ? better : other;
   }
@@ -293,7 +300,7 @@ export function serieD(env: CompEnv, ids: string[]): LeagueOutcome {
     for (const [a, b] of ps) {
       const better = seedRank(a) <= seedRank(b) ? a : b;
       const other = better === a ? b : a;
-      const legs = twoLegs(env.rng, env.ctx, better, other);
+      const legs = twoLegs(env.rng, env.ctx, better, other, true);
       logTie(env, ties, name, legs, tier);
       const w = legs[1].winner!;
       winners.push(w);
@@ -365,6 +372,20 @@ export interface EstadualSpec {
  * Estaduais e Várzea: 1ª fase em turno único → mata-mata (jogo único na casa do mais bem colocado) →
  * final (ida e volta nos estaduais). Os finalistas sobem; os últimos da 1ª fase caem.
  */
+/** Jogo único na casa do de melhor campanha; empate classifica quem fez a melhor 1ª fase. */
+function singleWithAdvantage(env: CompEnv, better: string, other: string): MatchResult {
+  const { ctx } = env;
+  const bonus = (id: string) => ctx.knockoutBonus?.(id) ?? 0;
+  const m = playMatch(env.rng, better, other, ctx.strength(better, other) + bonus(better), ctx.strength(other, better) + bonus(other), ctx.homeAdv(better), ctx.goalMult?.(better, other));
+  if (m.hg > m.ag) m.winner = better;
+  else if (m.ag > m.hg) m.winner = other;
+  else {
+    m.winner = better;
+    m.advantage = true;
+  }
+  return m;
+}
+
 export function estadual(env: CompEnv, spec: EstadualSpec, ids: string[], deductions: Record<string, number>): LeagueOutcome {
   const first = leagueRun(env, ids, false, deductions);
   const order = first.table.map((r) => r.clubId);
@@ -379,10 +400,11 @@ export function estadual(env: CompEnv, spec: EstadualSpec, ids: string[], deduct
     for (let i = 0; i < n / 2; i++) {
       const better = alive[i];
       const other = alive[n - 1 - i];
-      const m = knockout(env.rng, env.ctx, better, other, false);
-      logTie(env, ties, roundName, [m], spec.tier);
-      next.push(m.winner!);
-      losers.push(m.winner === better ? other : better);
+      const legs = spec.twoLegFinal ? twoLegs(env.rng, env.ctx, better, other, true) : [singleWithAdvantage(env, better, other)];
+      logTie(env, ties, roundName, legs, spec.tier);
+      const w = legs[legs.length - 1].winner!;
+      next.push(w);
+      losers.push(w === better ? other : better);
     }
     koRounds.push({ name: roundName, losers });
     alive = next.sort((a, b) => order.indexOf(a) - order.indexOf(b));

@@ -1,4 +1,4 @@
-import { TICKET_POLICY, loanFor, masterSponsor, projectFinance } from '../../engine';
+import { LOAN_NAME, TICKET_POLICY, loanFor, masterSponsor, projectFinance } from '../../engine';
 import { money } from '../format';
 import type { TabProps } from './Office';
 import { Section } from './common';
@@ -7,7 +7,7 @@ export function FinanceTab({ state, dispatch }: TabProps) {
   const p = state.player;
   const o = state.office;
   const proj = projectFinance(state);
-  const loans = p.sponsors.filter((s) => s.perSeason < 0).length;
+  const loans = p.sponsors.filter((s) => s.name === LOAN_NAME).length;
   return (
     <div className="tab-stack">
       <Section title="Caixa">

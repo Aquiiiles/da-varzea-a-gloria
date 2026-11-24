@@ -15,6 +15,7 @@ import { coachAccepts, coachCandidates, coachRequest, coachSeverance, expectedRa
 import { ActionError } from './util';
 export { ActionError };
 import { effectsCashCost, loanFor, releaseCost, renewalOffer, seatsFor, sellPrice } from './office';
+import { applyNamePack, type NamePack } from './namepack';
 
 interface OriginPreset {
   label: string;
@@ -51,7 +52,12 @@ export function sanitizeName(name: string): string {
 
 /* ------------------------------ Criação ------------------------------ */
 
-export function newGame(seed: number, foundation: Foundation): GameState {
+/** Opções que não entram na run (só aparência): pacote de nomes dos clubes. */
+export interface GameOptions {
+  pack?: NamePack | null;
+}
+
+export function newGame(seed: number, foundation: Foundation, opts: GameOptions = {}): GameState {
   const seedU = seed >>> 0;
   const f: Foundation = { ...foundation, name: sanitizeName(foundation.name) };
   const rng = deriveRng(seedU, 'world');
@@ -59,6 +65,7 @@ export function newGame(seed: number, foundation: Foundation): GameState {
   const playerNames = new Set<string>();
   let pid = 100;
   const { clubs, serial } = generateWorld(rng, taken, { next: () => pid++, names: playerNames, season: 1 });
+  if (opts.pack) applyNamePack(clubs, opts.pack, taken);
   const preset = ORIGINS[f.origin];
   const rival = rng.pick(clubs.filter((c) => c.stateDiv === 'V'));
   const squad = foundingSquad(deriveRng(seedU, 'squad'), preset.squadMean, 1, playerNames);
@@ -544,8 +551,8 @@ export function applyMut(state: GameState, a: Action): void {
 }
 
 /** Reconstrói uma run inteira a partir da seed, fundação e ações. */
-export function replay(seed: number, foundation: Foundation, actions: readonly Action[]): GameState {
-  const state = newGame(seed, foundation);
+export function replay(seed: number, foundation: Foundation, actions: readonly Action[], opts: GameOptions = {}): GameState {
+  const state = newGame(seed, foundation, opts);
   for (const a of actions) {
     applyMut(state, a);
     state.actions.push(a);

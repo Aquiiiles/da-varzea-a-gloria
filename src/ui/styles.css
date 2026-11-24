@@ -482,3 +482,11 @@ h3 { font: 700 14px/1.2 var(--font-display); text-transform: uppercase; letter-s
 .cash-big { margin: 0; font: 700 32px var(--font-display); }
 .coaches li { list-style: none; }
 .coach-card + .moodbar { margin-top: 10px; }
+
+/* pacote de nomes */
+.namepack summary { display: flex; justify-content: space-between; align-items: center; gap: 8px; cursor: pointer; list-style: none; }
+.namepack summary::-webkit-details-marker { display: none; }
+.namepack summary .kicker { margin: 0; }
+.namepack-state { font-size: 13px; color: var(--muted); text-align: right; }
+.namepack-actions { display: flex; flex-wrap: wrap; gap: 8px; margin: 8px 0; }
+.namepack-actions label.btn { cursor: pointer; }

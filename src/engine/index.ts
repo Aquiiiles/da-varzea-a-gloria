@@ -1,6 +1,7 @@
 /** API pública do motor. A UI importa só daqui. */
 export * from './types';
-export { newGame, apply, tryApply, canApply, replay, ORIGINS, sanitizeName, ActionError } from './game';
+export { newGame, apply, tryApply, canApply, replay, ORIGINS, sanitizeName, ActionError, type GameOptions } from './game';
+export { parseNamePack, applyNamePack, packSize, type NamePack, type PackClub } from './namepack';
 export { seatsFor, loanFor, sellPrice, releaseCost, renewWage, renewTarget, MAX_RAISE, projectFinance, effectsCashCost, expectedHomeGames, renewalOffer } from './office';
 export { negotiationFor, MAX_ROUNDS } from './negotiation';
 export { trophies, clubRecords, type Trophy, type ClubRecords } from './trophies';

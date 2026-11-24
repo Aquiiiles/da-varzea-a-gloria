@@ -38,6 +38,23 @@ O calendário é o brasileiro: **Estadual** no 1º semestre e **série nacional*
 
 Também há: técnicos com estilo (ofensivo, retranqueiro, formador, motivador, estrategista), comércio local, torcedômetro, metas da temporada, histórico do clássico, conquistas, **desafio do dia** (mesma seed para todo mundo) e **card final** em PNG 1080x1350.
 
+## Pacote de nomes
+
+O jogo só traz nomes fictícios. Na tela inicial, em **Nomes dos clubes**, dá para importar um arquivo `.json` que troca os nomes, siglas e cores dos clubes das Séries A a D (e dos clubes sem divisão de outros estados). O pacote fica só no navegador de quem importou e não muda nenhum resultado: carreiras salvas e links continuam iguais, só com outros nomes.
+
+```json
+{
+  "title": "Meu pacote",
+  "divisions": {
+    "1": [{ "name": "Clube Maior", "short": "CMA", "colors": ["#c8102e", "#ffffff"] }, "Outro Clube"],
+    "2": [], "3": [], "4": []
+  },
+  "pool": ["Clube Sem Divisão"]
+}
+```
+
+Em cada divisão, a ordem importa: o primeiro nome vai para o clube mais forte. Clubes do nosso estado que estão numa série nacional também recebem nome do pacote (e jogam o Estadual); Estadual, Estadual Série B e Várzea continuam fictícios.
+
 ## Deploy (GitHub Pages)
 
 O workflow `.github/workflows/pages.yml` roda os testes, faz o build e publica `dist/` no GitHub Pages a cada push na `main` (ou manualmente pela aba Actions). No repositório, a opção *Settings → Pages → Source* precisa estar em **GitHub Actions**.

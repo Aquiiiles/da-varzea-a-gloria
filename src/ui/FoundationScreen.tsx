@@ -1,7 +1,7 @@
 import { useState } from 'react';
-import { ORIGINS, START_YEAR, initials, type Foundation, type Origin } from '../engine';
+import { ORIGINS, START_YEAR, initials, packSize, parseNamePack, type Foundation, type NamePack, type Origin } from '../engine';
 import { Crest } from './Crest';
-import { deleteCareer, listCareers, listHall, type CareerSave } from '../storage';
+import { deleteCareer, listCareers, listHall, loadNamePack, saveNamePack, type CareerSave } from '../storage';
 import { today } from './daily';
 
 const SWATCHES = ['#c8102e', '#1d428a', '#fdb913', '#00843d', '#ffffff', '#111111', '#6c1d45', '#ef7d00', '#9bcbeb', '#7a263a'];
@@ -91,6 +91,56 @@ function SavedRuns({ onResume }: { onResume: (query: string) => void }) {
   );
 }
 
+/** Pacote de nomes: troca os nomes fictícios dos clubes das Séries A a D por um arquivo seu. */
+function NamePackPanel() {
+  const [pack, setPack] = useState<NamePack | null>(() => loadNamePack());
+  const [msg, setMsg] = useState<{ text: string; ok: boolean } | null>(null);
+
+  const onFile = async (file: File | undefined) => {
+    if (!file) return;
+    try {
+      const parsed = parseNamePack(JSON.parse(await file.text()));
+      if (typeof parsed === 'string') return setMsg({ text: parsed, ok: false });
+      if (!saveNamePack(parsed)) return setMsg({ text: 'Não foi possível salvar neste navegador.', ok: false });
+      setPack(parsed);
+      setMsg({ text: `"${parsed.title}" ativado: ${packSize(parsed)} clubes. Vale para carreiras novas e para as salvas.`, ok: true });
+    } catch {
+      setMsg({ text: 'Não consegui ler o arquivo: ele precisa ser um JSON válido.', ok: false });
+    }
+  };
+
+  const remove = () => {
+    saveNamePack(null);
+    setPack(null);
+    setMsg({ text: 'Pacote removido: os clubes voltam aos nomes fictícios.', ok: true });
+  };
+
+  return (
+    <details className="panel namepack">
+      <summary>
+        <span className="kicker">Nomes dos clubes</span>
+        <span className="namepack-state">{pack ? `${pack.title} (${packSize(pack)})` : 'Fictícios'}</span>
+      </summary>
+      <p className="muted">
+        Importe um pacote de nomes (.json) para trocar os nomes dos clubes das Séries A, B, C e D. O pacote fica só neste navegador e não muda
+        os resultados da carreira, só os nomes, siglas e cores.
+      </p>
+      <div className="namepack-actions">
+        <label className="btn btn-small">
+          Importar pacote
+          <input type="file" accept=".json,application/json" hidden onChange={(e) => { void onFile(e.target.files?.[0]); e.target.value = ''; }} />
+        </label>
+        {pack && (
+          <button type="button" className="btn btn-small" onClick={remove}>
+            Usar nomes fictícios
+          </button>
+        )}
+      </div>
+      {msg && <p className={msg.ok ? 'good' : 'bad'}>{msg.text}</p>}
+    </details>
+  );
+}
+
 export function FoundationScreen({ onStart, onResume }: { onStart: (f: Foundation, seed?: number) => void; onResume: (query: string) => void }) {
   const daily = today();
   const [name, setName] = useState('');
@@ -101,6 +151,7 @@ export function FoundationScreen({ onStart, onResume }: { onStart: (f: Foundatio
   return (
     <>
     <SavedRuns onResume={onResume} />
+    <NamePackPanel />
     <section className="panel foundation">
       <p className="kicker">Fundação</p>
       <h1 className="headline">Todo gigante já foi um time de bairro.</h1>

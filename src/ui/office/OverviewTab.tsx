@@ -4,6 +4,7 @@ import {
 import { money, num } from '../format';
 import type { TabProps } from './Office';
 import { Chips, Section } from './common';
+import { JobOffers } from './CareerTab';
 
 export function OverviewTab({ state, dispatch, goTo }: TabProps) {
   const p = state.player;
@@ -53,6 +54,8 @@ export function OverviewTab({ state, dispatch, goTo }: TabProps) {
           )}
         </section>
       )}
+
+      {state.career && <JobOffers state={state} dispatch={dispatch} title="Propostas de outros clubes" />}
 
       <Section title="Metas da temporada" note="Cumprir metas anima a torcida e rende bônus em dinheiro; falhar a da diretoria pesa no torcedômetro.">
         <ul className="objectives">
@@ -111,7 +114,7 @@ export function OverviewTab({ state, dispatch, goTo }: TabProps) {
         </Section>
       )}
 
-      <Section title="Oportunidades" note="Propostas desta janela. Aceitar é opcional; o que você ignorar some no fim da temporada.">
+      {o.opportunities.length > 0 && <Section title="Oportunidades" note="Propostas desta janela. Aceitar é opcional; o que você ignorar some no fim da temporada.">
         <div className="opps">
           {o.opportunities.map(({ opp, taken }, idx) => {
             const cost = effectsCashCost(state, opp.effects);
@@ -133,7 +136,7 @@ export function OverviewTab({ state, dispatch, goTo }: TabProps) {
             );
           })}
         </div>
-      </Section>
+      </Section>}
 
       {alerts.length > 0 && (
         <Section title="Atenção, presidente">

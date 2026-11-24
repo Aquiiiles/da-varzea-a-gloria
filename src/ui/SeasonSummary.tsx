@@ -167,6 +167,21 @@ export function SeasonSummary({ result: r, state, onNext, onFast, fast }: Props)
             </p>
           )}
         </div>
+        {state.career ? (
+          <div className="box">
+            <h3>Sua carreira</h3>
+            <p>
+              Confiança da diretoria: <b className={state.career.board.confidence <= 35 ? 'bad' : 'good'}>{state.career.board.confidence}</b> · reputação{' '}
+              <b>{state.career.reputation}</b>
+            </p>
+            {(r.coachNews ?? []).map((t, i) => (
+              <p key={i} className={t.startsWith('DEMITIDO') || t.startsWith('Fim de contrato') ? 'bad' : 'muted'}>
+                {t}
+              </p>
+            ))}
+            {state.career.unemployed && <p className="bad">Você está sem clube: na próxima janela, escolha entre as propostas.</p>}
+          </div>
+        ) : (
         <div className="box">
           <h3>Técnico</h3>
           <p>
@@ -183,6 +198,7 @@ export function SeasonSummary({ result: r, state, onNext, onFast, fast }: Props)
           )}
           {r.coachReport.left && <p className="bad">{r.coachReport.left}</p>}
         </div>
+        )}
         <div className="box">
           <h3>Artilheiro</h3>
           <p>{r.topScorer && r.topScorer.goals > 0 ? `${r.topScorer.name} — ${r.topScorer.goals} gols` : '—'}</p>

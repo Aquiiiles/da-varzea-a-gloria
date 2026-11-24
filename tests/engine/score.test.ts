@@ -4,7 +4,7 @@ import { playRun } from './helpers';
 const base: RunStats = {
   seasons: 50, promotions: 0, relegations: 0, leagueTitles: 0, premierTitles: 0, bestTier: 7, barred: 0,
   giantKills: 0, biggestUpset: null, cupWins: 0, championsWins: 0, worldWins: 0, bankrupt: false, soul: 80,
-  idol: null, trajectory: Array(50).fill(7),
+  idol: null, trajectory: Array(50).fill(7), coach: false, clubs: 1, firings: 0,
 };
 
 describe('escada de níveis', () => {

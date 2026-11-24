@@ -23,3 +23,5 @@ export { playedMatches, upcomingMatches, stageStarted, partialTable, outcomeOf }
 export { dayToDate, weekdayOf } from './calendar';
 export { advanceTarget } from './game';
 export { myAwards } from './awards';
+export { BOARD_INFO, CAREER_END_AGE, CAREER_START_AGE, isCoachMode, starsFor, tierForReputation } from './career';
+export { COACH_LEVELS } from './score';

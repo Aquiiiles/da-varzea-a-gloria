@@ -17,6 +17,9 @@ export { ActionError };
 import { effectsCashCost, loanFor, releaseCost, renewalOffer, seatsFor, sellPrice } from './office';
 import { applyNamePack, type NamePack } from './namepack';
 import { dayToDate } from './calendar';
+import { CAREER_END_AGE, CAREER_START_AGE, careerWindow, refundBudget, settleCareer, spendBudget, takeOver, wageCheck } from './career';
+import { varzeaClubName } from './names';
+import { PALETTE } from '../data/names';
 
 interface OriginPreset {
   label: string;
@@ -61,6 +64,7 @@ export interface GameOptions {
 export function newGame(seed: number, foundation: Foundation, opts: GameOptions = {}): GameState {
   const seedU = seed >>> 0;
   const f: Foundation = { ...foundation, name: sanitizeName(foundation.name) };
+  const coachMode = f.mode === 'tecnico';
   const rng = deriveRng(seedU, 'world');
   const taken = new Set<string>([f.name]);
   const playerNames = new Set<string>();
@@ -71,11 +75,16 @@ export function newGame(seed: number, foundation: Foundation, opts: GameOptions 
   const rival = rng.pick(clubs.filter((c) => c.stateDiv === 'V'));
   const squad = foundingSquad(deriveRng(seedU, 'squad'), preset.squadMean, 1, playerNames);
 
+  // modo técnico: o "clube do jogador" começa como um time de várzea qualquer, que volta para a IA quando o técnico aceitar a primeira proposta
+  const crng = deriveRng(seedU, 'tecnico-inicio');
+  let placeholder = varzeaClubName(crng);
+  for (let i = 0; i < 20 && taken.has(placeholder); i++) placeholder = varzeaClubName(crng);
+  const clubName = coachMode ? placeholder : f.name;
   const player: PlayerClub = {
     id: PLAYER_ID,
-    name: f.name,
-    short: initials(f.name),
-    colors: f.colors,
+    name: clubName,
+    short: initials(clubName),
+    colors: coachMode ? [crng.pick(PALETTE), '#ffffff'] : f.colors,
     strength: 0,
     tier: 7,
     national: null,
@@ -93,7 +102,7 @@ export function newGame(seed: number, foundation: Foundation, opts: GameOptions 
     ticket: 1,
     facilities: { ct: 0, academy: 0, medical: 0 },
     staff: { scout: 0, fitness: 0 },
-    coach: startingCoach(),
+    coach: coachMode ? { ...startingCoach(), name: f.name, style: f.style ?? 'motivador', age: CAREER_START_AGE } : startingCoach(),
     businesses: { bar: 0, loja: 0, escolinha: 0, estacionamento: 0, foodtruck: 0 },
     mood: 60,
     delegate: { contratos: false, base: false, mercado: false, estadio: false },
@@ -122,10 +131,24 @@ export function newGame(seed: number, foundation: Foundation, opts: GameOptions 
     office: emptyOffice(),
     seenOnce: [],
     history: [],
-    news: [`Nasce o ${f.name}: time de bairro se inscreve na ${TIERS[7].name}`, `${rival.name} será o grande rival`],
+    news: coachMode
+      ? [`${f.name}, ex-jogador, pendura as chuteiras e procura o primeiro emprego como técnico`]
+      : [`Nasce o ${f.name}: time de bairro se inscreve na ${TIERS[7].name}`, `${rival.name} será o grande rival`],
     over: null,
     serial: Math.max(serial, pid) + 1,
   };
+  if (coachMode) {
+    state.career = {
+      name: f.name,
+      age: CAREER_START_AGE,
+      reputation: 8,
+      board: { personality: 'paciente', confidence: 60, budget: 0, wageCap: 0 },
+      contract: 0,
+      unemployed: true,
+      offers: [],
+      stints: [],
+    };
+  }
   startSeason(state);
   return state;
 }
@@ -142,7 +165,7 @@ function tierAllowed(tier: Tier, item: { minTier?: Tier; maxTier?: Tier }): bool
 }
 
 /** Abre o escritório da temporada: mercado, base, oportunidades e evento. */
-function startSeason(state: GameState): void {
+function startSeason(state: GameState, afterJob = false): void {
   const p = state.player;
   const s = state.season;
   const office = emptyOffice();
@@ -180,7 +203,20 @@ function startSeason(state: GameState): void {
   const rival = comp.find((c) => c.id === p.rivalId) ?? state.clubs.find((c) => c.id === p.rivalId && c.stateDiv === p.stateDiv && c.stateDiv !== null);
   const expected = expectedRank(teamStrength(state), comp.map((c) => c.strength));
   office.objectives = seasonObjectives(deriveRng(state.seed, s, 'objectives'), p.tier, expected, !!rival);
+  if (state.career) {
+    // modo técnico: eventos, oportunidades e técnicos são assunto da diretoria
+    office.event = null;
+    office.opportunities = [];
+    office.coaches = [];
+    office.request = null;
+  }
   state.office = office;
+  if (state.career) {
+    if (afterJob) {
+      state.career.offers = [];
+      careerWindow(state, false);
+    } else careerWindow(state, true);
+  }
 }
 
 /** Jogador vendido vai para um clube de verdade (o comprador ou um do mesmo nível ou acima). */
@@ -271,13 +307,27 @@ export function applyMut(state: GameState, a: Action): void {
   }
   if (state.phase !== 'office') fail('o escritório está fechado');
   const actionRng = () => deriveRng(state.seed, state.season, 'act', state.actions.length);
+  const career = state.career;
+  if (career && BOARD_ACTIONS.has(a.t) && !boardActing) fail('isso é com a diretoria: o técnico cuida do time');
+  if (career && career.unemployed && a.t !== 'job' && a.t !== 'formation') fail('você está sem clube: aceite uma proposta');
 
   switch (a.t) {
+    case 'job': {
+      if (!career) fail('só no modo técnico');
+      const offer = career.offers[a.idx];
+      if (!offer) fail('proposta indisponível');
+      takeOver(state, offer);
+      state.news.push(`${career.name} é o novo técnico do ${offer.club}`);
+      startSeason(state, true);
+      return;
+    }
     case 'buy': {
       const l = o.market[a.idx];
       if (!l) fail('jogador indisponível');
       if (p.squad.length >= SQUAD_MAX) fail('elenco cheio');
       if (p.cash < l.fee) fail('caixa insuficiente');
+      check(wageCheck(state, l.player.wage));
+      check(spendBudget(state, l.fee));
       p.cash -= l.fee;
       p.squad.push({ ...l.player, joined: state.season });
       o.market[a.idx] = null;
@@ -291,6 +341,7 @@ export function applyMut(state: GameState, a: Action): void {
       if (p.squad.length <= SQUAD_MIN) fail(`o elenco precisa de pelo menos ${SQUAD_MIN} jogadores`);
       const fee = sellPrice(state, a.id);
       p.cash += fee;
+      refundBudget(state, fee);
       p.squad = p.squad.filter((x) => x.id !== a.id);
       p.alumni.push(f);
       if (f.homegrown) {
@@ -318,6 +369,7 @@ export function applyMut(state: GameState, a: Action): void {
       if (f.contract !== 1) fail('só dá para renovar no último ano de contrato');
       const offer = renewalOffer(f);
       if (!offer) fail(`${f.name} já decidiu se aposentar`);
+      check(wageCheck(state, offer.wage - f.wage));
       f.wage = offer.wage;
       f.contract = f.age >= 32 ? 2 : 4;
       f.leaving = false;
@@ -335,6 +387,8 @@ export function applyMut(state: GameState, a: Action): void {
         fail('proposta inválida');
       }
       if (p.cash < a.fee) fail('caixa insuficiente para pagar a taxa');
+      if (career && a.fee > career.board.budget) fail(`a diretoria não libera: a verba da janela é de R$ ${career.board.budget} mil`);
+      check(wageCheck(state, a.wage));
       let n = negotiationFor(state, club.id, f.id);
       if (n && (n.status === 'aceita' || n.status === 'encerrada' || n.rounds >= MAX_ROUNDS)) fail('negociação encerrada nesta janela');
       if (!n) {
@@ -351,6 +405,7 @@ export function applyMut(state: GameState, a: Action): void {
       n.askFee = out.askFee;
       n.askWage = out.askWage;
       if (out.status === 'aceita') {
+        check(spendBudget(state, a.fee));
         p.cash -= a.fee;
         club.squad = club.squad.filter((x) => x.id !== f.id);
         club.squad.push(replacementFor(actionRng(), club, { next: () => nextId(state), names: usedPlayerNames(state), season: state.season }));
@@ -373,6 +428,7 @@ export function applyMut(state: GameState, a: Action): void {
       if (!f) fail('o jogador já não está no clube');
       if (p.squad.length <= SQUAD_MIN) fail(`o elenco precisa de pelo menos ${SQUAD_MIN} jogadores`);
       p.cash += of.fee;
+      refundBudget(state, of.fee);
       p.squad = p.squad.filter((x) => x.id !== f.id);
       p.alumni.push(f);
       if (f.homegrown) {
@@ -430,6 +486,7 @@ export function applyMut(state: GameState, a: Action): void {
         p.youth.push(c);
       } else {
         if (p.squad.length >= SQUAD_MAX) fail('elenco cheio');
+        check(wageCheck(state, round1(marketWage(c.ovr) * 0.8)));
         p.squad.push({ ...c, wage: round1(marketWage(c.ovr) * 0.8) });
       }
       o.tryout![a.idx] = null;
@@ -485,8 +542,13 @@ export function applyMut(state: GameState, a: Action): void {
       return;
     }
     case 'formation': {
-      if (o.formationChanged) fail('o técnico só aceita mudar o esquema uma vez por janela');
       if (p.coach.formation === a.f) fail('já é o esquema atual');
+      if (career) {
+        // o técnico é você: troca o esquema quando quiser, sem custo de moral
+        p.coach.formation = a.f;
+        return;
+      }
+      if (o.formationChanged) fail('o técnico só aceita mudar o esquema uma vez por janela');
       p.coach.formation = a.f;
       p.coach.morale = Math.max(0, p.coach.morale - 10);
       o.formationChanged = true;
@@ -544,20 +606,52 @@ export function applyMut(state: GameState, a: Action): void {
       return;
     case 'play': {
       if (o.event && o.eventChoice === null) fail('responda o evento antes de jogar');
+      if (career) boardTurn(state);
       const areas = (Object.keys(p.delegate) as DelegateArea[]).filter((k) => p.delegate[k]);
       if (areas.length > 0) runAssistant(state, applyMut, areas);
       const result = simulateSeason(state);
       state.reveal = state.calendar ? state.calendar.start : null;
+      if (career) {
+        result.coachNews = settleCareer(state, result);
+        result.headlines.push(...result.coachNews);
+        // falência do clube: o técnico fica sem emprego, a carreira continua
+        if (state.over === 'falencia') {
+          state.over = null;
+          career.unemployed = true;
+        }
+      }
       state.history.push(result);
       state.news.push(...result.headlines);
       state.phase = state.over ? 'over' : 'summary';
-      if (!state.over && state.season >= MAX_SEASONS) {
+      if (career && career.age >= CAREER_END_AGE) {
+        state.over = 'fim';
+        state.phase = 'over';
+      } else if (!career && !state.over && state.season >= MAX_SEASONS) {
         state.over = 'fim';
         state.phase = 'over';
       }
       return;
     }
   }
+}
+
+/** Ações que no modo técnico são da diretoria (o técnico não mexe). */
+const BOARD_ACTIONS = new Set<Action['t']>(['seats', 'facility', 'staff', 'ticket', 'loan', 'business', 'opp', 'event', 'delegate', 'coach']);
+/** a diretoria está agindo (o assistente cuidando do clube no modo técnico) */
+let boardActing = false;
+
+/** A diretoria cuida do estádio, estrutura e finanças (modo técnico). */
+function boardTurn(state: GameState): void {
+  boardActing = true;
+  try {
+    runAssistant(state, applyMut, ['estadio']);
+  } finally {
+    boardActing = false;
+  }
+}
+
+function check(msg: string | null): void {
+  if (msg) fail(msg);
 }
 
 /** Até que dia mostrar a temporada; null = acabou (vai para o resumo). */

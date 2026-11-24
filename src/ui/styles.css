@@ -536,3 +536,13 @@ h3 { font: 700 14px/1.2 var(--font-display); text-transform: uppercase; letter-s
 .award-others span { color: var(--muted); }
 @keyframes award-in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
 @media (prefers-reduced-motion: reduce) { .award { animation: none; } }
+
+/* modos de jogo e carreira do técnico */
+.mode-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 6px; }
+.mode-card { text-align: left; }
+.job-offer p { margin: 2px 0 0; }
+.career-stints { list-style: none; margin: 0; padding: 0; }
+.career-stints li { display: flex; gap: 10px; align-items: center; padding: 8px 0; border-bottom: 1px solid #1c2531; }
+.career-stints li span { display: flex; flex-direction: column; }
+.career-stints small { color: var(--muted); font-size: 12px; }
+.stint-color { width: 10px; height: 28px; border-radius: 3px; flex: none; }

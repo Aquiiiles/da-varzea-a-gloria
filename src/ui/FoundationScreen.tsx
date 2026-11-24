@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { ORIGINS, START_YEAR, initials, packSize, parseNamePack, type Foundation, type NamePack, type Origin } from '../engine';
+import { CAREER_END_AGE, CAREER_START_AGE, COACH_STYLES, ORIGINS, START_YEAR, initials, packSize, parseNamePack, type CoachStyle, type Foundation, type GameMode, type NamePack, type Origin } from '../engine';
 import { Crest } from './Crest';
 import { deleteCareer, listCareers, listHall, loadNamePack, saveNamePack, type CareerSave } from '../storage';
 import { today } from './daily';
@@ -147,11 +147,68 @@ export function FoundationScreen({ onStart, onResume }: { onStart: (f: Foundatio
   const [c1, setC1] = useState('#c8102e');
   const [c2, setC2] = useState('#ffffff');
   const [origin, setOrigin] = useState<Origin>('pub');
+  const [mode, setMode] = useState<GameMode>('tecnico');
+  const [coachName, setCoachName] = useState('');
+  const [style, setStyle] = useState<CoachStyle>('motivador');
+  const startCoach = (seed?: number) =>
+    onStart({ name: coachName.trim() || 'Professor Zeca', colors: ['#c8102e', '#ffffff'], origin: 'pub', mode: 'tecnico', style }, seed);
 
   return (
     <>
     <SavedRuns onResume={onResume} />
     <NamePackPanel />
+    <section className="panel modes">
+      <p className="kicker">Modo de jogo</p>
+      <div className="mode-grid">
+        <button type="button" className={`origin mode-card${mode === 'tecnico' ? ' is-on' : ''}`} onClick={() => setMode('tecnico')}>
+          <span className="origin-icon">📋</span>
+          <strong>Técnico</strong>
+          <small>Comece sem nome, aceite propostas, suba de clube em clube e não deixe a diretoria perder a paciência.</small>
+        </button>
+        <button type="button" className={`origin mode-card${mode === 'presidente' ? ' is-on' : ''}`} onClick={() => setMode('presidente')}>
+          <span className="origin-icon">🏟️</span>
+          <strong>Presidente</strong>
+          <small>Funde um time na Várzea e leve até a glória: elenco, estádio, finanças e o técnico são seus.</small>
+        </button>
+      </div>
+    </section>
+
+    {mode === 'tecnico' ? (
+      <>
+        <section className="panel foundation">
+          <p className="kicker">Carreira de técnico</p>
+          <h1 className="headline">Da prancheta de várzea ao Mundial.</h1>
+          <p className="lede">
+            Você pendurou as chuteiras aos {CAREER_START_AGE} anos. Agora é técnico: ninguém te conhece, só os times pequenos ligam. Escale, contrate dentro da
+            verba, cumpra as metas e construa uma reputação até os {CAREER_END_AGE}.
+          </p>
+          <label className="field">
+            <span className="field-label">Seu nome</span>
+            <input className="text-input" value={coachName} maxLength={28} placeholder="Ex.: Professor Zeca" onChange={(e) => setCoachName(e.target.value)} />
+          </label>
+          <span className="field-label">Estilo de jogo</span>
+          <div className="origins">
+            {(Object.keys(COACH_STYLES) as CoachStyle[]).map((s) => (
+              <button key={s} type="button" className={`origin${s === style ? ' is-on' : ''}`} onClick={() => setStyle(s)}>
+                <strong>{COACH_STYLES[s].label}</strong>
+                <small>{COACH_STYLES[s].effect}</small>
+              </button>
+            ))}
+          </div>
+          <button type="button" className="btn btn-primary btn-big" onClick={() => startCoach()}>
+            Começar a carreira
+          </button>
+        </section>
+        <section className="panel daily">
+          <p className="kicker">Desafio do dia · {daily.label}</p>
+          <p className="lede">Hoje todo mundo começa com as mesmas propostas, no mesmo mundo. Compare a carreira com os amigos pelo link.</p>
+          <button type="button" className="btn btn-big" onClick={() => startCoach(daily.seed)}>
+            Jogar o desafio de {daily.label}
+          </button>
+        </section>
+      </>
+    ) : (
+    <>
     <section className="panel foundation">
       <p className="kicker">Fundação</p>
       <h1 className="headline">Todo gigante já foi um time de bairro.</h1>
@@ -213,6 +270,8 @@ export function FoundationScreen({ onStart, onResume }: { onStart: (f: Foundatio
         Jogar o desafio de {daily.label}
       </button>
     </section>
+    </>
+    )}
     </>
   );
 }

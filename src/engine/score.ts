@@ -19,6 +19,11 @@ export interface RunStats {
   soul: number;
   idol: { name: string; goals: number } | null;
   trajectory: Tier[];
+  /** modo técnico */
+  coach: boolean;
+  /** modo técnico: clubes treinados e demissões */
+  clubs: number;
+  firings: number;
 }
 
 export interface LevelInfo {
@@ -84,6 +89,9 @@ export function runStats(state: GameState): RunStats {
     soul: Math.round(state.player.soul),
     idol: idolMan && idolMan.goals > 0 ? { name: idolMan.name, goals: idolMan.goals } : null,
     trajectory: h.map((r) => r.tier),
+    coach: !!state.career,
+    clubs: state.career?.stints.length ?? 1,
+    firings: state.career?.stints.filter((x) => x.exit === 'demitido').length ?? 0,
   };
 }
 
@@ -103,6 +111,21 @@ export function computeScore(s: RunStats): number {
   return score;
 }
 
+/** Escada do técnico (modo técnico). */
+export const COACH_LEVELS = [
+  '',
+  'Pendurou a prancheta',
+  'Professor de várzea',
+  'Rei da zebra',
+  'Técnico rodado',
+  'Técnico de série nacional',
+  'Técnico de Série A',
+  'Campeão brasileiro',
+  'Rei da América',
+  'Dinastia no banco',
+  'Lenda do banco',
+];
+
 /** Escada de níveis. 8–10 exigem a Copa Continental. */
 export function levelFor(s: RunStats): LevelInfo {
   let level: number;
@@ -116,6 +139,11 @@ export function levelFor(s: RunStats): LevelInfo {
   else if (s.promotions >= 2) level = 4;
   else if (s.giantKills >= 1) level = 3;
   else level = 2;
+  if (s.coach) {
+    if (level === 1) level = 2;
+    const title = COACH_LEVELS[level];
+    return { level, title, plastic: false, label: s.firings >= 4 ? `${title} (rodou o Brasil)` : title };
+  }
   const plastic = s.soul < 30;
   const title = LEVELS[level];
   return { level, title, plastic, label: plastic ? `${title} (clube de plástico)` : title };

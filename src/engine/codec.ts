@@ -1,4 +1,7 @@
 import type { Action, BusinessId, DelegateArea, Facility, Formation, Foundation, GameState, Origin, StaffRole } from './types';
+import type { CoachStyle } from './types';
+
+const STYLES: CoachStyle[] = ['ofensivo', 'retranqueiro', 'formador', 'motivador', 'estrategista'];
 
 /**
  * Codificação da run na URL:
@@ -54,6 +57,7 @@ export function encodeAction(a: Action): string {
     case 'auto': return 'a';
     case 'play': return 'j';
     case 'advance': return `D${a.to}`;
+    case 'job': return `J${a.idx}`;
     case 'next': return 'z';
   }
 }
@@ -98,6 +102,7 @@ export function decodeAction(tok: string): Action | null {
     case 'a': return rest === '' ? { t: 'auto' } : null;
     case 'j': return rest === '' ? { t: 'play' } : null;
     case 'D': return n === 0 || n === 1 || n === 2 || n === 3 ? { t: 'advance', to: n } : null;
+    case 'J': return n >= 0 && n < 10 ? { t: 'job', idx: n } : null;
     case 'z': return rest === '' ? { t: 'next' } : null;
     default: return null;
   }
@@ -109,6 +114,10 @@ export function encodeRun(run: RunCode | GameState): string {
   params.set('n', run.foundation.name);
   params.set('k', run.foundation.colors.map((c) => c.replace('#', '')).join('-'));
   params.set('o', ORIGIN_CODE[run.foundation.origin]);
+  if (run.foundation.mode === 'tecnico') {
+    params.set('m', 't');
+    if (run.foundation.style) params.set('e', run.foundation.style);
+  }
   params.set('a', run.actions.map(encodeAction).join('.'));
   return params.toString();
 }
@@ -132,11 +141,13 @@ export function decodeRun(query: string): RunCode | null {
     if (!a) return null;
     actions.push(a);
   }
-  return {
-    seed,
-    foundation: { name: params.get('n') ?? 'Várzea FC', colors: [`#${colors[0].toLowerCase()}`, `#${colors[1].toLowerCase()}`], origin },
-    actions,
-  };
+  const foundation: RunCode['foundation'] = { name: params.get('n') ?? 'Várzea FC', colors: [`#${colors[0].toLowerCase()}`, `#${colors[1].toLowerCase()}`], origin };
+  if (params.get('m') === 't') {
+    foundation.mode = 'tecnico';
+    const style = params.get('e');
+    if (style && STYLES.includes(style as CoachStyle)) foundation.style = style as CoachStyle;
+  }
+  return { seed, foundation, actions };
 }
 
 /** Seed aleatória para uma nova run (fica FORA do motor: só a UI chama). */

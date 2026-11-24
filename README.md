@@ -12,6 +12,11 @@ npm run build      # typecheck + build de produção
 npm run balance    # probe de balanceamento com bots (não roda no npm test)
 ```
 
+## Modos de jogo
+
+- **Técnico**: você começa sem nome, aos 35 anos, com 3 propostas de times pequenos. Escala o time (esquema), cuida da base e das transferências dentro da **verba** e do **teto da folha** que a diretoria libera. A diretoria (paciente, imediatista ou mão de vaca) cobra as metas e tem uma barra de **confiança**: zerou, você é demitido e escolhe outro clube. A **reputação** decide quem te procura; a cada janela podem chegar propostas de outros clubes. A carreira vai até os 70 anos. Estádio, finanças e estrutura ficam com a diretoria.
+- **Presidente**: você funda um time na Várzea e cuida de tudo (elenco, estádio, finanças, técnico) por 50 temporadas.
+
 ## Arquitetura
 
 - `src/engine/`: motor puro (sem React, sem DOM, sem `Math.random`). Determinístico: a mesma seed com as mesmas escolhas gera sempre a mesma run, e `replay(seed, fundação, escolhas)` reconstrói o estado. Feito para rodar também num servidor.

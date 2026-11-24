@@ -324,7 +324,39 @@ export function incomingOffers(rng: Rng, squad: readonly Footballer[], tier: Tie
     if (!rng.chance(Math.min(0.6, 0.03 + star + prospect + leaving))) continue;
     const buyer = rng.pick(buyers);
     const premium = 1 + (tier - buyer.tier) * 0.08;
-    offers.push({ playerId: f.id, fee: Math.round(marketValue(f) * rng.float(0.75, 1.15) * premium), club: buyer.name, clubTier: buyer.tier });
+    const fee = Math.round(marketValue(f) * rng.float(0.75, 1.15) * premium);
+    offers.push({ playerId: f.id, fee, club: buyer.name, clubTier: buyer.tier, max: Math.round(fee * rng.float(1.05, 1.35)) });
   }
   return offers;
+}
+
+export interface Importance {
+  /** está no time titular do esquema? */
+  starter: boolean;
+  /** posição no elenco por overall (1 = melhor) */
+  rank: number;
+  /** posição entre os da mesma posição e quantos há */
+  posRank: number;
+  posCount: number;
+  /** quanto a força do time cai sem ele */
+  delta: number;
+  /** quem entra no time titular no lugar dele */
+  replacement: Footballer | null;
+  label: 'Peça-chave' | 'Titular importante' | 'Titular' | 'Reserva' | 'Pouco usado';
+}
+
+/** O quanto um jogador pesa no time: titular ou não, quanto a força cai sem ele e quem entra no lugar. */
+export function playerImportance(squad: readonly Footballer[], formation: Formation, id: number): Importance {
+  const f = squad.find((x) => x.id === id)!;
+  const with_ = bestEleven(squad, formation).ids;
+  const without = squad.filter((x) => x.id !== id);
+  const withoutIds = bestEleven(without, formation).ids;
+  const delta = Math.max(0, round1(squadStrength(squad, formation) - squadStrength(without, formation)));
+  const sorted = squad.slice().sort((a, b) => b.ovr - a.ovr || a.id - b.id);
+  const samePos = sorted.filter((x) => x.pos === f.pos);
+  const replacement = with_.has(id) ? without.find((x) => withoutIds.has(x.id) && !with_.has(x.id)) ?? null : null;
+  const starter = with_.has(id);
+  const rank = sorted.findIndex((x) => x.id === id) + 1;
+  const label: Importance['label'] = delta >= 1 ? 'Peça-chave' : starter && delta >= 0.4 ? 'Titular importante' : starter ? 'Titular' : rank > squad.length * 0.66 ? 'Pouco usado' : 'Reserva';
+  return { starter, rank, posRank: samePos.findIndex((x) => x.id === id) + 1, posCount: samePos.length, delta, replacement, label };
 }

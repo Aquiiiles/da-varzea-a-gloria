@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { MAX_ROUNDS, SQUAD_MAX, TIERS, marketValue, marketWage, negotiationFor, type Club, type Footballer, type GameState } from '../../engine';
 import type { Dispatch } from '../App';
-import { money, monthly } from '../format';
+import { money, monthly, spendable } from '../format';
 
 /** Arredonda o salário anual para 1 casa (exigência do motor para o replay ser exato). */
 const r1 = (v: number) => Math.max(0.1, Math.round(v * 10) / 10);
@@ -76,10 +76,10 @@ export function NegotiationPanel({ state, dispatch, club, f }: { state: GameStat
               </div>
             </label>
           </div>
-          <button type="button" className="btn btn-primary" disabled={p.cash < Math.round(fee) || p.squad.length >= SQUAD_MAX} onClick={send}>
+          <button type="button" className="btn btn-primary" disabled={spendable(state) < Math.round(fee) || p.squad.length >= SQUAD_MAX} onClick={send}>
             {n?.status === 'contra_clube' || n?.status === 'contra_jogador' ? 'Enviar nova proposta' : 'Enviar proposta'}
           </button>
-          {p.cash < Math.round(fee) && <small className="bad"> Caixa insuficiente para essa taxa.</small>}
+          {spendable(state) < Math.round(fee) && <small className="bad"> {state.career ? 'A verba da diretoria não cobre essa taxa.' : 'Caixa insuficiente para essa taxa.'}</small>}
           {p.squad.length >= SQUAD_MAX && <small className="bad"> Elenco cheio.</small>}
         </>
       )}

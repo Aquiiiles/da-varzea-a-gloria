@@ -141,7 +141,7 @@ export function drawCard(canvas: HTMLCanvasElement, state: GameState, url: strin
   text(ctx, p.name.toUpperCase(), 330, 205, `700 72px ${DISPLAY}`, '#ffffff', 'left', W - 380);
   const first = state.history[0]?.year ?? 0;
   const last = state.history.at(-1)?.year ?? first;
-  text(ctx, `${first}–${last} · alma ${stats.soul}/100 · torcida ${p.fans.toLocaleString('pt-BR')}`, 332, 255, `600 30px ${BODY}`, '#8a99ab', 'left', W - 380);
+  text(ctx, state.career ? `${first}–${last} · ${stats.clubs} clube(s) · reputação ${state.career.reputation}/100` : `${first}–${last} · alma ${stats.soul}/100 · torcida ${p.fans.toLocaleString('pt-BR')}`, 332, 255, `600 30px ${BODY}`, '#8a99ab', 'left', W - 380);
 
   // nível
   ctx.fillStyle = '#ffd23f';
@@ -198,7 +198,7 @@ export function drawCard(canvas: HTMLCanvasElement, state: GameState, url: strin
       ctx.arc(x, y, r.position === 1 ? 14 : 9, 0, Math.PI * 2);
       ctx.fillStyle = color;
       ctx.fill();
-      if (r.cups.some((c) => c.champion)) text(ctx, '🏆', x, y - 22, `30px ${BODY}`, '#fff', 'center');
+      if (r.cups.some((c) => c.champion)) text(ctx, '★', x, y - 22, `30px ${BODY}`, '#ffd23f', 'center');
     });
     text(ctx, String(h[0].year), gx, gy + gh + 44, `600 24px ${BODY}`, '#5d6b7c', 'left');
     text(ctx, String(h[h.length - 1].year), gx + gw, gy + gh + 44, `600 24px ${BODY}`, '#5d6b7c', 'right');

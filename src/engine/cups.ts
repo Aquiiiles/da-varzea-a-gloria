@@ -1,4 +1,4 @@
-import { FOREIGN_CITY, FOREIGN_PREFIX, SA_CITY, SA_PREFIX } from '../data/names';
+import { REAL_SA, REAL_WORLD } from '../data/names';
 import { PLAYER, leagueRun, roundPrep, single, tie, type CompEnv } from './competitions';
 import type { Rng } from './rng';
 import type { CompetitionId, CupMatch, CupRun, MatchResult, Tier } from './types';
@@ -17,9 +17,9 @@ export interface CupEnv extends CompEnv {
 
 const COMP_NAME: Record<CompetitionId, string> = {
   estado: 'Copa do Estado',
-  copa: 'Copa Nacional',
-  cc: 'Copa Continental',
-  le: 'Copa Sul',
+  copa: 'Copa do Brasil',
+  cc: 'Libertadores',
+  le: 'Sul-Americana',
   mundial: 'Mundial de Clubes',
 };
 
@@ -129,7 +129,7 @@ export function stateCup(env: CupEnv, clubs: string[]): CupResult {
   return { run: finishRun('estado', R, log, pool[0]), championId: pool[0], playerMatches: log };
 }
 
-/* ------------------------------ Copa Nacional ------------------------------ */
+/* ------------------------------ Copa do Brasil ------------------------------ */
 
 export const NATIONAL_ROUNDS = ['1ª fase', '2ª fase', 'Oitavas de final', 'Quartas de final', 'Semifinal', 'Final'];
 
@@ -154,21 +154,17 @@ export interface ForeignClub {
   strength: number;
 }
 
+/** Adversários estrangeiros: clubes reais sorteados; os mais tradicionais ficam com as maiores forças. */
 export function foreignClubs(rng: Rng, count: number, mean: number, spread: number, prefix: string, southAmerica: boolean): ForeignClub[] {
-  const taken = new Set<string>();
-  const out: ForeignClub[] = [];
-  for (let i = 0; out.length < count && i < count * 20; i++) {
-    const name = southAmerica ? `${rng.pick(SA_PREFIX)} ${rng.pick(SA_CITY)}` : `${rng.pick(FOREIGN_PREFIX)} ${rng.pick(FOREIGN_CITY)}`;
-    if (taken.has(name)) continue;
-    taken.add(name);
-    out.push({ id: `${prefix}${out.length}`, name, strength: Math.round((mean + rng.normal(spread)) * 10) / 10 });
-  }
-  return out;
+  const list = southAmerica ? REAL_SA : REAL_WORLD;
+  const picked = rng.shuffle(list).slice(0, count).sort((a, b) => list.indexOf(a) - list.indexOf(b));
+  const strengths = picked.map(() => Math.round((mean + rng.normal(spread)) * 10) / 10).sort((a, b) => b - a);
+  return picked.map((name, i) => ({ id: `${prefix}${i}`, name, strength: strengths[i] }));
 }
 
 export const CONTINENTAL_ROUNDS = ['Fase de grupos', 'Oitavas de final', 'Quartas de final', 'Semifinal', 'Final'];
 
-/** Copa Continental: 8 grupos de 4 (turno e returno) → mata-mata em ida e volta → final em jogo único (campo neutro). */
+/** Libertadores: 8 grupos de 4 (turno e returno) → mata-mata em ida e volta → final em jogo único (campo neutro). */
 export function continentalCup(env: CupEnv, id: 'cc' | 'le', entrants: string[]): CupResult {
   const log: CupMatch[] = [];
   const pool = env.rng.shuffle(entrants.slice(0, 32));

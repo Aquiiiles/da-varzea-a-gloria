@@ -1,4 +1,4 @@
-import type { BusinessId, CoachStyle, DelegateArea } from '../engine/types';
+import type { BusinessId, CoachStyle, DelegateArea, Tactic } from '../engine/types';
 
 export const COACH_STYLES: Record<CoachStyle, { label: string; effect: string }> = {
   ofensivo: { label: 'Ofensivo', effect: 'Time faz mais gols (+15%), mas também sofre mais (+10%).' },
@@ -37,4 +37,22 @@ export const DELEGATE_INFO: Record<DelegateArea, { label: string; text: string }
   base: { label: 'Coordenador da base', text: 'Promove, empresta e dispensa garotos; faz a peneira quando há dinheiro.' },
   mercado: { label: 'Diretor de futebol', text: 'Contrata reforços, vende reservas e responde propostas.' },
   estadio: { label: 'Gerente do estádio', text: 'Amplia o estádio para a vistoria do acesso, define o ingresso e investe em estrutura.' },
+};
+
+/** Estratégias de jogo: multiplicadores de gols [a favor, contra]. */
+export const TACTICS: Record<Tactic, { label: string; effect: string; goals: [number, number] }> = {
+  equilibrado: { label: 'Equilibrado', effect: 'Sem riscos: joga o que o elenco permite.', goals: [1, 1] },
+  ofensivo: { label: 'Ofensivo', effect: 'Mais gols a favor (+15%), mas também contra (+10%).', goals: [1.15, 1.1] },
+  retranqueiro: { label: 'Retranca', effect: 'Sofre bem menos (-18%), marca menos (-10%).', goals: [0.9, 0.82] },
+  contra_ataque: { label: 'Contra-ataque', effect: 'Fecha a casinha e sai rápido: rende mais contra times mais fortes.', goals: [0.95, 0.9] },
+  pressao: { label: 'Pressão alta', effect: 'Sufoca o adversário (+10% gols, -5% contra), mas cansa mais o elenco.', goals: [1.1, 0.95] },
+};
+
+/** Estratégia padrão de cada estilo de técnico. */
+export const STYLE_TACTIC: Record<CoachStyle, Tactic> = {
+  ofensivo: 'ofensivo',
+  retranqueiro: 'retranqueiro',
+  formador: 'equilibrado',
+  motivador: 'equilibrado',
+  estrategista: 'contra_ataque',
 };

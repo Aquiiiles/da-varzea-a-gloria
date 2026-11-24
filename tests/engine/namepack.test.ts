@@ -64,3 +64,15 @@ describe('pacote de nomes', () => {
     expect(JSON.stringify(replay(21, FOUNDATION, named.actions, { pack: PACK }))).toBe(JSON.stringify(named));
   });
 });
+
+describe('clubes reais (padrão)', () => {
+  it('o pacote embutido é válido e põe os gigantes na Série A', async () => {
+    const { REAL_PACK } = await import('../../src/data/realclubs');
+    expect(typeof parseNamePack(JSON.parse(JSON.stringify(REAL_PACK)))).toBe('object');
+    const s = newGame(1, FOUNDATION, { pack: REAL_PACK });
+    const a = s.clubs.filter((c) => c.national === 1).map((c) => c.name);
+    expect(a).toContain('Flamengo');
+    expect(a).toContain('Palmeiras');
+    expect(new Set(s.clubs.map((c) => c.name)).size).toBe(s.clubs.length);
+  });
+});

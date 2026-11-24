@@ -42,8 +42,8 @@ export function achievements(state: GameState): Achievement[] {
   a('alma', 'Alma de várzea', 'Chegar à Série A com alma 80 ou mais.', h.some((r) => r.tier === 1) && p.soul >= 80);
   a('estadual', 'Dono do estado', 'Ser campeão estadual.', h.some((r) => r.comps.some((c) => c.id === 'estadual_a' && c.won)));
   a('serieD', 'Calendário cheio', 'Disputar a Série D.', h.some((r) => r.tier <= 4));
-  a('copa', 'Copeiro', 'Ganhar a Copa Nacional.', champion('copa'));
-  a('europa', 'Conquistador da América', 'Ganhar a Copa Continental.', champion('cc'));
+  a('copa', 'Copeiro', 'Ganhar a Copa do Brasil.', champion('copa'));
+  a('europa', 'Conquistador da América', 'Ganhar a Libertadores.', champion('cc'));
   a('mundo', 'O Milagre', 'Ganhar o Mundial de Clubes.', champion('mundial'));
   a('premier', 'Da várzea à glória', 'Ser campeão da Série A.', h.some((r) => r.comps.some((c) => c.id === 'serie_a' && c.won)));
   return list.map((x, i) => ({ ...x, unlocked: check[i] }));

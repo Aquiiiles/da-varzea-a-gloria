@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { MAX_LOANS, SQUAD_MAX, YOUTH_AGE_LIMIT, YOUTH_MAX, marketWage, tryoutCost } from '../../engine';
-import { money, monthly } from '../format';
+import { money, monthly, spendable } from '../format';
 import type { TabProps } from './Office';
 import { PlayerLine, Section } from './common';
 
@@ -21,9 +21,11 @@ export function YouthTab({ state, dispatch, goTo }: TabProps) {
           <>
             Nível da base: <strong>{p.facilities.academy} · {ACADEMY_LABEL[p.facilities.academy]}</strong>. Quanto melhor a base, mais garotos e mais
             potencial a cada temporada. Eles evoluem rápido, mas com {YOUTH_AGE_LIMIT} anos precisam subir ou vão embora.{' '}
-            <button type="button" className="link" onClick={() => goTo('estadio')}>
-              Investir na base →
-            </button>
+            {!state.career && (
+              <button type="button" className="link" onClick={() => goTo('estadio')}>
+                Investir na base →
+              </button>
+            )}
           </>
         }
       >
@@ -88,7 +90,7 @@ export function YouthTab({ state, dispatch, goTo }: TabProps) {
         }
       >
         {!o.tryout ? (
-          <button type="button" className="btn btn-primary" disabled={p.cash < cost} onClick={() => dispatch({ t: 'tryout' })}>
+          <button type="button" className="btn btn-primary" disabled={spendable(state) < cost} onClick={() => dispatch({ t: 'tryout' })}>
             Fazer peneira ({money(cost)})
           </button>
         ) : (
@@ -127,7 +129,7 @@ function YouthCompetitions({ state }: { state: TabProps['state'] }) {
   return (
     <Section
       title="Campeonatos da base"
-      note="Copa de Juniores (Sub-20) em janeiro, Estadual Sub-17 e, para clubes das Séries A e B, o Brasileiro Sub-20. Quem se destaca ganha potencial e pode pedir para subir: se não subir, pode ir embora."
+      note="Copinha (Sub-20) em janeiro, Estadual Sub-17 e, para clubes das Séries A e B, o Brasileiro Sub-20. Quem se destaca ganha potencial e pode pedir para subir: se não subir, pode ir embora."
     >
       {comps.length === 0 ? (
         <p className="empty">Os resultados aparecem no fim da temporada.</p>

@@ -53,7 +53,7 @@ export function ResultScreen({ state, onRestart, fromLink }: { state: GameState;
             <span>
               {state.career && r.club ? `${r.club.name} · ` : ''}
               {TIERS[r.tier].name}
-              {r.cups.some((c) => c.champion) ? ' 🏆' : ''}
+              {r.cups.some((c) => c.champion) ? ' · campeão de copa' : ''}
             </span>
             <span>{r.position}º</span>
           </li>

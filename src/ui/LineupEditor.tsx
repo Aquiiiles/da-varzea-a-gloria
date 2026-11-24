@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { FATIGUE_FREE, FATIGUE_REST, bestEleven, fatigueAt, injuredAt, type GameState, type Position } from '../engine';
+import { FATIGUE_FREE, FATIGUE_REST, STYLE_TACTIC, TACTICS, bestEleven, fatigueAt, injuredAt, type GameState, type Position, type Tactic } from '../engine';
 import type { Dispatch } from './App';
 
 const POS: { id: Position; label: string }[] = [
@@ -33,8 +33,18 @@ export function LineupEditor({ state, dispatch }: { state: GameState; dispatch: 
     setPicked(next);
   };
 
+  const tactic: Tactic = p.tactic ?? STYLE_TACTIC[p.coach.style];
   return (
     <div className="lineup">
+      <p className="lineup-pos">Estratégia</p>
+      <div className="seg tactic-seg">
+        {(Object.keys(TACTICS) as Tactic[]).map((t) => (
+          <button key={t} type="button" className={`seg-btn${tactic === t ? ' is-on' : ''}`} onClick={() => tactic !== t && dispatch({ t: 'tactic', v: t })}>
+            <strong>{TACTICS[t].label}</strong>
+          </button>
+        ))}
+      </div>
+      <p className="muted">{TACTICS[tactic].effect}</p>
       <p className="muted">
         {current ? 'Escalação escolhida por você.' : 'Automático: o time escala os melhores do esquema.'} {picked.size}/11 marcados · esquema{' '}
         {p.coach.formation}

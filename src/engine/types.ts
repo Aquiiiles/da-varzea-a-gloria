@@ -82,7 +82,7 @@ export interface Footballer {
   intent?: ContractIntent;
   /** salário combinado para a renovação (fixado na abertura da janela; não muda se ele evoluir até o fim) */
   askWage?: number;
-  /** destaque num campeonato da base (ex.: "Artilheiro da Copa de Juniores 2028") */
+  /** destaque num campeonato da base (ex.: "Artilheiro da Copinha 2028") */
   highlight?: string;
   /** temporada em que o garoto da base pediu para subir ao profissional */
   askUp?: number;
@@ -151,6 +151,12 @@ export interface Offer {
   fee: number;
   club: string;
   clubTier: Tier;
+  /** quanto o clube aceita pagar no máximo (escondido; a negociação revela) */
+  max?: number;
+  /** o clube já fez a última oferta */
+  final?: boolean;
+  /** resposta do clube na negociação */
+  message?: string;
 }
 
 /* ------------------------------ Clube do jogador ------------------------------ */
@@ -158,6 +164,9 @@ export interface Offer {
 export type Facility = 'ct' | 'academy' | 'medical';
 export type StaffRole = 'scout' | 'fitness';
 export type CoachStyle = 'ofensivo' | 'retranqueiro' | 'formador' | 'motivador' | 'estrategista';
+
+/** Estratégia de jogo (o técnico troca quando quiser). */
+export type Tactic = 'equilibrado' | 'ofensivo' | 'retranqueiro' | 'contra_ataque' | 'pressao';
 export type BusinessId = 'bar' | 'loja' | 'escolinha' | 'estacionamento' | 'foodtruck';
 export type DelegateArea = 'contratos' | 'base' | 'mercado' | 'estadio';
 
@@ -294,7 +303,7 @@ export interface PlayerClub extends Club {
   worldCup: boolean;
   /** histórico do clássico (liga e copas) */
   derby: { w: number; d: number; l: number };
-  /** vaga na Copa Nacional desta temporada (campeão da Copa do Estado do ano anterior) */
+  /** vaga na Copa do Brasil desta temporada (campeão da Copa do Estado do ano anterior) */
   copaSpot: boolean;
   sponsors: Sponsor[];
   squad: Footballer[];
@@ -310,6 +319,8 @@ export interface PlayerClub extends Club {
   formMod: number;
   /** escalação escolhida (null/ausente = o técnico escolhe os melhores) */
   lineup?: { ids: number[] | null; rotate: boolean };
+  /** estratégia de jogo (modo técnico; ausente = a do estilo do técnico) */
+  tactic?: Tactic;
 }
 
 /* ---------------------------- Efeitos (dados) ---------------------------- */
@@ -391,6 +402,9 @@ export type Action =
   | { t: 'job'; idx: number } // técnico: aceita uma proposta de emprego
   | { t: 'lineup'; ids: number[] | null; rotate: boolean } // técnico: escalação (null = os melhores)
   | { t: 'interview'; day: number; q: number; a: number } // entrevista pós-jogo ou coletiva (dia do jogo, pergunta, resposta)
+  | { t: 'tactic'; v: Tactic } // técnico: estratégia de jogo
+  | { t: 'counter'; idx: number; fee: number } // pede mais por um jogador seu (proposta idx)
+  | { t: 'reject'; idx: number } // recusa a proposta idx
   | { t: 'next' }; // sai do resumo para a próxima temporada
 
 /* ------------------------------ Partidas ------------------------------ */
@@ -596,6 +610,8 @@ export interface LineupEntry {
   /** rodízio: poupa quem está muito cansado */
   rotate: boolean;
   formation: Formation;
+  /** estratégia de jogo valendo a partir deste dia */
+  tactic?: Tactic;
 }
 
 /** Mudança no elenco durante a temporada (janela do meio do ano). */

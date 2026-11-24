@@ -20,7 +20,7 @@ export interface PackClub {
 export interface NamePack {
   title: string;
   divisions: Partial<Record<NationalDiv, PackClub[]>>;
-  /** clubes de outros estados sem divisão (disputam vagas na Série D e a Copa Nacional) */
+  /** clubes de outros estados sem divisão (disputam vagas na Série D e a Copa do Brasil) */
   pool?: PackClub[];
 }
 

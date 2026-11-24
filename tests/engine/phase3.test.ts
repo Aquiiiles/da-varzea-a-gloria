@@ -17,7 +17,7 @@ function finished(seed: number, f = FOUNDATION): GameState {
 describe('campeonatos da base', () => {
   it('toda temporada tem Copa de Juniores e Estadual Sub-17; Brasileiro Sub-20 só para Séries A e B', () => {
     const r = finished(4).history.at(-1)!;
-    expect(r.youth!.map((y) => y.name)).toEqual(['Copa de Juniores', 'Estadual Sub-17']);
+    expect(r.youth!.map((y) => y.name)).toEqual(['Copinha', 'Estadual Sub-17']);
     const juniores = r.youth![0];
     expect(juniores.games.length).toBeGreaterThanOrEqual(3);
     expect(juniores.games.length).toBeLessThanOrEqual(7);

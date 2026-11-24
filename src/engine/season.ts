@@ -6,6 +6,7 @@ import { estadual, pointsLeague, serieC, serieD, PLAYER, type CompEnv, type Comp
 import { SEASON_END, SEASON_START, matchDay, type CalendarKey } from './calendar';
 import { SeasonStats } from './stats';
 import { SquadPlan } from './squadplan';
+import { STYLE_TACTIC, TACTICS } from '../data/club';
 import { youthSeason } from './youthcomps';
 import { computeAwards, myAwards, type AwardsInput, type LeagueInfo } from './awards';
 import { continentalCup, foreignClubs, nationalCup, stateCup, worldCup, type CupEnv, type CupResult } from './cups';
@@ -115,7 +116,7 @@ export function simulateSeason(state: GameState): SeasonResult {
   const plan = new SquadPlan(
     live?.startSquad ?? p.squad,
     live?.changes ?? [],
-    live?.lineups ?? [{ day: -1, ids: p.lineup?.ids ?? null, rotate: p.lineup?.rotate ?? true, formation: p.coach.formation }],
+    live?.lineups ?? [{ day: -1, ids: p.lineup?.ids ?? null, rotate: p.lineup?.rotate ?? true, formation: p.coach.formation, tactic: p.tactic }],
     { seed, season, formation: p.coach.formation, medical: p.facilities.medical, fitness: p.staff.fitness },
   );
   const coachBonus = coachEdge(p.coach.rating, p.tier) + moraleEdge(p.coach.morale) + p.formMod + form;
@@ -149,7 +150,14 @@ export function simulateSeason(state: GameState): SeasonResult {
     },
     goalMult(h, a) {
       if (h !== PLAYER && a !== PLAYER) return [1, 1];
-      const [forMe, againstMe] = STYLE_GOALS[p.coach.style];
+      // modo técnico: a estratégia escolhida (valendo no dia do jogo); presidente: o estilo do técnico
+      // só a estratégia registrada para o dia (nunca a atual: senão uma troca mudaria jogos passados)
+      const tactic = plan.lineupAt(clock.day).tactic ?? (state.career ? STYLE_TACTIC[p.coach.style] : null);
+      let [forMe, againstMe] = tactic ? TACTICS[tactic].goals : STYLE_GOALS[p.coach.style];
+      if (tactic === 'contra_ataque') {
+        const opp = h === PLAYER ? a : h;
+        if (ctx.strength(opp, PLAYER) > playerStrength()) forMe *= 1.1;
+      }
       return h === PLAYER ? [forMe, againstMe] : [againstMe, forMe];
     },
     knockoutBonus(id) {
@@ -240,7 +248,7 @@ export function simulateSeason(state: GameState): SeasonResult {
     cupChampions.push({ id: 'estado', clubId: copaEstado.championId });
     addCup(copaEstado);
 
-    // Copa Nacional: Séries A e B, 12 melhores da C, 2 melhores do Estadual sem série nacional,
+    // Copa do Brasil: Séries A e B, 12 melhores da C, 2 melhores do Estadual sem série nacional,
     // o jogador se classificado, e o resto de outros estados
     const playerInCopa = (p.national !== null && p.national <= 3) || p.copaSpot || (p.stateDiv === 'A' && estA.ranking.indexOf(PLAYER) < 4);
     const entrants = new Set<string>([...natIds(1), ...natIds(2)]);
@@ -529,13 +537,13 @@ export function simulateSeason(state: GameState): SeasonResult {
       : p.national === 1 && posA >= 7 && posA <= 12
         ? 'le'
         : null;
-  if (nextContinental === 'cc') headlines.push(`${name} garante vaga na Copa Continental`);
-  else if (nextContinental === 'le') headlines.push(`${name} vai disputar a Copa Sul`);
+  if (nextContinental === 'cc') headlines.push(`${name} garante vaga na Libertadores`);
+  else if (nextContinental === 'le') headlines.push(`${name} vai disputar a Sul-Americana`);
   if (ccChampion) headlines.push(`${name} vai ao Mundial de Clubes!`);
   p.continental = nextContinental;
   p.worldCup = ccChampion;
   p.copaSpot = copaEstado.championId === PLAYER;
-  if (p.copaSpot) headlines.push(`${name} garante vaga na Copa Nacional pela Copa do Estado`);
+  if (p.copaSpot) headlines.push(`${name} garante vaga na Copa do Brasil pela Copa do Estado`);
 
   // gols e jogos dos jogadores da IA (detalhes de cada partida)
   for (const c of state.clubs) {
@@ -546,7 +554,7 @@ export function simulateSeason(state: GameState): SeasonResult {
       f.apps += st.apps;
     }
   }
-  // ---------------------- base: Copa de Juniores, Estadual Sub-17, Brasileiro Sub-20 ----------------------
+  // ---------------------- base: Copinha, Estadual Sub-17, Brasileiro Sub-20 ----------------------
   const xiNow = bestEleven(p.squad, p.coach.formation).ids;
   const youthComps = youthSeason({
     seed, season, year, tier, national: p.national, academy: p.facilities.academy,
@@ -742,7 +750,7 @@ function buildWorldNews(rng: Rng, n: NewsInput): string[] {
   out.push(`${nm(n.natOut[4].champion)} vence a Série D · sobem: ${list(n.natOut[4].promoted)}`);
   out.push(`${nm(n.stateOut.A.champion)} é campeão estadual`);
   out.push(`${nm(n.stateOut.B.champion)} vence o Estadual Série B; ${nm(n.stateOut.V.champion)} é o rei da Várzea`);
-  out.push(`${nm(n.cups.copa)} levanta a Copa Nacional`);
+  out.push(`${nm(n.cups.copa)} levanta a Copa do Brasil`);
   out.push(`${nm(n.cups.estado)} conquista a Copa do Estado`);
   if (n.dQualified.length > 0) out.push(`Vagas do estado na Série D: ${list(n.dQualified)}`);
   // gigante em queda

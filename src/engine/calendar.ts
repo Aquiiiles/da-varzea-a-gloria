@@ -31,7 +31,7 @@ export const WINDOWS: Record<CalendarKey, Window> = {
   'serie-c': { start: 123, end: 300, weekdays: [0, 3] },
   'serie-d': { start: 123, end: 255, weekdays: [0, 3] },
   'copa-estado': { start: 36, end: 290, weekdays: [2] },
-  // a Copa Nacional começa depois do Estadual (os 2 melhores do Estadual sem série entram nela)
+  // a Copa do Brasil começa depois do Estadual (os 2 melhores do Estadual sem série entram nela)
   copa: { start: 120, end: 315, weekdays: [4] },
   cc: { start: 92, end: 320, weekdays: [2] },
   le: { start: 92, end: 320, weekdays: [2] },

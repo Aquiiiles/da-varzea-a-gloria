@@ -328,6 +328,11 @@ export function applyMut(state: GameState, a: Action): void {
       setLineup(p, a);
       return;
     }
+    case 'tactic': {
+      if (!career) fail('a estratégia é com o técnico');
+      p.tactic = a.v;
+      return;
+    }
     case 'job': {
       if (!career) fail('só no modo técnico');
       const offer = career.offers[a.idx];
@@ -374,6 +379,7 @@ export function applyMut(state: GameState, a: Action): void {
       if (p.squad.length <= SQUAD_MIN) fail(`o elenco precisa de pelo menos ${SQUAD_MIN} jogadores`);
       const cost = releaseCost(state, a.id);
       if (p.cash < cost) fail('caixa insuficiente para a multa');
+      check(spendBudget(state, cost));
       p.cash -= cost;
       p.squad = p.squad.filter((x) => x.id !== a.id);
       p.alumni.push(f);
@@ -438,22 +444,37 @@ export function applyMut(state: GameState, a: Action): void {
       return;
     }
     case 'offer': {
+      if (!o.offers[a.idx]) fail('proposta indisponível');
+      sellToOffer(state, a.idx, o.offers[a.idx]!.fee);
+      return;
+    }
+    case 'counter': {
+      const of = o.offers[a.idx];
+      if (!of) fail('proposta indisponível');
+      if (!Number.isInteger(a.fee) || a.fee <= of.fee) fail('peça mais do que a oferta atual');
+      const max = of.max ?? of.fee;
+      if (a.fee <= max) {
+        sellToOffer(state, a.idx, a.fee);
+        return;
+      }
+      const f = p.squad.find((x) => x.id === of.playerId);
+      if (of.final || max <= of.fee) {
+        // já era a última oferta (ou o clube não tem mais margem): desiste
+        o.offers[a.idx] = null;
+        state.news.push(`${of.club} desiste de ${f?.name ?? 'contratar'}: o preço ficou alto demais`);
+        return;
+      }
+      of.fee = max;
+      of.final = true;
+      of.message = `${of.club} sobe para R$ ${max} mil e avisa: é a última oferta.`;
+      return;
+    }
+    case 'reject': {
       const of = o.offers[a.idx];
       if (!of) fail('proposta indisponível');
       const f = p.squad.find((x) => x.id === of.playerId);
-      if (!f) fail('o jogador já não está no clube');
-      if (p.squad.length <= SQUAD_MIN) fail(`o elenco precisa de pelo menos ${SQUAD_MIN} jogadores`);
-      p.cash += of.fee;
-      refundBudget(state, of.fee);
-      p.squad = p.squad.filter((x) => x.id !== f.id);
-      p.alumni.push(f);
-      if (f.homegrown) {
-        p.soul = Math.max(0, p.soul - 1);
-        o.soldHomegrown++;
-      }
       o.offers[a.idx] = null;
-      moveToAiClub(state, f, actionRng(), of.club);
-      state.news.push(`${f.name} é vendido ao ${of.club} por R$ ${of.fee} mil`);
+      state.news.push(`${p.name} recusa a proposta do ${of.club} por ${f?.name ?? 'um jogador'}`);
       return;
     }
     case 'lend': {
@@ -489,6 +510,7 @@ export function applyMut(state: GameState, a: Action): void {
       if (o.tryout) fail('já houve peneira nesta temporada');
       const cost = tryoutCost(p.tier);
       if (p.cash < cost) fail('caixa insuficiente');
+      check(spendBudget(state, cost));
       p.cash -= cost;
       o.tryout = tryoutCandidates(deriveRng(state.seed, state.season, 'tryout'), p.tier, p.staff.scout, () => nextId(state), state.season, usedPlayerNames(state));
       state.news.push(`${p.name} abre peneira: centenas de garotos no campo do bairro`);
@@ -629,7 +651,7 @@ export function applyMut(state: GameState, a: Action): void {
       state.live = {
         startSquad: structuredClone(p.squad),
         changes: [],
-        lineups: [{ day: -1, ids: p.lineup?.ids ?? null, rotate: p.lineup?.rotate ?? true, formation: p.coach.formation }],
+        lineups: [{ day: -1, ids: p.lineup?.ids ?? null, rotate: p.lineup?.rotate ?? true, formation: p.coach.formation, tactic: p.tactic }],
         moments: [],
         injuries: [],
         fatigue: [],
@@ -641,6 +663,27 @@ export function applyMut(state: GameState, a: Action): void {
       return;
     }
   }
+}
+
+/** Vende o jogador da proposta `idx` pelo valor combinado. */
+function sellToOffer(state: GameState, idx: number, fee: number): void {
+  const p = state.player;
+  const o = state.office;
+  const of = o.offers[idx]!;
+  const f = p.squad.find((x) => x.id === of.playerId);
+  if (!f) fail('o jogador já não está no clube');
+  if (p.squad.length <= SQUAD_MIN) fail(`o elenco precisa de pelo menos ${SQUAD_MIN} jogadores`);
+  p.cash += fee;
+  refundBudget(state, fee);
+  p.squad = p.squad.filter((x) => x.id !== f.id);
+  p.alumni.push(f);
+  if (f.homegrown) {
+    p.soul = Math.max(0, p.soul - 1);
+    o.soldHomegrown++;
+  }
+  o.offers[idx] = null;
+  moveToAiClub(state, f, deriveRng(state.seed, state.season, 'act', state.actions.length), of.club);
+  state.news.push(`${f.name} é vendido ao ${of.club} por R$ ${fee} mil`);
 }
 
 /** Valida e guarda a escalação escolhida. */
@@ -663,7 +706,7 @@ let lastPreview: { key: string; clone: GameState; result: SeasonResult } | null 
 function previewKey(state: GameState): string {
   const p = state.player;
   return JSON.stringify([
-    state.seed, state.season, state.history.length, p.cash, p.squad.map((f) => f.id), p.coach, p.lineup ?? null,
+    state.seed, state.season, state.history.length, p.cash, p.squad.map((f) => f.id), p.coach, p.lineup ?? null, p.tactic ?? null,
     state.live?.lineups, state.live?.changes.map((c) => [c.day, c.remove, c.add?.map((f) => f.id)]),
   ]);
 }
@@ -682,7 +725,7 @@ function preview(state: GameState): void {
 }
 
 /** Ações que podem acontecer com a temporada em andamento (na janela do meio do ano). */
-const WINDOW_ACTIONS = new Set<Action['t']>(['buy', 'sell', 'bid', 'release', 'promote', 'lend', 'offer']);
+const WINDOW_ACTIONS = new Set<Action['t']>(['buy', 'sell', 'bid', 'release', 'promote', 'lend', 'offer', 'counter', 'reject']);
 
 /** Decisões no meio da temporada: valem para os jogos depois do dia atual; a prévia é refeita. */
 function midSeason(state: GameState, a: Action): void {
@@ -704,14 +747,17 @@ function midSeason(state: GameState, a: Action): void {
     state.news.push(`${who}${it.kind === 'coletiva' ? ' na coletiva' : ''}: "${ans.text}"`);
     return;
   }
-  if (a.t === 'lineup' || a.t === 'formation') {
+  if (a.t === 'lineup' || a.t === 'formation' || a.t === 'tactic') {
     if (!state.career) fail('a escalação é com o técnico');
     if (a.t === 'lineup') setLineup(p, a);
-    else {
+    else if (a.t === 'tactic') {
+      if (p.tactic === a.v) fail('já é a estratégia atual');
+      p.tactic = a.v;
+    } else {
       if (p.coach.formation === a.f) fail('já é o esquema atual');
       p.coach.formation = a.f;
     }
-    live.lineups.push({ day, ids: p.lineup?.ids ?? null, rotate: p.lineup?.rotate ?? true, formation: p.coach.formation });
+    live.lineups.push({ day, ids: p.lineup?.ids ?? null, rotate: p.lineup?.rotate ?? true, formation: p.coach.formation, tactic: p.tactic });
     preview(state);
     return;
   }

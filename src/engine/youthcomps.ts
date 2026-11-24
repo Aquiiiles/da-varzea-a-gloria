@@ -4,7 +4,7 @@ import { deriveRng, type Rng } from './rng';
 import type { Club, Footballer, Position, Tier, YouthComp, YouthGame } from './types';
 
 /**
- * Campeonatos da base (simulados; o jogador só acompanha): Copa de Juniores (Sub-20, janeiro),
+ * Campeonatos da base (simulados; o jogador só acompanha): Copinha (Sub-20, janeiro),
  * Estadual Sub-17 e, para clubes das Séries A e B, o Brasileiro Sub-20.
  * O time do jogador sai das categorias de base (completado por outros garotos da escolinha);
  * os times da IA têm força pelo nível e prestígio do clube.
@@ -175,11 +175,11 @@ export function youthSeason(inp: YouthInput): YouthComp[] {
   const sub20 = [...inp.youth, ...inp.prospects].filter((f) => f.age <= 20);
   const sub17 = inp.youth.filter((f) => f.age <= 17);
   const comps: YouthComp[] = [];
-  // Copa de Juniores: 31 convidados (quase todos de séries nacionais, alguns do estado)
+  // Copinha: 31 convidados (quase todos de séries nacionais, alguns do estado)
   const national = inp.clubs.filter((c) => c.national !== null && c.national <= 3);
   const state = inp.clubs.filter((c) => c.stateDiv !== null && c.national === null);
   const guests = [...pick.shuffle(national).slice(0, 25), ...pick.shuffle(state).slice(0, 6)];
-  comps.push(runComp(inp, 'juniores', 'Copa de Juniores', sub20, guests, 'groups'));
+  comps.push(runComp(inp, 'juniores', 'Copinha', sub20, guests, 'groups'));
   // Estadual Sub-17: 11 clubes do estado
   const est = pick.shuffle(inp.clubs.filter((c) => c.stateDiv === 'A' || c.stateDiv === 'B')).slice(0, 11);
   comps.push(runComp(inp, 'sub17', 'Estadual Sub-17', sub17, est, 'league'));

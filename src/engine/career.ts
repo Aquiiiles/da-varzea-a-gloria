@@ -49,7 +49,7 @@ const PITCH: Record<Tier, string[]> = {
   4: ['Passar da fase de grupos da Série D', 'Acesso à Série C'],
   3: ['Fugir do rebaixamento na Série C', 'Brigar pelo acesso à Série B'],
   2: ['Campanha segura na Série B', 'Acesso à Série A'],
-  1: ['Permanecer na Série A', 'Vaga na Copa Continental', 'Título brasileiro'],
+  1: ['Permanecer na Série A', 'Vaga na Libertadores', 'Título brasileiro'],
 };
 
 /**
@@ -197,6 +197,8 @@ export function takeOver(state: GameState, offer: JobOffer): void {
     c.reputation = Math.max(0, c.reputation - 2);
   }
   state.player = toPlayerClub(target, careerCoach(c, old.coach.style, old.coach.formation, target.tier), rivalId);
+  // a estratégia é do técnico: vai com ele para o clube novo
+  if (old.tactic) state.player.tactic = old.tactic;
   // clube de outro estado passa a disputar o nosso Estadual (assim nunca fica sem competição se cair da Série D)
   if (state.player.stateDiv === null) state.player.stateDiv = 'A';
   c.stints.push({ club: target.name, colors: target.colors, from: state.season, to: null, tier: target.tier });
@@ -213,7 +215,10 @@ export function setBoardBudget(state: GameState): void {
   const info = BOARD_INFO[c.board.personality];
   const proj = projectFinance(state);
   const spare = Math.max(0, p.cash + proj.net * 0.5);
-  c.board.budget = Math.round(spare * info.budget);
+  // acabou de subir: a diretoria abre o cofre para montar um time que não caia na hora
+  const last = state.history[state.history.length - 1];
+  const promoted = !!last && last.nextTier < last.tier && last.club?.name === p.name;
+  c.board.budget = Math.round(spare * info.budget * (promoted ? 1.6 : 1));
   const pay = payroll(p);
   c.board.wageCap = Math.round(Math.max(pay * (1 + info.wage), pay + marketWage(TIERS[p.tier].meanStrength) * 1.5));
 }

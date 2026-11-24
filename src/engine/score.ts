@@ -126,7 +126,7 @@ export const COACH_LEVELS = [
   'Lenda do banco',
 ];
 
-/** Escada de níveis. 8–10 exigem a Copa Continental. */
+/** Escada de níveis. 8–10 exigem a Libertadores. */
 export function levelFor(s: RunStats): LevelInfo {
   let level: number;
   if (s.bankrupt) level = 1;

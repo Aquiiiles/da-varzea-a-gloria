@@ -3,7 +3,7 @@ import {
   LOAN_AGE_LIMIT, MAX_LOANS, SQUAD_MAX, SQUAD_MIN, bestEleven, marketValue, payroll, releaseCost, renewalOffer, sellPrice, squadStrength,
   type ContractIntent, type Position,
 } from '../../engine';
-import { money, POS_LABEL, monthly } from '../format';
+import { money, POS_LABEL, monthly, spendable } from '../format';
 import type { TabProps } from './Office';
 import { PlayerLine, Section } from './common';
 
@@ -110,7 +110,7 @@ export function SquadTab({ state, dispatch }: TabProps) {
                     <button
                       type="button"
                       className="btn btn-small btn-danger"
-                      disabled={!canLose || p.cash < releaseCost(state, f.id)}
+                      disabled={!canLose || spendable(state) < releaseCost(state, f.id)}
                       onClick={() => dispatch({ t: 'release', id: f.id }) && setOpen(null)}
                     >
                       Dispensar (multa {money(releaseCost(state, f.id))})

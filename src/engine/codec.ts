@@ -1,7 +1,8 @@
 import type { Action, BusinessId, DelegateArea, Facility, Formation, Foundation, GameState, Origin, StaffRole } from './types';
-import type { CoachStyle } from './types';
+import type { CoachStyle, Tactic } from './types';
 
 const STYLES: CoachStyle[] = ['ofensivo', 'retranqueiro', 'formador', 'motivador', 'estrategista'];
+const TACTIC_LIST: Tactic[] = ['equilibrado', 'ofensivo', 'retranqueiro', 'contra_ataque', 'pressao'];
 
 /**
  * Codificação da run na URL:
@@ -59,6 +60,9 @@ export function encodeAction(a: Action): string {
     case 'advance': return `D${a.to}`;
     case 'job': return `J${a.idx}`;
     case 'interview': return `I${a.day}_${a.q}_${a.a}`;
+    case 'tactic': return `T${TACTIC_LIST.indexOf(a.v)}`;
+    case 'counter': return `X${a.idx}_${a.fee}`;
+    case 'reject': return `R${a.idx}`;
     case 'lineup': return `L${a.rotate ? 1 : 0}${a.ids ? a.ids.map((id) => `_${id}`).join('') : ''}`;
     case 'next': return 'z';
   }
@@ -105,6 +109,12 @@ export function decodeAction(tok: string): Action | null {
     case 'j': return rest === '' ? { t: 'play' } : null;
     case 'D': return n === 0 || n === 1 || n === 2 || n === 3 ? { t: 'advance', to: n } : null;
     case 'J': return n >= 0 && n < 10 ? { t: 'job', idx: n } : null;
+    case 'X': {
+      const m = /^(\d{1,2})_(\d{1,9})$/.exec(rest);
+      return m ? { t: 'counter', idx: Number(m[1]), fee: Number(m[2]) } : null;
+    }
+    case 'R': return Number.isNaN(n) ? null : { t: 'reject', idx: n };
+    case 'T': return n >= 0 && n < TACTIC_LIST.length ? { t: 'tactic', v: TACTIC_LIST[n] } : null;
     case 'I': {
       const m = /^(\d{1,3})_(\d)_([012])$/.exec(rest);
       return m ? { t: 'interview', day: Number(m[1]), q: Number(m[2]), a: Number(m[3]) } : null;

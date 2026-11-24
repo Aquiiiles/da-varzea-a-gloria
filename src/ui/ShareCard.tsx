@@ -141,7 +141,7 @@ export function drawCard(canvas: HTMLCanvasElement, state: GameState, url: strin
   text(ctx, p.name.toUpperCase(), 330, 205, `700 72px ${DISPLAY}`, '#ffffff', 'left', W - 380);
   const first = state.history[0]?.year ?? 0;
   const last = state.history.at(-1)?.year ?? first;
-  text(ctx, `${first}–${last} · alma ${stats.soul}/100 · torcida ${p.fans.toLocaleString('pt-BR')}`, 332, 255, `600 30px ${BODY}`, '#8a99ab', 'left', W - 380);
+  text(ctx, state.career ? `${first}–${last} · ${stats.clubs} clube(s) · reputação ${state.career.reputation}/100` : `${first}–${last} · alma ${stats.soul}/100 · torcida ${p.fans.toLocaleString('pt-BR')}`, 332, 255, `600 30px ${BODY}`, '#8a99ab', 'left', W - 380);
 
   // nível
   ctx.fillStyle = '#ffd23f';

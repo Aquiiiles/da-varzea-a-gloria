@@ -98,3 +98,8 @@ export const OUTCOME_LABEL: Record<string, string> = {
 };
 
 export const POS_LABEL = { GOL: 'Goleiro', DEF: 'Defensor', MEI: 'Meia', ATA: 'Atacante' } as const;
+
+/** Dinheiro que dá para gastar em contratações: o caixa (presidente) ou a verba da diretoria (técnico). */
+export function spendable(state: GameState): number {
+  return state.career ? Math.min(state.player.cash, state.career.board.budget) : state.player.cash;
+}

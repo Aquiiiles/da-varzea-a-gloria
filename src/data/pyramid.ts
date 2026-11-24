@@ -33,7 +33,7 @@ export interface TierRules {
 }
 
 export const TIERS: Record<Tier, TierRules> = {
-  1: { tier: 1, name: 'Série A', short: 'A', minStadium: 20000, meanStrength: 74, spread: 3.5, moneyScale: 730, tv: 45000, sponsor: 30000, ticket: 0.06, typicalFans: 35000 },
+  1: { tier: 1, name: 'Série A', short: 'A', minStadium: 20000, meanStrength: 72, spread: 3.5, moneyScale: 730, tv: 45000, sponsor: 30000, ticket: 0.06, typicalFans: 35000 },
   2: { tier: 2, name: 'Série B', short: 'B', minStadium: 12000, meanStrength: 67, spread: 2.5, moneyScale: 113, tv: 4000, sponsor: 3000, ticket: 0.04, typicalFans: 15000 },
   3: { tier: 3, name: 'Série C', short: 'C', minStadium: 8000, meanStrength: 62, spread: 2.5, moneyScale: 43, tv: 1500, sponsor: 1600, ticket: 0.03, typicalFans: 8000 },
   4: { tier: 4, name: 'Série D', short: 'D', minStadium: 4000, meanStrength: 57.5, spread: 2.5, moneyScale: 16.7, tv: 600, sponsor: 700, ticket: 0.025, typicalFans: 4000 },

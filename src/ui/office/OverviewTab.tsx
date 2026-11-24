@@ -26,12 +26,13 @@ export function OverviewTab({ state, dispatch, goTo }: TabProps) {
   }
   const aging = p.youth.filter((y) => y.age >= YOUTH_AGE_LIMIT);
   if (aging.length > 0) alerts.push({ text: `${aging.length} garoto(s) da base com ${YOUTH_AGE_LIMIT} anos: promova ou eles vão embora.`, tab: 'base' });
-  if (p.tier > 1 && !stadiumAllows(p.capacity + p.capacityBuilding, (p.tier - 1) as Tier)) {
+  // estádio e caixa são assunto da diretoria no modo técnico
+  if (!state.career && p.tier > 1 && !stadiumAllows(p.capacity + p.capacityBuilding, (p.tier - 1) as Tier)) {
     alerts.push({ text: `O estádio não comporta a ${TIERS[(p.tier - 1) as Tier].name} (${TIERS[(p.tier - 1) as Tier].minStadium.toLocaleString('pt-BR')} lugares). Se for campeão, não sobe.`, tab: 'estadio' });
   }
-  if (p.cash + proj.net < 0) alerts.push({ text: `Pela projeção, o caixa fecha a temporada em ${money(p.cash + proj.net)}.`, tab: 'financas' });
+  if (!state.career && p.cash + proj.net < 0) alerts.push({ text: `Pela projeção, o caixa fecha a temporada em ${money(p.cash + proj.net)}.`, tab: 'financas' });
   if (p.squad.length >= SQUAD_MAX) alerts.push({ text: 'Elenco cheio: venda ou dispense antes de contratar.', tab: 'elenco' });
-  if (p.fans > p.capacity * 1.2) alerts.push({ text: 'A torcida não cabe no estádio: você está perdendo bilheteria.', tab: 'estadio' });
+  if (!state.career && p.fans > p.capacity * 1.2) alerts.push({ text: 'A torcida não cabe no estádio: você está perdendo bilheteria.', tab: 'estadio' });
 
   return (
     <div className="tab-stack">
@@ -57,7 +58,10 @@ export function OverviewTab({ state, dispatch, goTo }: TabProps) {
 
       {state.career && <JobOffers state={state} dispatch={dispatch} title="Propostas de outros clubes" />}
 
-      <Section title="Metas da temporada" note="Cumprir metas anima a torcida e rende bônus em dinheiro; falhar a da diretoria pesa no torcedômetro.">
+      <Section
+        title="Metas da temporada"
+        note={state.career ? 'A meta da diretoria decide a confiança no técnico; a da torcida mexe no torcedômetro.' : 'Cumprir metas anima a torcida e rende bônus em dinheiro; falhar a da diretoria pesa no torcedômetro.'}
+      >
         <ul className="objectives">
           {o.objectives.map((ob, i) => (
             <li key={i} className={ob.main ? 'obj-main' : 'obj-bonus'}>
@@ -154,10 +158,10 @@ export function OverviewTab({ state, dispatch, goTo }: TabProps) {
 
       <Section title="Identidade do clube">
         <dl className="budget">
-          <div><dt>Origem</dt><dd>{ORIGINS[p.origin].label}</dd></div>
+          {!state.career && <div><dt>Origem</dt><dd>{ORIGINS[p.origin].label}</dd></div>}
           <div><dt>Torcedômetro</dt><dd>{p.mood}/100 · {moodLabel(p.mood)}</dd></div>
-          <div><dt>Alma do clube</dt><dd className={p.soul < 30 ? 'bad' : ''}>{Math.round(p.soul)}/100</dd></div>
-          <div><dt>Hype</dt><dd>{Math.round(p.hype)}/100</dd></div>
+          {!state.career && <div><dt>Alma do clube</dt><dd className={p.soul < 30 ? 'bad' : ''}>{Math.round(p.soul)}/100</dd></div>}
+          {!state.career && <div><dt>Hype</dt><dd>{Math.round(p.hype)}/100</dd></div>}
           <div><dt>Torcida</dt><dd>{num(p.fans)}</dd></div>
           <div><dt>Clássico (V-E-D)</dt><dd>{p.derby.w}-{p.derby.d}-{p.derby.l}</dd></div>
           <div><dt>Ódio do clássico</dt><dd>{Math.round(p.rivalHatred)}/100</dd></div>

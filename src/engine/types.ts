@@ -158,6 +158,9 @@ export interface Offer {
 export type Facility = 'ct' | 'academy' | 'medical';
 export type StaffRole = 'scout' | 'fitness';
 export type CoachStyle = 'ofensivo' | 'retranqueiro' | 'formador' | 'motivador' | 'estrategista';
+
+/** Estratégia de jogo (o técnico troca quando quiser). */
+export type Tactic = 'equilibrado' | 'ofensivo' | 'retranqueiro' | 'contra_ataque' | 'pressao';
 export type BusinessId = 'bar' | 'loja' | 'escolinha' | 'estacionamento' | 'foodtruck';
 export type DelegateArea = 'contratos' | 'base' | 'mercado' | 'estadio';
 
@@ -310,6 +313,8 @@ export interface PlayerClub extends Club {
   formMod: number;
   /** escalação escolhida (null/ausente = o técnico escolhe os melhores) */
   lineup?: { ids: number[] | null; rotate: boolean };
+  /** estratégia de jogo (modo técnico; ausente = a do estilo do técnico) */
+  tactic?: Tactic;
 }
 
 /* ---------------------------- Efeitos (dados) ---------------------------- */
@@ -391,6 +396,7 @@ export type Action =
   | { t: 'job'; idx: number } // técnico: aceita uma proposta de emprego
   | { t: 'lineup'; ids: number[] | null; rotate: boolean } // técnico: escalação (null = os melhores)
   | { t: 'interview'; day: number; q: number; a: number } // entrevista pós-jogo ou coletiva (dia do jogo, pergunta, resposta)
+  | { t: 'tactic'; v: Tactic } // técnico: estratégia de jogo
   | { t: 'next' }; // sai do resumo para a próxima temporada
 
 /* ------------------------------ Partidas ------------------------------ */
@@ -596,6 +602,8 @@ export interface LineupEntry {
   /** rodízio: poupa quem está muito cansado */
   rotate: boolean;
   formation: Formation;
+  /** estratégia de jogo valendo a partir deste dia */
+  tactic?: Tactic;
 }
 
 /** Mudança no elenco durante a temporada (janela do meio do ano). */

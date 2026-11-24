@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useMemo } from 'react';
 import { SQUAD_MAX, TIERS, negotiationFor, squadStrength, type Club, type Footballer, type ListingProfile, type Position, type Tier } from '../../engine';
 import { NegotiationPanel } from './Negotiation';
-import { money, monthly } from '../format';
+import { money, monthly, spendable } from '../format';
 import { marketValue } from '../../engine';
 import type { TabProps } from './Office';
 import { PlayerLine, Section } from './common';
@@ -91,7 +91,7 @@ function SearchMarket(props: TabProps) {
   }, [state.clubs, pos, maxAge, minOvr, maxLevel]);
 
   return (
-    <Section title="Buscar jogadores" note={<>Qualquer jogador de qualquer clube. Faça uma proposta: o clube decide pela taxa e o jogador pelo salário. Caixa disponível: <strong>{money(p.cash)}</strong>.</>}>
+    <Section title="Buscar jogadores" note={<>Qualquer jogador de qualquer clube. Faça uma proposta: o clube decide pela taxa e o jogador pelo salário. {state.career ? 'Verba da diretoria' : 'Caixa disponível'}: <strong>{money(spendable(state))}</strong>.</>}>
       <div className="filters">
         <div className="seg seg-compact" role="group" aria-label="Posição">
           {(['todos', 'GOL', 'DEF', 'MEI', 'ATA'] as const).map((x) => (
@@ -205,8 +205,8 @@ function WindowMarket({ state, dispatch }: TabProps) {
         title="Mercado de transferências"
         note={
           <>
-            Jogadores disponíveis nesta janela. Você paga a taxa à vista e o salário pesa na folha todo ano. Caixa disponível:{' '}
-            <strong>{money(p.cash)}</strong>.
+            Jogadores disponíveis nesta janela. Você paga a taxa à vista e o salário pesa na folha todo ano. {state.career ? 'Verba da diretoria' : 'Caixa disponível'}:{' '}
+            <strong>{money(spendable(state))}</strong>.
           </>
         }
       >
@@ -237,7 +237,7 @@ function WindowMarket({ state, dispatch }: TabProps) {
               );
             }
             const gain = squadStrength([...p.squad, l.player]) - base;
-            const afford = p.cash >= l.fee;
+            const afford = spendable(state) >= l.fee;
             return (
               <PlayerLine
                 key={l.player.id}

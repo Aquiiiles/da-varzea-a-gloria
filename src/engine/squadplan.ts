@@ -136,7 +136,8 @@ export class SquadPlan {
       const rng = deriveRng(this.opts.seed, this.opts.season, 'lesao', day);
       for (const f of plan.xi) {
         const before = this.fatigue.get(f.id) ?? 0;
-        this.fatigue.set(f.id, Math.min(100, before + FATIGUE_PER_MATCH * (1 - this.opts.fitness * 0.05)));
+        const press = this.lineupAt(day).tactic === 'pressao' ? 1.25 : 1;
+        this.fatigue.set(f.id, Math.min(100, before + FATIGUE_PER_MATCH * press * (1 - this.opts.fitness * 0.05)));
         const chance = 0.016 * (1 + before / 60) * (1 - this.opts.medical * 0.12);
         if (rng.chance(chance)) {
           const length = 7 + Math.floor(Math.pow(rng.next(), 2) * 50);

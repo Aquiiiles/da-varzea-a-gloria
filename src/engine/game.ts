@@ -328,6 +328,11 @@ export function applyMut(state: GameState, a: Action): void {
       setLineup(p, a);
       return;
     }
+    case 'tactic': {
+      if (!career) fail('a estratégia é com o técnico');
+      p.tactic = a.v;
+      return;
+    }
     case 'job': {
       if (!career) fail('só no modo técnico');
       const offer = career.offers[a.idx];
@@ -374,6 +379,7 @@ export function applyMut(state: GameState, a: Action): void {
       if (p.squad.length <= SQUAD_MIN) fail(`o elenco precisa de pelo menos ${SQUAD_MIN} jogadores`);
       const cost = releaseCost(state, a.id);
       if (p.cash < cost) fail('caixa insuficiente para a multa');
+      check(spendBudget(state, cost));
       p.cash -= cost;
       p.squad = p.squad.filter((x) => x.id !== a.id);
       p.alumni.push(f);
@@ -489,6 +495,7 @@ export function applyMut(state: GameState, a: Action): void {
       if (o.tryout) fail('já houve peneira nesta temporada');
       const cost = tryoutCost(p.tier);
       if (p.cash < cost) fail('caixa insuficiente');
+      check(spendBudget(state, cost));
       p.cash -= cost;
       o.tryout = tryoutCandidates(deriveRng(state.seed, state.season, 'tryout'), p.tier, p.staff.scout, () => nextId(state), state.season, usedPlayerNames(state));
       state.news.push(`${p.name} abre peneira: centenas de garotos no campo do bairro`);
@@ -629,7 +636,7 @@ export function applyMut(state: GameState, a: Action): void {
       state.live = {
         startSquad: structuredClone(p.squad),
         changes: [],
-        lineups: [{ day: -1, ids: p.lineup?.ids ?? null, rotate: p.lineup?.rotate ?? true, formation: p.coach.formation }],
+        lineups: [{ day: -1, ids: p.lineup?.ids ?? null, rotate: p.lineup?.rotate ?? true, formation: p.coach.formation, tactic: p.tactic }],
         moments: [],
         injuries: [],
         fatigue: [],
@@ -663,7 +670,7 @@ let lastPreview: { key: string; clone: GameState; result: SeasonResult } | null 
 function previewKey(state: GameState): string {
   const p = state.player;
   return JSON.stringify([
-    state.seed, state.season, state.history.length, p.cash, p.squad.map((f) => f.id), p.coach, p.lineup ?? null,
+    state.seed, state.season, state.history.length, p.cash, p.squad.map((f) => f.id), p.coach, p.lineup ?? null, p.tactic ?? null,
     state.live?.lineups, state.live?.changes.map((c) => [c.day, c.remove, c.add?.map((f) => f.id)]),
   ]);
 }
@@ -704,14 +711,17 @@ function midSeason(state: GameState, a: Action): void {
     state.news.push(`${who}${it.kind === 'coletiva' ? ' na coletiva' : ''}: "${ans.text}"`);
     return;
   }
-  if (a.t === 'lineup' || a.t === 'formation') {
+  if (a.t === 'lineup' || a.t === 'formation' || a.t === 'tactic') {
     if (!state.career) fail('a escalação é com o técnico');
     if (a.t === 'lineup') setLineup(p, a);
-    else {
+    else if (a.t === 'tactic') {
+      if (p.tactic === a.v) fail('já é a estratégia atual');
+      p.tactic = a.v;
+    } else {
       if (p.coach.formation === a.f) fail('já é o esquema atual');
       p.coach.formation = a.f;
     }
-    live.lineups.push({ day, ids: p.lineup?.ids ?? null, rotate: p.lineup?.rotate ?? true, formation: p.coach.formation });
+    live.lineups.push({ day, ids: p.lineup?.ids ?? null, rotate: p.lineup?.rotate ?? true, formation: p.coach.formation, tactic: p.tactic });
     preview(state);
     return;
   }

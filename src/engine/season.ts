@@ -6,6 +6,7 @@ import { estadual, pointsLeague, serieC, serieD, PLAYER, type CompEnv, type Comp
 import { SEASON_END, SEASON_START, matchDay, type CalendarKey } from './calendar';
 import { SeasonStats } from './stats';
 import { SquadPlan } from './squadplan';
+import { STYLE_TACTIC, TACTICS } from '../data/club';
 import { youthSeason } from './youthcomps';
 import { computeAwards, myAwards, type AwardsInput, type LeagueInfo } from './awards';
 import { continentalCup, foreignClubs, nationalCup, stateCup, worldCup, type CupEnv, type CupResult } from './cups';
@@ -115,7 +116,7 @@ export function simulateSeason(state: GameState): SeasonResult {
   const plan = new SquadPlan(
     live?.startSquad ?? p.squad,
     live?.changes ?? [],
-    live?.lineups ?? [{ day: -1, ids: p.lineup?.ids ?? null, rotate: p.lineup?.rotate ?? true, formation: p.coach.formation }],
+    live?.lineups ?? [{ day: -1, ids: p.lineup?.ids ?? null, rotate: p.lineup?.rotate ?? true, formation: p.coach.formation, tactic: p.tactic }],
     { seed, season, formation: p.coach.formation, medical: p.facilities.medical, fitness: p.staff.fitness },
   );
   const coachBonus = coachEdge(p.coach.rating, p.tier) + moraleEdge(p.coach.morale) + p.formMod + form;
@@ -149,7 +150,14 @@ export function simulateSeason(state: GameState): SeasonResult {
     },
     goalMult(h, a) {
       if (h !== PLAYER && a !== PLAYER) return [1, 1];
-      const [forMe, againstMe] = STYLE_GOALS[p.coach.style];
+      // modo técnico: a estratégia escolhida (valendo no dia do jogo); presidente: o estilo do técnico
+      // só a estratégia registrada para o dia (nunca a atual: senão uma troca mudaria jogos passados)
+      const tactic = plan.lineupAt(clock.day).tactic ?? (state.career ? STYLE_TACTIC[p.coach.style] : null);
+      let [forMe, againstMe] = tactic ? TACTICS[tactic].goals : STYLE_GOALS[p.coach.style];
+      if (tactic === 'contra_ataque') {
+        const opp = h === PLAYER ? a : h;
+        if (ctx.strength(opp, PLAYER) > playerStrength()) forMe *= 1.1;
+      }
       return h === PLAYER ? [forMe, againstMe] : [againstMe, forMe];
     },
     knockoutBonus(id) {

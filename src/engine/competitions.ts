@@ -176,7 +176,8 @@ export function roundPrep(round: string): string {
 export function leagueRun(env: CompEnv, ids: string[], double: boolean, deductions: Record<string, number>, k0: number, total: number, trackName?: string) {
   const table = new Map<string, TableRow>();
   for (const id of ids) table.set(id, emptyRow(id, deductions[id] ?? 0));
-  const full = roundRobin(ids);
+  // tabela sorteada todo ano (senão a 1ª rodada era sempre fora, contra o mesmo adversário)
+  const full = roundRobin(env.rng.shuffle(ids));
   const schedule = double ? full : full.slice(0, ids.length % 2 === 0 ? ids.length - 1 : ids.length);
   const stage = env.track && trackName ? env.track.stage(trackName, ids, deductions) : -1;
   const rounds: MatchResult[][] = [];

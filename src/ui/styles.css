@@ -578,3 +578,5 @@ h3 { font: 700 14px/1.2 var(--font-display); text-transform: uppercase; letter-s
 .youth-comps > li { padding: 8px 0; border-bottom: 1px solid #1c2531; }
 .youth-comps .yc-head { display: flex; justify-content: space-between; gap: 8px; }
 .youth-badge { display: inline-block; margin-left: 6px; font-size: 11px; color: var(--accent); }
+.tactic-seg { grid-template-columns: repeat(3, 1fr); margin-bottom: 6px; }
+.tactic-seg .seg-btn { font-size: 12px; }

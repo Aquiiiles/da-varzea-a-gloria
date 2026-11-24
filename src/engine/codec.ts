@@ -63,6 +63,8 @@ export function encodeAction(a: Action): string {
     case 'tactic': return `T${TACTIC_LIST.indexOf(a.v)}`;
     case 'counter': return `X${a.idx}_${a.fee}`;
     case 'reject': return `R${a.idx}`;
+    case 'project': return `P${a.which[0]}`;
+    case 'meeting': return `M${a.kind}`;
     case 'lineup': return `L${a.rotate ? 1 : 0}${a.ids ? a.ids.map((id) => `_${id}`).join('') : ''}`;
     case 'next': return 'z';
   }
@@ -114,6 +116,8 @@ export function decodeAction(tok: string): Action | null {
       return m ? { t: 'counter', idx: Number(m[1]), fee: Number(m[2]) } : null;
     }
     case 'R': return Number.isNaN(n) ? null : { t: 'reject', idx: n };
+    case 'P': return rest === 'a' ? { t: 'project', which: 'arena' } : rest === 'm' ? { t: 'project', which: 'multiuso' } : rest === 'n' ? { t: 'project', which: 'naming' } : null;
+    case 'M': return n === 0 || n === 1 || n === 2 ? { t: 'meeting', kind: n } : null;
     case 'T': return n >= 0 && n < TACTIC_LIST.length ? { t: 'tactic', v: TACTIC_LIST[n] } : null;
     case 'I': {
       const m = /^(\d{1,3})_(\d)_([012])$/.exec(rest);

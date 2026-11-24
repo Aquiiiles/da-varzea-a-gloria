@@ -78,6 +78,8 @@ export interface Footballer {
   leaving?: boolean;
   /** emprestado a partir da base (volta para a base) */
   loanFromYouth?: boolean;
+  /** fora a temporada inteira por lesão grave (fica em onLoan, o clube paga o salário, não evolui) */
+  recovering?: boolean;
   /** intenção para o fim da temporada (decidida na abertura da janela, visível para o presidente) */
   intent?: ContractIntent;
   /** salário combinado para a renovação (fixado na abertura da janela; não muda se ele evoluir até o fim) */
@@ -319,6 +321,10 @@ export interface PlayerClub extends Club {
   formMod: number;
   /** escalação escolhida (null/ausente = o técnico escolhe os melhores) */
   lineup?: { ids: number[] | null; rotate: boolean };
+  /** grandes projetos: 1 = arena moderna, 2 = arena multiuso */
+  arena?: 1 | 2;
+  /** naming rights da arena vendidos */
+  naming?: boolean;
   /** estratégia de jogo (modo técnico; ausente = a do estilo do técnico) */
   tactic?: Tactic;
 }
@@ -404,6 +410,8 @@ export type Action =
   | { t: 'interview'; day: number; q: number; a: number } // entrevista pós-jogo ou coletiva (dia do jogo, pergunta, resposta)
   | { t: 'tactic'; v: Tactic } // técnico: estratégia de jogo
   | { t: 'counter'; idx: number; fee: number } // pede mais por um jogador seu (proposta idx)
+  | { t: 'project'; which: BigProject } // grande projeto (arena, multiuso, naming rights)
+  | { t: 'meeting'; kind: 0 | 1 | 2 } // técnico: reunião com a diretoria (verba, reforço, estrutura)
   | { t: 'reject'; idx: number } // recusa a proposta idx
   | { t: 'next' }; // sai do resumo para a próxima temporada
 
@@ -456,6 +464,11 @@ export interface FinanceReport {
   commerce: number;
   /** premiações de copa e bônus de objetivos */
   prizes: number;
+  /** sócio-torcedor: receita e número de sócios */
+  members: number;
+  socios: number;
+  /** shows e eventos na arena multiuso */
+  events: number;
   net: number;
   cashEnd: number;
   attendance: number;
@@ -600,6 +613,10 @@ export interface SeasonOffice {
   /** contratações e vendas de crias da base nesta janela (torcida e conquistas) */
   signings: number;
   soldHomegrown: number;
+  /** técnico: reunião com a diretoria nesta janela (uma por janela) */
+  meeting?: { kind: 0 | 1 | 2; ok: boolean; text: string };
+  /** evento extraordinário desta temporada (já aplicado) */
+  extraordinary?: { title: string; text: string; good: boolean };
 }
 
 /** Escalação escolhida a partir de um dia (vale para os jogos depois dele). */
@@ -636,6 +653,8 @@ export interface LiveSeason {
   interviews?: { day: number; kind: 'pos' | 'coletiva'; q: number; a: number; quote: string; effect: { mood?: number; board?: number; rep?: number; morale?: number } }[];
 }
 
+export type BigProject = 'arena' | 'multiuso' | 'naming';
+
 /** 0 = próximo jogo, 1 = uma semana, 2 = até o fim do mês, 3 = até o fim da temporada */
 export type AdvanceTo = 0 | 1 | 2 | 3;
 
@@ -664,6 +683,8 @@ export interface GameState {
   career?: CoachCareer;
   /** temporada em andamento (entre "jogar" e o fim do calendário) */
   live?: LiveSeason | null;
+  /** temporada do último evento extraordinário */
+  lastExtraordinary?: number;
   /** ranking de técnicos: pontos das últimas temporadas por clube (técnico da IA) e "me" (o jogador, modo técnico) */
   coachPoints?: Record<string, number[]>;
 }

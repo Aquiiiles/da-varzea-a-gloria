@@ -8,6 +8,8 @@ const ACADEMY_LABEL = ['Campinho de terra', 'Escolinha', 'Categorias organizadas
 
 export function YouthTab({ state, dispatch, goTo }: TabProps) {
   const p = state.player;
+  const loaned = p.onLoan.filter((f) => !f.recovering);
+  const hurt = p.onLoan.filter((f) => f.recovering);
   const o = state.office;
   const [open, setOpen] = useState<number | null>(null);
   const cost = tryoutCost(p.tier);
@@ -70,11 +72,20 @@ export function YouthTab({ state, dispatch, goTo }: TabProps) {
 
       <YouthCompetitions state={state} />
 
-      {p.onLoan.length > 0 && (
-        <Section title={`Emprestados (${p.onLoan.length}/${MAX_LOANS})`} note="Voltam no fim da temporada, com mais rodagem. O clube que pegou emprestado paga o salário.">
+      {loaned.length > 0 && (
+        <Section title={`Emprestados (${loaned.length}/${MAX_LOANS})`} note="Voltam no fim da temporada, com mais rodagem. O clube que pegou emprestado paga o salário.">
           <ul className="pl-list">
-            {p.onLoan.map((f) => (
+            {loaned.map((f) => (
               <PlayerLine key={f.id} f={f} tier={p.tier} meta="emprestado" />
+            ))}
+          </ul>
+        </Section>
+      )}
+      {hurt.length > 0 && (
+        <Section title="Em recuperação" note="Lesão grave: fora a temporada inteira. O clube segue pagando o salário e ele volta no fim da temporada.">
+          <ul className="pl-list">
+            {hurt.map((f) => (
+              <PlayerLine key={f.id} f={f} tier={p.tier} meta="em recuperação" />
             ))}
           </ul>
         </Section>

@@ -18,7 +18,9 @@ import { effectsCashCost, loanFor, releaseCost, renewalOffer, seatsFor, sellPric
 import { applyNamePack, type NamePack } from './namepack';
 import { dayToDate, julyWindow } from './calendar';
 import { answered, currentInterview, interviewEffects } from './interview';
-import { CAREER_END_AGE, CAREER_START_AGE, careerWindow, refundBudget, settleCareer, spendBudget, takeOver, wageCheck } from './career';
+import { CAREER_END_AGE, CAREER_START_AGE, boardMeeting, careerWindow, refundBudget, settleCareer, spendBudget, takeOver, wageCheck } from './career';
+import { ARENA } from './finance';
+import { rollExtraordinary } from './extraordinary';
 import { varzeaClubName } from './names';
 import { PALETTE } from '../data/names';
 
@@ -218,6 +220,8 @@ function startSeason(state: GameState, afterJob = false): void {
       careerWindow(state, false);
     } else careerWindow(state, true);
   }
+  // evento extraordinário (raro): na abertura da janela, com clube
+  if (!afterJob && !state.career?.unemployed) rollExtraordinary(state);
 }
 
 /** Jogador vendido vai para um clube de verdade (o comprador ou um do mesmo nível ou acima). */
@@ -469,6 +473,40 @@ export function applyMut(state: GameState, a: Action): void {
       of.message = `${of.club} sobe para R$ ${max} mil e avisa: é a última oferta.`;
       return;
     }
+    case 'project': {
+      if (a.which === 'arena') {
+        if (p.tier > 2) fail('arena é projeto de Série A ou B');
+        if (p.arena) fail('o clube já tem arena');
+        if (p.cash < ARENA.arena.cost) fail('caixa insuficiente');
+        p.cash -= ARENA.arena.cost;
+        p.capacityBuilding += ARENA.arena.seats;
+        p.arena = 1;
+        p.hype = Math.min(100, p.hype + 10);
+        state.news.push(`${p.name} anuncia a construção de uma arena moderna`);
+      } else if (a.which === 'multiuso') {
+        if (p.arena !== 1) fail('primeiro a arena moderna');
+        if (p.cash < ARENA.multiuso.cost) fail('caixa insuficiente');
+        p.cash -= ARENA.multiuso.cost;
+        p.capacityBuilding += ARENA.multiuso.seats;
+        p.arena = 2;
+        p.hype = Math.min(100, p.hype + 10);
+        state.news.push(`${p.name} transforma o estádio em arena multiuso: shows e eventos o ano todo`);
+      } else {
+        if (!p.arena) fail('precisa de uma arena');
+        if (p.naming) fail('o nome da arena já foi vendido');
+        p.naming = true;
+        p.sponsors.push({ name: 'Naming rights da arena', perSeason: ARENA.naming.perSeason, seasonsLeft: ARENA.naming.seasons });
+        p.soul = Math.max(0, p.soul - 3);
+        state.news.push(`${p.name} vende o nome da arena por R$ ${ARENA.naming.perSeason / 1000} mi por temporada`);
+      }
+      return;
+    }
+    case 'meeting': {
+      if (!career) fail('reunião com a diretoria é do técnico');
+      if (o.meeting) fail('só uma reunião por janela');
+      o.meeting = boardMeeting(state, a.kind);
+      return;
+    }
     case 'reject': {
       const of = o.offers[a.idx];
       if (!of) fail('proposta indisponível');
@@ -478,7 +516,7 @@ export function applyMut(state: GameState, a: Action): void {
       return;
     }
     case 'lend': {
-      if (p.onLoan.length >= MAX_LOANS) fail(`no máximo ${MAX_LOANS} emprestados`);
+      if (p.onLoan.filter((x) => !x.recovering).length >= MAX_LOANS) fail(`no máximo ${MAX_LOANS} emprestados`);
       const inYouth = p.youth.find((x) => x.id === a.id);
       const inSquad = p.squad.find((x) => x.id === a.id);
       const f = inYouth ?? inSquad;
@@ -833,7 +871,7 @@ function finishSeason(state: GameState): void {
 }
 
 /** Ações que no modo técnico são da diretoria (o técnico não mexe). */
-const BOARD_ACTIONS = new Set<Action['t']>(['seats', 'facility', 'staff', 'ticket', 'loan', 'business', 'opp', 'event', 'delegate', 'coach']);
+const BOARD_ACTIONS = new Set<Action['t']>(['seats', 'facility', 'staff', 'ticket', 'loan', 'business', 'opp', 'event', 'delegate', 'coach', 'project']);
 /** a diretoria está agindo (o assistente cuidando do clube no modo técnico) */
 let boardActing = false;
 

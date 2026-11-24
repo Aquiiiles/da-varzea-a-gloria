@@ -20,6 +20,8 @@ export function FinanceTab({ state, dispatch }: TabProps) {
           <div><dt>TV e premiação</dt><dd className="good">{money(proj.tv)}</dd></div>
           <div><dt>Patrocínios</dt><dd className={proj.sponsors >= 0 ? 'good' : 'bad'}>{money(proj.sponsors)}</dd></div>
           <div><dt>Comércio local</dt><dd className="good">{money(proj.commerce)}</dd></div>
+          <div><dt>Sócio-torcedor ({proj.socios.toLocaleString('pt-BR')} sócios)</dt><dd className="good">{money(proj.members)}</dd></div>
+          {proj.events > 0 && <div><dt>Shows e eventos na arena</dt><dd className="good">{money(proj.events)}</dd></div>}
           <div><dt>Salários</dt><dd className="bad">-{money(proj.wages)}</dd></div>
           <div><dt>Staff</dt><dd className="bad">-{money(proj.staff)}</dd></div>
           <div><dt>Manutenção</dt><dd className="bad">-{money(proj.upkeep)}</dd></div>

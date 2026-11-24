@@ -11,10 +11,10 @@ export function ResultScreen({ state, onRestart, fromLink }: { state: GameState;
   return (
     <section className="panel result">
       <p className="kicker">
-        {state.over === 'falencia' ? 'Fim da linha' : 'Fim da run'}
+        {state.career ? `Fim da carreira · ${state.career.age} anos` : state.over === 'falencia' ? 'Fim da linha' : 'Fim da run'}
         {fromLink ? ' · replay' : ''}
       </p>
-      <h1 className="headline">{state.player.name}</h1>
+      <h1 className="headline">{state.career ? state.career.name : state.player.name}</h1>
       <div className="level">
         <span className="level-num">{level.level}</span>
         <span className="level-title">{level.label}</span>
@@ -31,8 +31,18 @@ export function ResultScreen({ state, onRestart, fromLink }: { state: GameState;
         <div><dt>Copas</dt><dd>{stats.cupWins + stats.championsWins + stats.worldWins}</dd></div>
         <div><dt>Zebras na copa</dt><dd>{stats.giantKills}</dd></div>
         <div><dt>Maior zebra</dt><dd>{stats.biggestUpset ? `${stats.biggestUpset.score} no ${stats.biggestUpset.opponent}` : '—'}</dd></div>
-        <div><dt>Ídolo</dt><dd>{stats.idol ? `${stats.idol.name} (${stats.idol.goals} gols)` : '—'}</dd></div>
-        <div><dt>Alma</dt><dd>{stats.soul}/100</dd></div>
+        {state.career ? (
+          <>
+            <div><dt>Clubes treinados</dt><dd>{stats.clubs}</dd></div>
+            <div><dt>Demissões</dt><dd>{stats.firings}</dd></div>
+            <div><dt>Reputação final</dt><dd>{state.career.reputation}/100</dd></div>
+          </>
+        ) : (
+          <>
+            <div><dt>Ídolo</dt><dd>{stats.idol ? `${stats.idol.name} (${stats.idol.goals} gols)` : '—'}</dd></div>
+            <div><dt>Alma</dt><dd>{stats.soul}/100</dd></div>
+          </>
+        )}
       </dl>
 
       <h3>Trajetória</h3>
@@ -41,6 +51,7 @@ export function ResultScreen({ state, onRestart, fromLink }: { state: GameState;
           <li key={r.season} className={`traj-${r.outcome}`}>
             <span>{r.year}</span>
             <span>
+              {state.career && r.club ? `${r.club.name} · ` : ''}
               {TIERS[r.tier].name}
               {r.cups.some((c) => c.champion) ? ' 🏆' : ''}
             </span>
@@ -55,7 +66,7 @@ export function ResultScreen({ state, onRestart, fromLink }: { state: GameState;
 
       <div className="actions">
         <button type="button" className="btn btn-primary" onClick={onRestart}>
-          Nova run
+          {state.career ? 'Nova carreira' : 'Nova run'}
         </button>
       </div>
     </section>

@@ -55,7 +55,14 @@ function write<T>(key: string, items: T[]): void {
 }
 
 export function careerId(state: GameState): string {
-  return state.seed.toString(36);
+  return (state.career ? 't-' : '') + state.seed.toString(36);
+}
+
+/** Nome que aparece nos saves e no Hall da fama (no modo técnico, o técnico e o clube atual). */
+function saveName(state: GameState): string {
+  const c = state.career;
+  if (!c) return state.player.name;
+  return c.unemployed || c.stints.length === 0 ? `📋 ${c.name}` : `📋 ${c.name} (${state.player.name})`;
 }
 
 export function listCareers(): CareerSave[] {
@@ -76,7 +83,7 @@ export function saveCareer(state: GameState): void {
     const lvl = levelFor(stats);
     const entry: HallEntry = {
       id,
-      name: state.player.name,
+      name: saveName(state),
       colors: state.player.colors,
       level: lvl.level,
       label: lvl.label,
@@ -94,7 +101,7 @@ export function saveCareer(state: GameState): void {
   }
   const save: CareerSave = {
     id,
-    name: state.player.name,
+    name: saveName(state),
     colors: state.player.colors,
     tierName: TIERS[state.player.tier].name,
     season: state.season,

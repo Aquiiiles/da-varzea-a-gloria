@@ -592,7 +592,9 @@ export function simulateSeason(state: GameState): SeasonResult {
     worldNews: [],
     coachReport: { name: p.coach.name, request: null, met: null, morale: p.coach.morale, moraleDelta: 0, left: null },
   };
-  settleCoach(state, result);
+  // modo técnico: o técnico é o jogador (moral, demissão e contrato ficam com a carreira)
+  if (!state.career) settleCoach(state, result);
+  result.club = { name: p.name, colors: p.colors };
 
   // ---------------------- evolução para a próxima temporada ----------------------
   p.capacity += p.capacityBuilding;

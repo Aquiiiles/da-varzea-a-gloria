@@ -360,6 +360,7 @@ export type Action =
   | { t: 'auto' } // assistente faz a gestão da temporada
   | { t: 'play' } // simula a temporada
   | { t: 'advance'; to: AdvanceTo } // mostra a temporada até o próximo jogo, semana, mês ou fim
+  | { t: 'job'; idx: number } // técnico: aceita uma proposta de emprego
   | { t: 'next' }; // sai do resumo para a próxima temporada
 
 /* ------------------------------ Partidas ------------------------------ */
@@ -444,6 +445,10 @@ export interface SeasonResult {
   moments: LiveMoment[];
   /** prêmios da temporada (gerais e de cada liga) */
   awards?: SeasonAwards;
+  /** clube do jogador nesta temporada (no modo técnico ele muda) */
+  club?: { name: string; colors: [string, string] };
+  /** modo técnico: como terminou a temporada para o técnico */
+  coachNews?: string[];
   derby: { w: number; d: number; l: number } | null;
   /** torcedômetro no fim da temporada e variação */
   mood: number;
@@ -464,10 +469,68 @@ export interface SeasonResult {
 
 export type Phase = 'office' | 'summary' | 'over';
 
+export type GameMode = 'presidente' | 'tecnico';
+
 export interface Foundation {
+  /** presidente: nome do clube; técnico: nome do técnico */
   name: string;
   colors: [string, string];
   origin: Origin;
+  /** modo de jogo (padrão: presidente) */
+  mode?: GameMode;
+  /** técnico: estilo de jogo */
+  style?: CoachStyle;
+}
+
+/** Personalidade da diretoria (modo técnico). */
+export type BoardPersonality = 'paciente' | 'imediatista' | 'mao_de_vaca';
+
+export interface Board {
+  personality: BoardPersonality;
+  /** 0–100: confiança no técnico; zerou, demissão */
+  confidence: number;
+  /** verba para contratações nesta janela (R$ mil) */
+  budget: number;
+  /** teto da folha salarial anual (R$ mil) */
+  wageCap: number;
+}
+
+/** Proposta de emprego para o técnico. */
+export interface JobOffer {
+  clubId: string;
+  club: string;
+  tier: Tier;
+  personality: BoardPersonality;
+  /** temporadas de contrato */
+  contract: number;
+  /** o que a diretoria espera */
+  pitch: string;
+}
+
+export interface CareerStint {
+  club: string;
+  colors: [string, string];
+  from: number;
+  /** última temporada no clube (null = atual) */
+  to: number | null;
+  tier: Tier;
+  /** por que saiu */
+  exit?: 'demitido' | 'proposta' | 'contrato';
+}
+
+/** Carreira do técnico (modo técnico). */
+export interface CoachCareer {
+  name: string;
+  age: number;
+  /** 0–100: decide quem te quer e as estrelas do técnico */
+  reputation: number;
+  board: Board;
+  /** temporadas restantes de contrato com o clube atual */
+  contract: number;
+  /** sem clube: precisa aceitar uma proposta antes de jogar */
+  unemployed: boolean;
+  offers: JobOffer[];
+  stints: CareerStint[];
 }
 
 export interface SeasonOffice {
@@ -517,6 +580,8 @@ export interface GameState {
   calendar?: SeasonCalendar | null;
   /** até que dia do calendário a temporada já foi mostrada (null = já terminou de mostrar) */
   reveal?: number | null;
+  /** modo técnico: carreira do técnico (ausente no modo presidente) */
+  career?: CoachCareer;
 }
 
 /** Um nome numa premiação (jogador ou técnico). */

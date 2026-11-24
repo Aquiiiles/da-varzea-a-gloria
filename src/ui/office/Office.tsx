@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import {
-  MAX_SEASONS, START_YEAR, TIERS, projectFinance, stadiumAllows, teamStrength, type GameState, type Tier,
+  BOARD_INFO, CAREER_END_AGE, MAX_SEASONS, START_YEAR, TIERS, payroll, projectFinance, stadiumAllows, teamStrength, type GameState, type Tier,
 } from '../../engine';
+import { BoardTab, CareerTab, Unemployed } from './CareerTab';
 import type { Dispatch } from '../App';
 import { money, num, tierLabel } from '../format';
 import { CoachTab } from './CoachTab';
@@ -15,7 +16,7 @@ import { TrophyRoom } from '../TrophyRoom';
 import { NewsTab } from './NewsTab';
 import { Crest } from '../Crest';
 
-export type TabId = 'painel' | 'elenco' | 'base' | 'mercado' | 'comissao' | 'estadio' | 'financas' | 'noticias' | 'trofeus';
+export type TabId = 'painel' | 'elenco' | 'base' | 'mercado' | 'comissao' | 'estadio' | 'financas' | 'diretoria' | 'noticias' | 'trofeus';
 
 const TABS: { id: TabId; label: string; icon: string }[] = [
   { id: 'painel', label: 'Início', icon: '🏠' },
@@ -29,6 +30,18 @@ const TABS: { id: TabId; label: string; icon: string }[] = [
   { id: 'trofeus', label: 'Troféus', icon: '🏆' },
 ];
 
+/** Modo técnico: o técnico não mexe em estádio e finanças (é com a diretoria). */
+const COACH_TABS: { id: TabId; label: string; icon: string }[] = [
+  { id: 'painel', label: 'Início', icon: '🏠' },
+  { id: 'elenco', label: 'Elenco', icon: '👕' },
+  { id: 'base', label: 'Base', icon: '🌱' },
+  { id: 'mercado', label: 'Transferências', icon: '🤝' },
+  { id: 'comissao', label: 'Técnico', icon: '📋' },
+  { id: 'diretoria', label: 'Diretoria', icon: '🏛️' },
+  { id: 'noticias', label: 'Notícias', icon: '📰' },
+  { id: 'trofeus', label: 'Troféus', icon: '🏆' },
+];
+
 export interface TabProps {
   state: GameState;
   dispatch: Dispatch;
@@ -36,18 +49,30 @@ export interface TabProps {
 }
 
 export function Office({ state, dispatch, onFast }: { state: GameState; dispatch: Dispatch; onFast: () => void }) {
-  const [tab, setTab] = useState<TabId>('painel');
+  const [rawTab, setTab] = useState<TabId>('painel');
   const p = state.player;
   const o = state.office;
+  const coach = state.career;
+  // no modo técnico, estádio e finanças são da diretoria
+  const tab: TabId = coach && (rawTab === 'estadio' || rawTab === 'financas') ? 'diretoria' : rawTab;
   const eventPending = !!o.event && o.eventChoice === null;
   const props: TabProps = { state, dispatch, goTo: setTab };
+  const tabs = coach ? COACH_TABS : TABS;
+
+  if (coach?.unemployed) {
+    return (
+      <div className="office">
+        <Unemployed state={state} dispatch={dispatch} />
+      </div>
+    );
+  }
 
   return (
     <div className="office">
       <StatusBar state={state} />
 
       <nav className="tabs" aria-label="Escritório do presidente">
-        {TABS.map((t) => (
+        {tabs.map((t) => (
           <button key={t.id} type="button" className={`tab${tab === t.id ? ' is-on' : ''}`} onClick={() => setTab(t.id)} aria-current={tab === t.id ? 'page' : undefined}>
             <span className="tab-icon" aria-hidden="true">
               {t.icon}
@@ -57,6 +82,7 @@ export function Office({ state, dispatch, onFast }: { state: GameState; dispatch
             {t.id === 'base' && p.youth.length > 0 && <span className="count">{p.youth.length}</span>}
             {t.id === 'elenco' && o.offers.some(Boolean) && <span className="dot dot-offer" aria-label="propostas recebidas" />}
             {t.id === 'comissao' && o.request && <span className="dot dot-offer" aria-label="pedido do técnico" />}
+            {t.id === 'painel' && coach && coach.offers.length > 0 && <span className="dot dot-offer" aria-label="propostas de emprego" />}
           </button>
         ))}
       </nav>
@@ -67,14 +93,15 @@ export function Office({ state, dispatch, onFast }: { state: GameState; dispatch
         {tab === 'base' && <YouthTab {...props} />}
         {tab === 'mercado' && <MarketTab {...props} />}
         {tab === 'estadio' && <StadiumTab {...props} />}
-        {tab === 'comissao' && <CoachTab {...props} />}
+        {tab === 'comissao' && (coach ? <CareerTab {...props} /> : <CoachTab {...props} />)}
+        {tab === 'diretoria' && coach && <BoardTab {...props} />}
         {tab === 'financas' && <FinanceTab {...props} />}
         {tab === 'noticias' && <NewsTab {...props} />}
         {tab === 'trofeus' && <TrophyRoom state={state} />}
       </div>
 
       <div className="playbar">
-        <button type="button" className="btn" onClick={() => dispatch({ t: 'auto' })} title="O assistente faz contratações, renovações, obras e responde o evento">
+        <button type="button" className="btn" onClick={() => dispatch({ t: 'auto' })} title={coach ? 'O auxiliar faz contratações, renovações e cuida da base' : 'O assistente faz contratações, renovações, obras e responde o evento'}>
           Assistente decide
         </button>
         <button type="button" className="btn" onClick={onFast} title="O assistente gere e joga até algo decisivo">
@@ -93,6 +120,8 @@ export function Office({ state, dispatch, onFast }: { state: GameState; dispatch
 }
 
 function StatusBar({ state }: { state: GameState }) {
+  const c = state.career;
+  if (c) return <CoachStatusBar state={state} />;
   const p = state.player;
   const year = START_YEAR + state.season - 1;
   const nextTier = (p.tier > 1 ? p.tier - 1 : 1) as Tier;
@@ -127,6 +156,35 @@ function StatusBar({ state }: { state: GameState }) {
       </dl>
       {p.pendingDeduction > 0 && <p className="warn">Esta temporada começa com -{p.pendingDeduction} pontos por dívidas.</p>}
       {p.negativeSeasons > 0 && p.pendingDeduction === 0 && <p className="warn">Caixa no vermelho há {p.negativeSeasons} temporada(s). Mais uma e o clube perde pontos.</p>}
+    </section>
+  );
+}
+
+function CoachStatusBar({ state }: { state: GameState }) {
+  const p = state.player;
+  const c = state.career!;
+  const year = START_YEAR + state.season - 1;
+  const strength = teamStrength(state);
+  const diff = strength - TIERS[p.tier].meanStrength;
+  const pay = payroll(p);
+  return (
+    <section className="statusbar">
+      <div className="status-club">
+        <Crest name={p.name} short={p.short} colors={p.colors} size={44} />
+        <div>
+          <strong>{p.name}</strong>
+          <small>
+            {tierLabel(p.tier)} · {year} · {c.name}, {c.age} anos (até {CAREER_END_AGE})
+          </small>
+        </div>
+      </div>
+      <dl className="stats">
+        <Stat label="Força do time" value={strength.toFixed(1)} hint={`${diff >= 0 ? '+' : ''}${diff.toFixed(1)} vs média`} tone={diff >= 1 ? 'good' : diff <= -2 ? 'bad' : undefined} />
+        <Stat label="Confiança" value={`${c.board.confidence}`} hint={`diretoria ${BOARD_INFO[c.board.personality].label.toLowerCase()}`} tone={c.board.confidence <= 35 ? 'bad' : c.board.confidence >= 70 ? 'good' : undefined} />
+        <Stat label="Verba" value={money(c.board.budget)} hint="para contratações" />
+        <Stat label="Folha" value={money(pay)} hint={`teto ${money(c.board.wageCap)}`} tone={pay > c.board.wageCap ? 'bad' : undefined} />
+        <Stat label="Reputação" value={`${c.reputation}`} hint={`contrato: ${c.contract} temp.`} />
+      </dl>
     </section>
   );
 }

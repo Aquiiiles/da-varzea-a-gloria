@@ -5,6 +5,7 @@ import { homegrownInXI, moraleEdge, startingCoach } from './clubops';
 import { estadual, pointsLeague, serieC, serieD, PLAYER, type CompEnv, type CompTracker, type LeagueOutcome } from './competitions';
 import { SEASON_END, SEASON_START, matchDay, type CalendarKey } from './calendar';
 import { SeasonStats } from './stats';
+import { SquadPlan } from './squadplan';
 import { computeAwards, myAwards, type AwardsInput, type LeagueInfo } from './awards';
 import { continentalCup, foreignClubs, nationalCup, stateCup, worldCup, type CupEnv, type CupResult } from './cups';
 import { nextId } from './effects';
@@ -106,7 +107,20 @@ export function simulateSeason(state: GameState): SeasonResult {
 
   const formRng = deriveRng(seed, season, 'form');
   const sd = (p.origin === 'youtuber' ? 2 : 0.9) * (1 - p.facilities.medical * 0.1) * (p.coach.style === 'motivador' ? 0.7 : 1);
-  const pStrength = teamStrength(state) + formRng.normal(sd);
+  const form = formRng.normal(sd);
+  const pStrength = teamStrength(state) + form;
+  // elenco ao longo da temporada: escalação, contratações de julho, cansaço e lesões (só o clube do jogador)
+  const live = state.live;
+  const plan = new SquadPlan(
+    live?.startSquad ?? p.squad,
+    live?.changes ?? [],
+    live?.lineups ?? [{ day: -1, ids: p.lineup?.ids ?? null, rotate: p.lineup?.rotate ?? true, formation: p.coach.formation }],
+    { seed, season, formation: p.coach.formation, medical: p.facilities.medical, fitness: p.staff.fitness },
+  );
+  const coachBonus = coachEdge(p.coach.rating, p.tier) + moraleEdge(p.coach.morale) + p.formMod + form;
+  /** dia do jogo sendo simulado (as competições avisam pela data da rodada) */
+  const clock = { day: 0 };
+  const playerStrength = () => plan.at(clock.day).strength + coachBonus;
   const pHome = playerHomeAdv(state);
   const rivalBonus = p.rivalHatred / 50;
 
@@ -119,7 +133,7 @@ export function simulateSeason(state: GameState): SeasonResult {
 
   const ctx: LeagueContext = {
     strength(id, opp) {
-      if (id === PLAYER) return pStrength;
+      if (id === PLAYER) return playerStrength();
       const f = foreign.get(id);
       if (f) return f.strength;
       let s = byId.get(id)!.strength;
@@ -161,15 +175,23 @@ export function simulateSeason(state: GameState): SeasonResult {
   const stats = new SeasonStats(
     (id) => (id === PLAYER ? p.squad : byId.get(id)?.squad ?? null),
     (id) => (id === PLAYER ? p.coach.formation : '4-4-2'),
+    (day) => plan.at(day).xi,
   );
+  let pass: 1 | 2 = 1;
+  const pass1Days: number[] = [];
   const env = (label: CalendarKey, target?: Tier, track?: [CompId, string]): CompEnv & CupEnv => {
     let n = 0;
     return {
-      detail: (m, rng) => stats.record(label, m, rng),
+      detail:
+        pass === 1
+          ? (m) => {
+              if (m.home === PLAYER || m.away === PLAYER) pass1Days.push(m.day ?? 0);
+            }
+          : (m, rng) => stats.record(label, m, rng),
       rng: deriveRng(seed, season, label),
       matchRng: () => deriveRng(seed, season, label, 'jogo', n++),
-      dayOf: (k, total) => matchDay(label, year, k, total),
-      track: track ? tracker(track[0], track[1]) : undefined,
+      dayOf: (k, total) => (clock.day = matchDay(label, year, k, total)),
+      track: pass === 2 && track ? tracker(track[0], track[1]) : undefined,
       ctx,
     name: nameOf,
     tierOf,
@@ -184,69 +206,81 @@ export function simulateSeason(state: GameState): SeasonResult {
   const stateIds = (div: StateDiv) => [...state.clubs.filter((c) => c.stateDiv === div).map((c) => c.id), ...(p.stateDiv === div ? [PLAYER] : [])];
   const natIds = (d: NationalDiv) => [...state.clubs.filter((c) => c.national === d).map((c) => c.id), ...(p.national === d ? [PLAYER] : [])];
 
-  // ---------------------- 1º semestre: estaduais ----------------------
   const mine = (on: boolean, id: CompId, name: string): [CompId, string] | undefined => (on ? [id, name] : undefined);
-  const estA = estadual(env('est-a', undefined, mine(p.stateDiv === 'A', 'estadual_a', 'Estadual')), STATE_COMP.A, stateIds('A'), ded(!mainIsNational && p.stateDiv === 'A'));
-  const estB = estadual(env('est-b', 5, mine(p.stateDiv === 'B', 'estadual_b', 'Estadual Série B')), STATE_COMP.B, stateIds('B'), ded(!mainIsNational && p.stateDiv === 'B'));
-  const varzea = estadual(env('varzea', 6, mine(p.stateDiv === 'V', 'varzea', 'Várzea')), STATE_COMP.V, stateIds('V'), ded(!mainIsNational && p.stateDiv === 'V'));
+  /**
+   * As competições rodam duas vezes: a 1ª passada só descobre as datas dos jogos do clube do jogador
+   * (para montar escalação, cansaço e lesões em ordem de data); a 2ª é a de verdade.
+   */
+  const runAll = () => {
+    // ---------------------- 1º semestre: estaduais ----------------------
+    const estA = estadual(env('est-a', undefined, mine(p.stateDiv === 'A', 'estadual_a', 'Estadual')), STATE_COMP.A, stateIds('A'), ded(!mainIsNational && p.stateDiv === 'A'));
+    const estB = estadual(env('est-b', 5, mine(p.stateDiv === 'B', 'estadual_b', 'Estadual Série B')), STATE_COMP.B, stateIds('B'), ded(!mainIsNational && p.stateDiv === 'B'));
+    const varzea = estadual(env('varzea', 6, mine(p.stateDiv === 'V', 'varzea', 'Várzea')), STATE_COMP.V, stateIds('V'), ded(!mainIsNational && p.stateDiv === 'V'));
 
-  // ---------------------- 2º semestre: séries nacionais ----------------------
-  const serA = pointsLeague(env('serie-a', undefined, mine(p.national === 1, 'serie_a', 'Série A')), 'serie_a', 'Série A', 1, natIds(1), 0, 4, ded(p.national === 1));
-  const serB = pointsLeague(env('serie-b', 1, mine(p.national === 2, 'serie_b', 'Série B')), 'serie_b', 'Série B', 2, natIds(2), 4, 4, ded(p.national === 2));
-  const serC = serieC(env('serie-c', 2, mine(p.national === 3, 'serie_c', 'Série C')), natIds(3), ded(p.national === 3));
-  const serD = serieD(env('serie-d', 3, mine(p.national === 4, 'serie_d', 'Série D')), natIds(4));
+    // ---------------------- 2º semestre: séries nacionais ----------------------
+    const serA = pointsLeague(env('serie-a', undefined, mine(p.national === 1, 'serie_a', 'Série A')), 'serie_a', 'Série A', 1, natIds(1), 0, 4, ded(p.national === 1));
+    const serB = pointsLeague(env('serie-b', 1, mine(p.national === 2, 'serie_b', 'Série B')), 'serie_b', 'Série B', 2, natIds(2), 4, 4, ded(p.national === 2));
+    const serC = serieC(env('serie-c', 2, mine(p.national === 3, 'serie_c', 'Série C')), natIds(3), ded(p.national === 3));
+    const serD = serieD(env('serie-d', 3, mine(p.national === 4, 'serie_d', 'Série D')), natIds(4));
 
-  const stateOut: Record<StateDiv, LeagueOutcome> = { A: estA, B: estB, V: varzea };
-  const natOut: Record<NationalDiv, LeagueOutcome> = { 1: serA, 2: serB, 3: serC, 4: serD };
+    const stateOut: Record<StateDiv, LeagueOutcome> = { A: estA, B: estB, V: varzea };
+    const natOut: Record<NationalDiv, LeagueOutcome> = { 1: serA, 2: serB, 3: serC, 4: serD };
 
-  // ---------------------- copas ----------------------
-  const cupRuns: CupRun[] = [];
-  const cupMatches: CupMatch[] = [];
-  const addCup = (res: CupResult) => {
-    if (res.run) cupRuns.push(res.run);
-    cupMatches.push(...res.playerMatches);
+    // ---------------------- copas ----------------------
+    const cupRuns: CupRun[] = [];
+    const cupMatches: CupMatch[] = [];
+    const addCup = (res: CupResult) => {
+      if (res.run) cupRuns.push(res.run);
+      cupMatches.push(...res.playerMatches);
+    };
+    const ourState = [...stateIds('A'), ...stateIds('B'), ...stateIds('V')];
+    const cupChampions: AwardsInput['cupChampions'] = [];
+    const copaEstado = stateCup(env('copa-estado'), ourState);
+    cupChampions.push({ id: 'estado', clubId: copaEstado.championId });
+    addCup(copaEstado);
+
+    // Copa Nacional: Séries A e B, 12 melhores da C, 2 melhores do Estadual sem série nacional,
+    // o jogador se classificado, e o resto de outros estados
+    const playerInCopa = (p.national !== null && p.national <= 3) || p.copaSpot || (p.stateDiv === 'A' && estA.ranking.indexOf(PLAYER) < 4);
+    const entrants = new Set<string>([...natIds(1), ...natIds(2)]);
+    const byStrength = (ids: string[]) => ids.filter((id) => id !== PLAYER).sort((a, b) => byId.get(b)!.strength - byId.get(a)!.strength || (a < b ? -1 : 1));
+    for (const id of byStrength(natIds(3)).slice(0, 12)) entrants.add(id);
+    for (const id of estA.ranking.filter((id) => id !== PLAYER && byId.get(id)!.national === null).slice(0, 2)) entrants.add(id);
+    if (playerInCopa) entrants.add(PLAYER);
+    else entrants.delete(PLAYER);
+    const fill = byStrength(state.clubs.filter((c) => c.national === 4 || (c.national === null && c.stateDiv === null)).map((c) => c.id));
+    for (const id of fill) {
+      if (entrants.size >= 64) break;
+      entrants.add(id);
+    }
+    const copa = nationalCup(env('copa'), [...entrants]);
+    cupChampions.push({ id: 'copa', clubId: copa.championId });
+    addCup(copa);
+
+    let ccChampion = false;
+    if (p.continental) {
+      const domestic = byStrength(natIds(1)).slice(0, p.continental === 'cc' ? 5 : 3);
+      const others = foreignClubs(deriveRng(seed, season, 'foreign', p.continental), 32 - 1 - domestic.length, p.continental === 'cc' ? 79 : 74, 4, `f${p.continental}`, true);
+      for (const f of others) foreign.set(f.id, f);
+      const res = continentalCup(env(p.continental), p.continental, [PLAYER, ...domestic, ...others.map((f) => f.id)]);
+      addCup(res);
+      cupChampions.push({ id: p.continental, clubId: res.championId });
+      ccChampion = p.continental === 'cc' && res.championId === PLAYER;
+    }
+    if (p.worldCup) {
+      const others = foreignClubs(deriveRng(seed, season, 'foreign', 'mundial'), 7, 80, 4.5, 'fwc', false);
+      for (const f of others) foreign.set(f.id, f);
+      const wc = worldCup(env('mundial'), [PLAYER, ...others.map((f) => f.id)]);
+      addCup(wc);
+      cupChampions.push({ id: 'mundial', clubId: wc.championId });
+    }
+    return { estA, estB, varzea, serA, serB, serC, serD, stateOut, natOut, cupRuns, cupMatches, copaEstado, copa, ccChampion, cupChampions };
   };
-  const ourState = [...stateIds('A'), ...stateIds('B'), ...stateIds('V')];
-  const cupChampions: AwardsInput['cupChampions'] = [];
-  const copaEstado = stateCup(env('copa-estado'), ourState);
-  cupChampions.push({ id: 'estado', clubId: copaEstado.championId });
-  addCup(copaEstado);
-
-  // Copa Nacional: Séries A e B, 12 melhores da C, 2 melhores do Estadual sem série nacional,
-  // o jogador se classificado, e o resto de outros estados
-  const playerInCopa = (p.national !== null && p.national <= 3) || p.copaSpot || (p.stateDiv === 'A' && estA.ranking.indexOf(PLAYER) < 4);
-  const entrants = new Set<string>([...natIds(1), ...natIds(2)]);
-  const byStrength = (ids: string[]) => ids.filter((id) => id !== PLAYER).sort((a, b) => byId.get(b)!.strength - byId.get(a)!.strength || (a < b ? -1 : 1));
-  for (const id of byStrength(natIds(3)).slice(0, 12)) entrants.add(id);
-  for (const id of estA.ranking.filter((id) => id !== PLAYER && byId.get(id)!.national === null).slice(0, 2)) entrants.add(id);
-  if (playerInCopa) entrants.add(PLAYER);
-  else entrants.delete(PLAYER);
-  const fill = byStrength(state.clubs.filter((c) => c.national === 4 || (c.national === null && c.stateDiv === null)).map((c) => c.id));
-  for (const id of fill) {
-    if (entrants.size >= 64) break;
-    entrants.add(id);
-  }
-  const copa = nationalCup(env('copa'), [...entrants]);
-  cupChampions.push({ id: 'copa', clubId: copa.championId });
-  addCup(copa);
-
-  let ccChampion = false;
-  if (p.continental) {
-    const domestic = byStrength(natIds(1)).slice(0, p.continental === 'cc' ? 5 : 3);
-    const others = foreignClubs(deriveRng(seed, season, 'foreign', p.continental), 32 - 1 - domestic.length, p.continental === 'cc' ? 79 : 74, 4, `f${p.continental}`, true);
-    for (const f of others) foreign.set(f.id, f);
-    const res = continentalCup(env(p.continental), p.continental, [PLAYER, ...domestic, ...others.map((f) => f.id)]);
-    addCup(res);
-    cupChampions.push({ id: p.continental, clubId: res.championId });
-    ccChampion = p.continental === 'cc' && res.championId === PLAYER;
-  }
-  if (p.worldCup) {
-    const others = foreignClubs(deriveRng(seed, season, 'foreign', 'mundial'), 7, 80, 4.5, 'fwc', false);
-    for (const f of others) foreign.set(f.id, f);
-    const wc = worldCup(env('mundial'), [PLAYER, ...others.map((f) => f.id)]);
-    addCup(wc);
-    cupChampions.push({ id: 'mundial', clubId: wc.championId });
-  }
+  pass = 1;
+  runAll();
+  plan.build(pass1Days);
+  pass = 2;
+  const { estA, estB, varzea, serA, serB, serC, serD, stateOut, natOut, cupRuns, cupMatches, copaEstado, copa, ccChampion, cupChampions } = runAll();
   const cupPrizes = cupRuns.reduce((sum, c) => sum + c.prize, 0);
 
   // ---------------------- movimentos e vagas ----------------------
@@ -378,6 +412,12 @@ export function simulateSeason(state: GameState): SeasonResult {
 
   // ---------------------- calendário (para mostrar a temporada aos poucos) ----------------------
   state.calendar = buildCalendar(season, year, stages, comps, cupRuns, nameOf, tierOf);
+  if (state.live) {
+    // para a tela da temporada: lesões, cansaço e quem jogou cada partida
+    state.live.injuries = plan.injuries.map((i) => ({ ...i }));
+    state.live.fatigue = plan.fatigueLog;
+    state.live.elevens = [...new Set(state.calendar!.matches.map((m) => m.day))].map((d) => ({ day: d, ids: plan.at(d).xi.map((f) => f.id) }));
+  }
 
   // ---------------------- finanças ----------------------
   const homeGames = allMatches.filter((m) => m.home === PLAYER).length;

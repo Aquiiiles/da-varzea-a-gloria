@@ -11,6 +11,10 @@ export function playRun(seed: number, manage: (s: GameState) => Action[] = () =>
     s.actions.push(a);
   };
   while (s.phase !== 'over') {
+    if (s.phase === 'season') {
+      run({ t: 'advance', to: 3 });
+      continue;
+    }
     if (s.phase === 'summary') {
       run({ t: 'next' });
       continue;
@@ -27,6 +31,9 @@ export function playRun(seed: number, manage: (s: GameState) => Action[] = () =>
   }
   return s;
 }
+
+/** Joga a temporada e já fecha o calendário (o resultado de verdade sai no fim). */
+export const PLAY: Action[] = [{ t: 'play' }, { t: 'advance', to: 3 }];
 
 /** Mistura de ações manuais + assistente (cobre bastante o motor). */
 export const mixed = (s: GameState): Action[] => [

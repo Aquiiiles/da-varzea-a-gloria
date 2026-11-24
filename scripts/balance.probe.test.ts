@@ -7,7 +7,7 @@ type Bot = 'auto' | 'lazy';
 function play(seed: number, bot: Bot, origin: Origin): GameState {
   const s = newGame(seed, { name: 'Teste FC', colors: ['#ff0000', '#ffffff'], origin });
   while (s.phase !== 'over') {
-    if (s.phase === 'summary') { applyMut(s, { t: 'next' }); continue; }
+    if (s.phase === 'summary' || s.phase === 'season') { applyMut(s, { t: 'next' }); continue; }
     if (bot === 'auto') applyMut(s, { t: 'auto' });
     else if (s.office.event && s.office.eventChoice === null) applyMut(s, { t: 'event', choice: 1 });
     applyMut(s, { t: 'play' });

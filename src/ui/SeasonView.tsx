@@ -1,9 +1,10 @@
 import { useState } from 'react';
 import {
-  PLAYER_ID, TIERS, dayToDate, outcomeOf, partialTable, playedMatches, stageStarted, upcomingMatches, weekdayOf,
-  type AdvanceTo, type CalendarMatch, type GameState, type SeasonCalendar,
+  FATIGUE_FREE, FATIGUE_REST, PLAYER_ID, TIERS, dayToDate, fatigueAt, injuredAt, julyWindow, outcomeOf, partialTable, playedMatches, stageStarted,
+  upcomingMatches, weekdayOf, type AdvanceTo, type CalendarMatch, type GameState, type SeasonCalendar,
 } from '../engine';
 import type { Dispatch } from './App';
+import { LineupEditor } from './LineupEditor';
 
 const WEEKDAY = ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado'];
 const MONTH = ['janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho', 'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro'];
@@ -120,7 +121,60 @@ const ADVANCE: { to: AdvanceTo; label: string }[] = [
 ];
 
 /** Temporada em andamento: o motor já simulou tudo; aqui o presidente acompanha jogo a jogo, semana, mês ou até o fim. */
-export function SeasonView({ state, dispatch }: { state: GameState; dispatch: Dispatch }) {
+/** Departamento médico e cansaço do elenco no dia de hoje. */
+function SquadStatus({ state, day }: { state: GameState; day: number }) {
+  const live = state.live;
+  if (!live) return null;
+  const cal = state.calendar!;
+  const injured = injuredAt(live, day);
+  const fatigue = fatigueAt(live, day);
+  const byId = new Map(state.player.squad.map((f) => [f.id, f]));
+  const tired = Object.entries(fatigue)
+    .map(([id, v]) => ({ f: byId.get(Number(id)), v }))
+    .filter((x) => x.f && x.v > FATIGUE_FREE)
+    .sort((a, b) => b.v - a.v)
+    .slice(0, 5);
+  if (injured.length === 0 && tired.length === 0) return null;
+  return (
+    <section className="panel">
+      {injured.length > 0 && (
+        <>
+          <p className="kicker kicker-alert">Departamento médico</p>
+          <ul className="med-list">
+            {injured.map((i) => (
+              <li key={`${i.id}-${i.from}`}>
+                <span>{i.name}</span>
+                <span className="muted">volta em {shortDate(cal.year, i.to)}</span>
+              </li>
+            ))}
+          </ul>
+        </>
+      )}
+      {tired.length > 0 && (
+        <>
+          <p className="kicker" style={{ marginTop: injured.length > 0 ? 14 : 0 }}>
+            Cansaço
+          </p>
+          <ul className="tired-list">
+            {tired.map(({ f, v }) => (
+              <li key={f!.id}>
+                <span>
+                  {f!.name} <small className="muted">{f!.pos}</small>
+                </span>
+                <span className="tired-bar" aria-label={`cansaço ${v}`}>
+                  <span style={{ width: `${v}%`, background: v >= FATIGUE_REST ? 'var(--bad)' : 'var(--warn)' }} />
+                </span>
+              </li>
+            ))}
+          </ul>
+          <p className="muted">Cansado rende menos. {state.career ? 'Com o rodízio ligado, quem passa do limite descansa.' : 'O técnico faz o rodízio.'}</p>
+        </>
+      )}
+    </section>
+  );
+}
+
+export function SeasonView({ state, dispatch, onOpenOffice }: { state: GameState; dispatch: Dispatch; onOpenOffice: () => void }) {
   const cal = state.calendar!;
   const day = state.reveal ?? cal.end;
   const played = playedMatches(cal, day);
@@ -129,6 +183,9 @@ export function SeasonView({ state, dispatch }: { state: GameState; dispatch: Di
   const form = played.slice(-5).map(outcomeOf);
   const progress = Math.min(100, Math.max(0, ((day - cal.start) / (cal.end - cal.start)) * 100));
   const [showAll, setShowAll] = useState(false);
+  const [showLineup, setShowLineup] = useState(false);
+  const [open, close] = julyWindow(cal.year);
+  const windowOpen = day >= open && day <= close;
 
   return (
     <div className="tab-stack season-view">
@@ -149,6 +206,18 @@ export function SeasonView({ state, dispatch }: { state: GameState; dispatch: Di
           </p>
         )}
       </section>
+
+      {windowOpen ? (
+        <section className="panel window-banner">
+          <p className="kicker">Janela do meio do ano · até {shortDate(cal.year, close)}</p>
+          <p className="lede">Dá para contratar, vender e emprestar. Quem chegar joga a partir do próximo jogo.</p>
+          <button type="button" className="btn btn-primary" onClick={onOpenOffice}>
+            Abrir transferências
+          </button>
+        </section>
+      ) : (
+        day < open && <p className="muted">A janela do meio do ano abre em {shortDate(cal.year, open)}.</p>
+      )}
 
       {last && (
         <section className="panel">
@@ -171,6 +240,17 @@ export function SeasonView({ state, dispatch }: { state: GameState; dispatch: Di
           <p className="muted">Sem jogos marcados. Avance até o fim da temporada para ver o balanço.</p>
         )}
       </section>
+
+      <SquadStatus state={state} day={day} />
+
+      {state.career && (
+        <section className="panel">
+          <button type="button" className="link" onClick={() => setShowLineup(!showLineup)}>
+            {showLineup ? 'Fechar escalação' : `Escalação (${state.player.lineup?.ids ? 'escolhida por você' : 'automática'})`}
+          </button>
+          {showLineup && <LineupEditor key={`${day}-${JSON.stringify(state.player.lineup)}`} state={state} dispatch={dispatch} />}
+        </section>
+      )}
 
       <Tables cal={cal} day={day} clubName={state.player.name} />
 

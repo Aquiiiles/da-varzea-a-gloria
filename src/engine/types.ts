@@ -282,6 +282,8 @@ export interface PlayerClub extends Club {
   rivalHatred: number;
   /** modificador de forma só desta temporada (eventos) */
   formMod: number;
+  /** escalação escolhida (null/ausente = o técnico escolhe os melhores) */
+  lineup?: { ids: number[] | null; rotate: boolean };
 }
 
 /* ---------------------------- Efeitos (dados) ---------------------------- */
@@ -361,6 +363,7 @@ export type Action =
   | { t: 'play' } // simula a temporada
   | { t: 'advance'; to: AdvanceTo } // mostra a temporada até o próximo jogo, semana, mês ou fim
   | { t: 'job'; idx: number } // técnico: aceita uma proposta de emprego
+  | { t: 'lineup'; ids: number[] | null; rotate: boolean } // técnico: escalação (null = os melhores)
   | { t: 'next' }; // sai do resumo para a próxima temporada
 
 /* ------------------------------ Partidas ------------------------------ */
@@ -467,7 +470,7 @@ export interface SeasonResult {
 
 /* ------------------------------ Estado ------------------------------ */
 
-export type Phase = 'office' | 'summary' | 'over';
+export type Phase = 'office' | 'season' | 'summary' | 'over';
 
 export type GameMode = 'presidente' | 'tecnico';
 
@@ -556,6 +559,36 @@ export interface SeasonOffice {
   soldHomegrown: number;
 }
 
+/** Escalação escolhida a partir de um dia (vale para os jogos depois dele). */
+export interface LineupEntry {
+  day: number;
+  /** titulares escolhidos (null = o técnico escolhe os melhores) */
+  ids: number[] | null;
+  /** rodízio: poupa quem está muito cansado */
+  rotate: boolean;
+  formation: Formation;
+}
+
+/** Mudança no elenco durante a temporada (janela do meio do ano). */
+export interface RosterChange {
+  day: number;
+  add?: Footballer[];
+  remove?: number[];
+}
+
+/** Temporada em andamento: a foto do começo e as decisões tomadas no meio dela. */
+export interface LiveSeason {
+  startSquad: Footballer[];
+  changes: RosterChange[];
+  lineups: LineupEntry[];
+  /** prévia: jogos ao vivo, lesões e cansaço (recalculados a cada decisão) */
+  moments: LiveMoment[];
+  injuries: { id: number; name: string; from: number; to: number }[];
+  fatigue: { day: number; fatigue: Record<number, number> }[];
+  /** escalação de cada jogo do clube (ids dos titulares) */
+  elevens: { day: number; ids: number[] }[];
+}
+
 /** 0 = próximo jogo, 1 = uma semana, 2 = até o fim do mês, 3 = até o fim da temporada */
 export type AdvanceTo = 0 | 1 | 2 | 3;
 
@@ -582,6 +615,8 @@ export interface GameState {
   reveal?: number | null;
   /** modo técnico: carreira do técnico (ausente no modo presidente) */
   career?: CoachCareer;
+  /** temporada em andamento (entre "jogar" e o fim do calendário) */
+  live?: LiveSeason | null;
 }
 
 /** Um nome numa premiação (jogador ou técnico). */

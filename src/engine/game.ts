@@ -8,7 +8,7 @@ import { deriveRng } from './rng';
 import { PLAYER_ID, decideIntents, simulateSeason, teamStrength } from './season';
 import { MAX_ROUNDS, evaluateBid, negotiationFor } from './negotiation';
 import { replacementFor } from './aisquad';
-import type { Action, AdvanceTo, Club, DelegateArea, Footballer, Foundation, GameEvent, GameState, Opportunity, Origin, PlayerClub, SeasonCalendar, Tier } from './types';
+import type { Action, AdvanceTo, Club, DelegateArea, Footballer, Foundation, GameEvent, GameState, Opportunity, Origin, PlayerClub, SeasonCalendar, SeasonResult, Tier } from './types';
 import { runAssistant } from './assistant';
 import { BUSINESSES } from '../data/club';
 import { coachAccepts, coachCandidates, coachRequest, coachSeverance, expectedRank, seasonObjectives, startingCoach } from './clubops';
@@ -16,7 +16,7 @@ import { ActionError } from './util';
 export { ActionError };
 import { effectsCashCost, loanFor, releaseCost, renewalOffer, seatsFor, sellPrice } from './office';
 import { applyNamePack, type NamePack } from './namepack';
-import { dayToDate } from './calendar';
+import { dayToDate, julyWindow } from './calendar';
 import { CAREER_END_AGE, CAREER_START_AGE, careerWindow, refundBudget, settleCareer, spendBudget, takeOver, wageCheck } from './career';
 import { varzeaClubName } from './names';
 import { PALETTE } from '../data/names';
@@ -290,19 +290,29 @@ export function applyMut(state: GameState, a: Action): void {
   const p = state.player;
   const o = state.office;
   if (a.t === 'advance') {
-    // a temporada já foi simulada; avançar só mostra mais dias do calendário
-    if (state.reveal == null || !state.calendar) fail('não há temporada em andamento');
-    state.reveal = advanceTarget(state.calendar, state.reveal, a.to);
+    // a temporada já foi simulada (prévia); avançar mostra mais dias e, no fim, fecha a temporada de verdade
+    if (state.phase !== 'season' || state.reveal == null || !state.calendar) fail('não há temporada em andamento');
+    const target = advanceTarget(state.calendar, state.reveal, a.to);
+    if (target === null) finishSeason(state);
+    else state.reveal = target;
     return;
   }
   if (state.phase === 'over') fail('a run acabou');
   if (a.t === 'next') {
+    if (state.phase === 'season') {
+      finishSeason(state);
+      if ((state.phase as GameState['phase']) === 'over') return;
+    }
     if (state.phase !== 'summary') fail('não há resumo aberto');
     state.reveal = null;
     state.calendar = null;
     state.season++;
     state.phase = 'office';
     startSeason(state);
+    return;
+  }
+  if (state.phase === 'season') {
+    midSeason(state, a);
     return;
   }
   if (state.phase !== 'office') fail('o escritório está fechado');
@@ -312,6 +322,11 @@ export function applyMut(state: GameState, a: Action): void {
   if (career && career.unemployed && a.t !== 'job' && a.t !== 'formation') fail('você está sem clube: aceite uma proposta');
 
   switch (a.t) {
+    case 'lineup': {
+      if (!career) fail('a escalação é com o técnico');
+      setLineup(p, a);
+      return;
+    }
     case 'job': {
       if (!career) fail('só no modo técnico');
       const offer = career.offers[a.idx];
@@ -609,8 +624,121 @@ export function applyMut(state: GameState, a: Action): void {
       if (career) boardTurn(state);
       const areas = (Object.keys(p.delegate) as DelegateArea[]).filter((k) => p.delegate[k]);
       if (areas.length > 0) runAssistant(state, applyMut, areas);
-      const result = simulateSeason(state);
+      // a temporada começa: foto do elenco e prévia (o resultado de verdade sai no fim do calendário)
+      state.live = {
+        startSquad: structuredClone(p.squad),
+        changes: [],
+        lineups: [{ day: -1, ids: p.lineup?.ids ?? null, rotate: p.lineup?.rotate ?? true, formation: p.coach.formation }],
+        moments: [],
+        injuries: [],
+        fatigue: [],
+        elevens: [],
+      };
+      preview(state);
       state.reveal = state.calendar ? state.calendar.start : null;
+      state.phase = 'season';
+      return;
+    }
+  }
+}
+
+/** Valida e guarda a escalação escolhida. */
+function setLineup(p: PlayerClub, a: { ids: number[] | null; rotate: boolean }): void {
+  if (a.ids) {
+    const ids = [...new Set(a.ids)];
+    if (ids.length !== a.ids.length || ids.length > 11) fail('escalação inválida');
+    if (!ids.every((id) => p.squad.some((f) => f.id === id))) fail('só jogadores do elenco podem ser escalados');
+  }
+  p.lineup = { ids: a.ids ? a.ids.slice() : null, rotate: a.rotate };
+}
+
+/**
+ * Última prévia calculada. No fim da temporada, se nada mudou desde ela (mesmas decisões),
+ * o resultado é reaproveitado em vez de simular de novo. É só um atalho: sem ele o resultado é o mesmo.
+ */
+let lastPreview: { key: string; clone: GameState; result: SeasonResult } | null = null;
+
+/** Impressão digital de tudo que entra na simulação da temporada em andamento. */
+function previewKey(state: GameState): string {
+  const p = state.player;
+  return JSON.stringify([
+    state.seed, state.season, state.history.length, p.cash, p.squad.map((f) => f.id), p.coach, p.lineup ?? null,
+    state.live?.lineups, state.live?.changes.map((c) => [c.day, c.remove, c.add?.map((f) => f.id)]),
+  ]);
+}
+
+/** Prévia da temporada: simula numa cópia e guarda calendário, jogos ao vivo, lesões e cansaço. */
+function preview(state: GameState): void {
+  const clone = structuredClone(state);
+  const r = simulateSeason(clone);
+  lastPreview = { key: previewKey(state), clone, result: r };
+  state.calendar = clone.calendar;
+  const live = state.live!;
+  live.moments = r.moments;
+  live.injuries = clone.live!.injuries;
+  live.fatigue = clone.live!.fatigue;
+  live.elevens = clone.live!.elevens;
+}
+
+/** Ações que podem acontecer com a temporada em andamento (na janela do meio do ano). */
+const WINDOW_ACTIONS = new Set<Action['t']>(['buy', 'sell', 'bid', 'release', 'promote', 'lend', 'offer']);
+
+/** Decisões no meio da temporada: valem para os jogos depois do dia atual; a prévia é refeita. */
+function midSeason(state: GameState, a: Action): void {
+  const p = state.player;
+  const live = state.live;
+  const cal = state.calendar;
+  if (!live || !cal || state.reveal == null) fail('não há temporada em andamento');
+  const day = state.reveal;
+  if (a.t === 'lineup' || a.t === 'formation') {
+    if (!state.career) fail('a escalação é com o técnico');
+    if (a.t === 'lineup') setLineup(p, a);
+    else {
+      if (p.coach.formation === a.f) fail('já é o esquema atual');
+      p.coach.formation = a.f;
+    }
+    live.lineups.push({ day, ids: p.lineup?.ids ?? null, rotate: p.lineup?.rotate ?? true, formation: p.coach.formation });
+    preview(state);
+    return;
+  }
+  if (!WINDOW_ACTIONS.has(a.t)) fail('com a temporada em andamento, só escalação e, em julho, transferências');
+  const [open, close] = julyWindow(cal.year);
+  if (day < open || day > close) fail('a janela do meio do ano vai de 1º a 31 de julho');
+  const before = new Map(p.squad.map((f) => [f.id, f]));
+  state.phase = 'office';
+  try {
+    applyMut(state, a);
+  } finally {
+    state.phase = 'season';
+  }
+  const after = new Set(p.squad.map((f) => f.id));
+  const remove = [...before.keys()].filter((id) => !after.has(id));
+  const add = p.squad.filter((f) => !before.has(f.id)).map((f) => structuredClone(f));
+  if (remove.length > 0 || add.length > 0) live.changes.push({ day, add, remove });
+  if (p.lineup?.ids) p.lineup.ids = p.lineup.ids.filter((id) => after.has(id));
+  preview(state);
+}
+
+/** Fecha a temporada de verdade (mesmas decisões da prévia): finanças, evolução, carreira, histórico. */
+function finishSeason(state: GameState): void {
+  {
+    {
+      let result: SeasonResult;
+      const cached = lastPreview && lastPreview.key === previewKey(state) ? lastPreview : null;
+      lastPreview = null;
+      if (cached) {
+        // mesma simulação da prévia: adota o estado já simulado (só as ações e o dia mostrado são deste estado)
+        const actions = state.actions;
+        Object.assign(state, cached.clone);
+        state.actions = actions;
+        result = cached.result;
+      } else {
+        result = simulateSeason(state);
+      }
+      state.reveal = null;
+      state.live = null;
+      // depois de adotar a prévia, a carreira é a do estado simulado
+      const career = state.career;
       if (career) {
         result.coachNews = settleCareer(state, result);
         result.headlines.push(...result.coachNews);
@@ -670,6 +798,9 @@ export function advanceTarget(cal: SeasonCalendar, reveal: number, to: AdvanceTo
   } else {
     target = cal.end;
   }
+  // a janela do meio do ano não passa batido: avançar por jogo, semana ou mês para no dia em que ela abre
+  const [open] = julyWindow(cal.year);
+  if (to !== 3 && reveal < open && target > open) target = open;
   return target >= cal.end ? null : target;
 }
 

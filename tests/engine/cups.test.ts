@@ -117,7 +117,7 @@ describe('técnico, comércio, delegação, torcida', () => {
     const s0 = setup((s) => (s.player.cash = 1e5));
     const s1 = apply(s0, { t: 'delegate', area: 'mercado' });
     expect(s1.player.delegate.mercado).toBe(true);
-    const s2 = apply(s1.office.event ? apply(s1, { t: 'event', choice: 0 }) : s1, { t: 'play' });
+    const s2 = apply(apply(s1.office.event ? apply(s1, { t: 'event', choice: 0 }) : s1, { t: 'play' }), { t: 'advance', to: 3 });
     // o diretor de futebol comprou alguém (há dinheiro de sobra) e não mexeu no estádio
     expect(s2.history[0].signings).toBeGreaterThan(0);
     expect(s2.player.capacityBuilding).toBe(0);

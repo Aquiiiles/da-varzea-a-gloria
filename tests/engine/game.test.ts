@@ -103,6 +103,7 @@ describe('fluxo da run', () => {
     for (let i = 0; i < 12 && s.phase !== 'over'; i++) {
       s = apply(s, { t: 'auto' });
       s = apply(s, { t: 'play' });
+      s = apply(s, { t: 'advance', to: 3 });
       expect(count(s, (c) => c.national === 1)).toBe(SIZES.serieA);
       expect(count(s, (c) => c.national === 2)).toBe(SIZES.serieB);
       expect(count(s, (c) => c.national === 3)).toBe(SIZES.serieC);
@@ -120,6 +121,10 @@ describe('fluxo da run', () => {
     expect(canApply(s, { t: 'play' })).toBe(false);
     s = apply(s, { t: 'event', choice: 0 });
     s = apply(s, { t: 'play' });
+    expect(s.phase).toBe('season');
+    // com a temporada em andamento, fora de julho, nada de transferências
+    expect(tryApply(s, { t: 'buy', idx: 0 })).toBeNull();
+    s = apply(s, { t: 'advance', to: 3 });
     expect(s.phase).toBe('summary');
     expect(tryApply(s, { t: 'buy', idx: 0 })).toBeNull();
   });

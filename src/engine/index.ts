@@ -25,3 +25,6 @@ export { advanceTarget } from './game';
 export { myAwards } from './awards';
 export { BOARD_INFO, CAREER_END_AGE, CAREER_START_AGE, isCoachMode, starsFor, tierForReputation } from './career';
 export { COACH_LEVELS } from './score';
+export { injuredAt, fatigueAt } from './calendarView';
+export { julyWindow } from './calendar';
+export { FATIGUE_FREE, FATIGUE_REST } from './squadplan';

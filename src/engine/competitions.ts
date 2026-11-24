@@ -73,11 +73,21 @@ function shootout(rng: Rng, hs: number, as: number): [number, number] {
  * Com `advantage`, empate no agregado classifica o de melhor campanha (sem pênaltis), como nos mata-matas regionais.
  * `rng` pode ser um só (testes) ou um por jogo.
  */
-export function twoLegs(rng: Rng | [Rng, Rng], ctx: LeagueContext, better: string, other: string, advantage = false): [MatchResult, MatchResult] {
+export function twoLegs(
+  rng: Rng | [Rng, Rng],
+  ctx: LeagueContext,
+  better: string,
+  other: string,
+  advantage = false,
+  /** chamado antes de cada jogo (o calendário avisa a data) */
+  before?: (leg: 0 | 1) => void,
+): [MatchResult, MatchResult] {
   const [r1, r2] = Array.isArray(rng) ? rng : [rng, rng];
   const bonus = (id: string) => ctx.knockoutBonus?.(id) ?? 0;
   const s = (a: string, b: string) => ctx.strength(a, b) + bonus(a);
+  before?.(0);
   const m1 = playMatch(r1, other, better, s(other, better), s(better, other), ctx.homeAdv(other), ctx.goalMult?.(other, better));
+  before?.(1);
   const m2 = playMatch(r2, better, other, s(better, other), s(other, better), ctx.homeAdv(better), ctx.goalMult?.(better, other));
   const aggBetter = m1.ag + m2.hg;
   const aggOther = m1.hg + m2.ag;
@@ -103,9 +113,10 @@ export function stamp<T extends MatchResult>(m: T, day: number): T {
 /** Ida e volta com sorteio próprio de cada jogo e datas (rodadas `k1` e `k2` de `total`). */
 export function tie(env: CompEnv, better: string, other: string, advantage: boolean, k1: number, k2: number, total: number): [MatchResult, MatchResult] {
   const rngs: [Rng, Rng] = [env.matchRng(), env.matchRng()];
-  const legs = twoLegs(rngs, env.ctx, better, other, advantage);
-  stamp(legs[0], env.dayOf(k1, total));
-  stamp(legs[1], env.dayOf(k2, total));
+  const days = [env.dayOf(k1, total), env.dayOf(k2, total)];
+  const legs = twoLegs(rngs, env.ctx, better, other, advantage, (leg) => env.dayOf(leg === 0 ? k1 : k2, total));
+  stamp(legs[0], days[0]);
+  stamp(legs[1], days[1]);
   env.detail?.(legs[0], rngs[0]);
   env.detail?.(legs[1], rngs[1]);
   return legs;
@@ -114,7 +125,8 @@ export function tie(env: CompEnv, better: string, other: string, advantage: bool
 /** Jogo eliminatório único (prorrogação e pênaltis) com data. */
 export function single(env: CompEnv, h: string, a: string, neutral: boolean, k: number, total: number): MatchResult {
   const rng = env.matchRng();
-  const m = stamp(knockout(rng, env.ctx, h, a, neutral), env.dayOf(k, total));
+  const day = env.dayOf(k, total);
+  const m = stamp(knockout(rng, env.ctx, h, a, neutral), day);
   env.detail?.(m, rng);
   return m;
 }

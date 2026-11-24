@@ -546,3 +546,20 @@ h3 { font: 700 14px/1.2 var(--font-display); text-transform: uppercase; letter-s
 .career-stints li span { display: flex; flex-direction: column; }
 .career-stints small { color: var(--muted); font-size: 12px; }
 .stint-color { width: 10px; height: 28px; border-radius: 3px; flex: none; }
+
+/* escalação, departamento médico e cansaço */
+.lineup-group { margin-top: 10px; }
+.lineup-pos { margin: 0 0 4px; font: 700 12px var(--font-display); letter-spacing: 0.08em; text-transform: uppercase; color: var(--accent); }
+.lineup-row { display: grid; grid-template-columns: 24px 1fr auto auto; gap: 8px; align-items: center; padding: 7px 4px; border-bottom: 1px solid #1c2531; font-size: 14px; cursor: pointer; }
+.lineup-row.is-on { background: #ffd23f14; }
+.lineup-row.is-out { opacity: 0.55; }
+.lineup-row input { width: 18px; height: 18px; }
+.lineup-name small { color: var(--muted); font-size: 11px; }
+.lineup-rotate { display: flex; gap: 8px; align-items: center; margin-top: 12px; font-size: 14px; }
+.tag-out { font-style: normal; font-size: 11px; color: var(--bad); }
+.tag-tired { font-style: normal; font-size: 11px; color: var(--warn); }
+.med-list, .tired-list { list-style: none; margin: 4px 0 0; padding: 0; font-size: 14px; }
+.med-list li, .tired-list li { display: flex; justify-content: space-between; gap: 8px; padding: 6px 0; border-bottom: 1px solid #1c2531; }
+.tired-bar { flex: 0 0 90px; height: 8px; background: var(--bg); border-radius: 99px; overflow: hidden; align-self: center; }
+.tired-bar span { display: block; height: 100%; }
+.window-banner { border-color: var(--good); }

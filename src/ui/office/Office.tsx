@@ -48,7 +48,7 @@ export interface TabProps {
   goTo: (t: TabId) => void;
 }
 
-export function Office({ state, dispatch, onFast }: { state: GameState; dispatch: Dispatch; onFast: () => void }) {
+export function Office({ state, dispatch, onFast, onBack }: { state: GameState; dispatch: Dispatch; onFast: () => void; onBack?: () => void }) {
   const [rawTab, setTab] = useState<TabId>('painel');
   const p = state.player;
   const o = state.office;
@@ -100,21 +100,29 @@ export function Office({ state, dispatch, onFast }: { state: GameState; dispatch
         {tab === 'trofeus' && <TrophyRoom state={state} />}
       </div>
 
-      <div className="playbar">
-        <button type="button" className="btn" onClick={() => dispatch({ t: 'auto' })} title={coach ? 'O auxiliar faz contratações, renovações e cuida da base' : 'O assistente faz contratações, renovações, obras e responde o evento'}>
-          Assistente decide
-        </button>
-        <button type="button" className="btn" onClick={onFast} title="O assistente gere e joga até algo decisivo">
-          Rápido ⏩
-        </button>
-        <button
-          type="button"
-          className="btn btn-primary"
-          onClick={() => (eventPending ? setTab('painel') : dispatch({ t: 'play' }))}
-        >
-          {eventPending ? 'Responda o evento' : `Jogar ${START_YEAR + state.season - 1} ▶`}
-        </button>
-      </div>
+      {onBack ? (
+        <div className="playbar">
+          <button type="button" className="btn btn-primary" onClick={onBack}>
+            Voltar à temporada
+          </button>
+        </div>
+      ) : (
+        <div className="playbar">
+          <button type="button" className="btn" onClick={() => dispatch({ t: 'auto' })} title={coach ? 'O auxiliar faz contratações, renovações e cuida da base' : 'O assistente faz contratações, renovações, obras e responde o evento'}>
+            Assistente decide
+          </button>
+          <button type="button" className="btn" onClick={onFast} title="O assistente gere e joga até algo decisivo">
+            Rápido ⏩
+          </button>
+          <button
+            type="button"
+            className="btn btn-primary"
+            onClick={() => (eventPending ? setTab('painel') : dispatch({ t: 'play' }))}
+          >
+            {eventPending ? 'Responda o evento' : `Jogar ${START_YEAR + state.season - 1} ▶`}
+          </button>
+        </div>
+      )}
     </div>
   );
 }

@@ -1,5 +1,6 @@
 import { applyResult, emptyRow, sortTable } from './league';
-import type { CalendarMatch, CalendarStage, SeasonCalendar, TableRow } from './types';
+import { FATIGUE_RECOVERY } from './squadplan';
+import type { CalendarMatch, CalendarStage, LiveSeason, SeasonCalendar, TableRow } from './types';
 
 /** Jogos do jogador já mostrados (até o dia `day`). */
 export function playedMatches(cal: SeasonCalendar, day: number): CalendarMatch[] {
@@ -44,4 +45,20 @@ export function outcomeOf(m: CalendarMatch): 'V' | 'E' | 'D' {
   if (m.advanced === true) return 'V';
   if (m.advanced === false) return 'D';
   return 'E';
+}
+
+/** Lesionados no dia `day` (com a data de volta). */
+export function injuredAt(live: LiveSeason, day: number): LiveSeason['injuries'] {
+  return live.injuries.filter((i) => i.from <= day && i.to > day);
+}
+
+/** Cansaço de cada jogador no dia `day` (último jogo até ali, menos a recuperação dos dias seguintes). */
+export function fatigueAt(live: LiveSeason, day: number): Record<number, number> {
+  let last: LiveSeason['fatigue'][number] | null = null;
+  for (const f of live.fatigue) if (f.day <= day) last = f;
+  if (!last) return {};
+  const rest = (day - last.day) * FATIGUE_RECOVERY;
+  const out: Record<number, number> = {};
+  for (const [id, v] of Object.entries(last.fatigue)) out[Number(id)] = Math.max(0, Math.round(v - rest));
+  return out;
 }

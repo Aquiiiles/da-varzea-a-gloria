@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import {
+  offerOpen,
   BOARD_INFO, CAREER_END_AGE, coachRanking, MAX_SEASONS, START_YEAR, TIERS, payroll, projectFinance, stadiumAllows, teamStrength, type GameState, type Tier,
 } from '../../engine';
 import { BoardTab, CareerTab, Unemployed } from './CareerTab';
@@ -77,7 +78,7 @@ export function Office({ state, dispatch, onFast, onBack }: { state: GameState; 
             <span className="tab-label">{t.label}</span>
             {t.id === 'painel' && eventPending && <span className="dot" aria-label="evento pendente" />}
             {t.id === 'base' && p.youth.length > 0 && <span className="count">{p.youth.length}</span>}
-            {t.id === 'elenco' && o.offers.some(Boolean) && <span className="dot dot-offer" aria-label="propostas recebidas" />}
+            {t.id === 'elenco' && o.offers.some((x) => x && offerOpen(state, x)) && <span className="dot dot-offer" aria-label="propostas recebidas" />}
             {t.id === 'comissao' && o.request && <span className="dot dot-offer" aria-label="pedido do técnico" />}
             {t.id === 'painel' && coach && coach.offers.length > 0 && <span className="dot dot-offer" aria-label="propostas de emprego" />}
           </button>

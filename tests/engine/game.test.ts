@@ -4,6 +4,7 @@ import { simulateSeason, PLAYER_ID } from '../../src/engine/season';
 import { MAX_SEASONS, TIERS, SIZES, SQUAD_MIN, YOUTH_AGE_LIMIT } from '../../src/data/pyramid';
 import type { Action, Footballer, GameState } from '../../src/engine/types';
 import { FOUNDATION, mixed, playRun } from './helpers';
+import { agentFee } from '../../src/engine/market';
 
 describe('determinismo', () => {
   it('mesma seed + mesmas ações = mesma run (estado idêntico)', () => {
@@ -82,7 +83,7 @@ describe('fluxo da run', () => {
     expect(s.phase).toBe('office');
     expect(s.player.squad.length).toBeGreaterThanOrEqual(SQUAD_MIN);
     expect(new Set(s.player.squad.map((f) => f.name)).size).toBe(s.player.squad.length);
-    expect(s.office.market).toHaveLength(12);
+    expect(s.office.market.filter((l) => l && !l.kind && !l.july)).toHaveLength(12);
     expect(new Set(s.office.market.map((l) => l!.profile))).toEqual(new Set(['promessa', 'pronto', 'veterano', 'livre']));
     expect(s.office.opportunities.length).toBeGreaterThanOrEqual(1);
   });
@@ -149,7 +150,8 @@ describe('mercado e elenco', () => {
     s.player.cash = 1e6;
     const after = apply(s, { t: 'buy', idx });
     expect(after.player.squad.length).toBe(s.player.squad.length + 1);
-    expect(after.player.cash).toBe(1e6 - s.office.market[idx]!.fee);
+    const l = s.office.market[idx]!;
+    expect(after.player.cash).toBe(1e6 - l.fee - agentFee(l.fee, l.player.wage));
     expect(after.office.market[idx]).toBeNull();
   });
 

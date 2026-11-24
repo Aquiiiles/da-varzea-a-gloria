@@ -992,6 +992,15 @@ function evolveClub(state: GameState, result: SeasonResult): void {
   const stay: Footballer[] = [];
   for (const f of p.squad) {
     develop(rng, f, { ct: p.facilities.ct + (p.coach.style === 'formador' && f.age <= 23 ? 2 : 0), fitness: p.staff.fitness, inEleven: ids.has(f.id) });
+    if (f.loan) {
+      // emprestado: volta para o clube dono, com o salário de lá
+      const owner = state.clubs.find((c) => c.id === f.loan!.clubId);
+      const back: Footballer = { ...f, wage: f.loan.wage, contract: Math.max(1, f.contract + 1) };
+      delete back.loan;
+      if (owner) owner.squad.push(back);
+      deps.push(`${f.name} volta para o ${f.loan.club} no fim do empréstimo`);
+      continue;
+    }
     f.contract--;
     // o fim da temporada só cumpre o que já estava visível na janela (sem sorteio escondido)
     const intent = f.intent;

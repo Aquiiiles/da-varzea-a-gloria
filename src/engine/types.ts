@@ -78,6 +78,10 @@ export interface Footballer {
   leaving?: boolean;
   /** emprestado a partir da base (volta para a base) */
   loanFromYouth?: boolean;
+  /** emprestado por um clube da IA: volta para lá no fim da temporada */
+  loan?: { clubId: string; club: string; wage: number };
+  /** veio do exterior (craque estrangeiro) */
+  foreign?: string;
   /** fora a temporada inteira por lesão grave (fica em onLoan, o clube paga o salário, não evolui) */
   recovering?: boolean;
   /** intenção para o fim da temporada (decidida na abertura da janela, visível para o presidente) */
@@ -145,6 +149,12 @@ export interface Listing {
   /** clube vendedor (texto) */
   from: string;
   profile: ListingProfile;
+  /** empréstimo de um clube maior, contratação do exterior */
+  kind?: 'emprestimo' | 'estrangeiro';
+  /** só chega na janela de julho */
+  july?: boolean;
+  /** clube da IA dono do jogador (empréstimo) */
+  clubId?: string;
 }
 
 /** Proposta de um clube da IA por um jogador seu. */
@@ -159,6 +169,8 @@ export interface Offer {
   final?: boolean;
   /** resposta do clube na negociação */
   message?: string;
+  /** proposta de última hora: chega nos últimos dias da janela de julho */
+  july?: boolean;
 }
 
 /* ------------------------------ Clube do jogador ------------------------------ */

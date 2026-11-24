@@ -1,6 +1,7 @@
 import { apply, canApply, newGame } from '../../src/engine/game';
 import { decodeAction, encodeAction } from '../../src/engine/codec';
 import type { Foundation, GameState } from '../../src/engine/types';
+import { deadlineDays } from '../../src/engine/market';
 
 const COACH: Foundation = { name: 'Professor Zeca', colors: ['#c8102e', '#ffffff'], origin: 'pub', mode: 'tecnico', style: 'motivador' };
 
@@ -196,5 +197,98 @@ describe('clube, torcida e evento extraordinário', () => {
     }
     expect(events).toBeGreaterThan(0);
     expect(events / seasons).toBeLessThan(0.35);
+  });
+});
+
+describe('mercado mais vivo', () => {
+  const PUB = { name: 'Unidos', colors: ['#c8102e', '#ffffff'] as [string, string], origin: 'pub' as const };
+
+  it('comissão de empresário: 6% da taxa ou 30% do salário de quem vem de graça', async () => {
+    const { agentFee } = await import('../../src/engine/market');
+    expect(agentFee(1000, 50)).toBe(60);
+    expect(agentFee(0, 50)).toBe(15);
+  });
+
+  it('chegadas de julho: só dá para contratar na janela do meio do ano', async () => {
+    const v = newGame(2, PUB);
+    expect(v.office.market.some((l) => l?.july)).toBe(false); // várzea acaba antes de julho
+    const { julyListings } = await import('../../src/engine/market');
+    const { deriveRng } = await import('../../src/engine/rng');
+    const s = structuredClone(v);
+    let id = 900000;
+    s.office.market.push(...julyListings(deriveRng(1, 1, 'j'), 4, 2, () => id++, 1, new Set()));
+    const idx = s.office.market.findIndex((l) => l?.july);
+    s.player.cash = 1e6;
+    expect(canApply(s, { t: 'buy', idx })).toBe(false);
+  });
+
+  it('melhor jogador de um clube é inegociável; a multa rescisória destrava', async () => {
+    const { clubAsking, playerAsking } = await import('../../src/engine/negotiation');
+    const { releaseClause } = await import('../../src/engine/negotiation');
+    const s = newGame(3, PUB);
+    s.player.cash = 1e7;
+    const club = s.clubs.find((c) => c.stateDiv === 'V')!;
+    const best = club.squad.slice().sort((a, b) => b.ovr - a.ovr || a.id - b.id)[0];
+    const wage = Math.ceil(playerAsking(s, club, best) * 10) / 10;
+    const no = apply(s, { t: 'bid', club: club.id, player: best.id, fee: clubAsking(s, club, best), wage, years: 2 });
+    expect(no.office.negotiations[0].status).toBe('recusada');
+    expect(no.office.negotiations[0].message).toContain('inegociável');
+    const yes = apply(s, { t: 'bid', club: club.id, player: best.id, fee: releaseClause(s, club, best), wage, years: 2 });
+    expect(yes.office.negotiations[0].status).toBe('aceita');
+    expect(yes.player.squad.some((f) => f.id === best.id)).toBe(true);
+  });
+
+  it('empréstimo de clube maior: metade do salário, não pode vender, volta ao dono no fim da temporada', () => {
+    let found: GameState | null = null;
+    let idx = -1;
+    for (let seed = 1; seed < 30 && !found; seed++) {
+      const s = newGame(seed, PUB);
+      idx = s.office.market.findIndex((l) => l?.kind === 'emprestimo');
+      if (idx >= 0) found = s;
+    }
+    expect(found).toBeTruthy();
+    const s = found!;
+    s.player.cash = 1e6;
+    const l = s.office.market[idx]!;
+    const t = apply(s, { t: 'buy', idx });
+    const f = t.player.squad.find((x) => x.id === l.player.id)!;
+    expect(f.loan?.clubId).toBe(l.clubId);
+    expect(f.wage).toBeLessThan(f.loan!.wage);
+    expect(t.clubs.find((c) => c.id === l.clubId)!.squad.some((x) => x.id === f.id)).toBe(false);
+    expect(canApply(t, { t: 'sell', id: f.id })).toBe(false);
+    const after = apply(apply(t, { t: 'play' }), { t: 'next' });
+    expect(after.player.squad.some((x) => x.id === f.id)).toBe(false);
+    const back = after.clubs.find((c) => c.id === l.clubId)!.squad.find((x) => x.id === f.id);
+    expect(back?.loan).toBeUndefined();
+    expect(back?.wage).toBe(f.loan!.wage);
+  });
+
+  it('craques estrangeiros só nas Séries A e B', async () => {
+    const { foreignListings } = await import('../../src/engine/market');
+    const { deriveRng } = await import('../../src/engine/rng');
+    let id = 1;
+    expect(foreignListings(deriveRng(1, 1, 'x'), 3, 2, () => id++, 1, new Set())).toHaveLength(0);
+    const a = foreignListings(deriveRng(1, 1, 'x'), 1, 2, () => id++, 1, new Set());
+    expect(a.length).toBeGreaterThan(0);
+    expect(a.every((l) => l.kind === 'estrangeiro' && l.player.foreign)).toBe(true);
+  });
+
+  it('proposta de última hora: escondida até o fim de julho e o avanço para nela', () => {
+    {
+      let s = structuredClone(newGame(5, PUB));
+      if (s.office.event) s = apply(s, { t: 'event', choice: 0 });
+      const f = s.player.squad[0];
+      s.office.offers.push({ playerId: f.id, fee: 50, club: s.clubs[0].name, clubTier: s.clubs[0].tier, max: 60, july: true });
+      const k = s.office.offers.length - 1;
+      expect(canApply(s, { t: 'offer', idx: k })).toBe(false);
+      s = apply(s, { t: 'play' });
+      const [from] = deadlineDays(s.calendar!.year);
+      for (let i = 0; i < 20 && s.reveal! < from; i++) {
+        expect(canApply(s, { t: 'offer', idx: k })).toBe(false);
+        s = apply(s, { t: 'advance', to: 2 });
+      }
+      expect(s.reveal).toBe(from);
+      expect(canApply(s, { t: 'offer', idx: k })).toBe(true);
+    }
   });
 });

@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import {
+  offerOpen,
   LOAN_AGE_LIMIT, MAX_LOANS, SQUAD_MAX, SQUAD_MIN, bestEleven, marketValue, payroll, releaseCost, renewalOffer, sellPrice, squadStrength,
   type ContractIntent, type Position,
 } from '../../engine';
@@ -22,7 +23,7 @@ export function SquadTab({ state, dispatch }: TabProps) {
   const [open, setOpen] = useState<number | null>(null);
   const xi = bestEleven(p.squad).ids;
   const canLose = p.squad.length > SQUAD_MIN;
-  const offerFor = new Map(state.office.offers.flatMap((of, idx) => (of ? [[of.playerId, { ...of, idx }] as const] : [])));
+  const offerFor = new Map(state.office.offers.flatMap((of, idx) => (of && offerOpen(state, of) ? [[of.playerId, { ...of, idx }] as const] : [])));
 
   return (
     <div className="tab-stack">

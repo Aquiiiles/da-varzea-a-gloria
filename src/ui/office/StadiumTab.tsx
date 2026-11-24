@@ -1,4 +1,5 @@
 import {
+  ARENA,
   BUSINESSES, expectedHomeGames, FACILITY_COST, SEAT_PACKS, STADIUM_FINANCE, STADIUM_INSTALLMENT_NAME, TIERS, attendance, commerce, seatsFor, stadiumAllows, type Facility, type Tier,
 } from '../../engine';
 import { money, num } from '../format';
@@ -153,6 +154,34 @@ export function StadiumTab({ state, dispatch }: TabProps) {
                   </button>
                 ) : (
                   <span className="done">Máximo</span>
+                )}
+              </li>
+            );
+          })}
+        </ul>
+      </Section>
+      <Section
+        title="Grandes projetos"
+        note={p.tier > 2 ? 'Projetos de clube grande: liberados a partir da Série B.' : 'Investimentos pesados para quem tem caixa: rendem por muitas temporadas.'}
+      >
+        <ul className="facilities">
+          {(['arena', 'multiuso', 'naming'] as const).map((k) => {
+            const info = ARENA[k];
+            const done = k === 'arena' ? !!p.arena : k === 'multiuso' ? p.arena === 2 : !!p.naming;
+            const locked = p.tier > 2 || (k === 'multiuso' && p.arena !== 1) || (k === 'naming' && !p.arena);
+            const cost = 'cost' in info ? info.cost : 0;
+            return (
+              <li key={k} className="facility">
+                <div>
+                  <strong>{info.label}</strong>
+                  <p>{info.text}</p>
+                </div>
+                {done ? (
+                  <span className="done">Feito</span>
+                ) : (
+                  <button type="button" className="btn btn-small" disabled={locked || p.cash < cost} onClick={() => dispatch({ t: 'project', which: k })}>
+                    {cost > 0 ? money(cost) : 'Vender o nome'}
+                  </button>
                 )}
               </li>
             );

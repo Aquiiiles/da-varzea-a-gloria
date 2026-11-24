@@ -5,6 +5,7 @@ import { scaled } from './effects';
 import { payroll } from './finance';
 import { bestEleven, marketValue, squadStrength, tryoutCost } from './footballers';
 import { effectsCashCost, projectFinance, seatsFor } from './office';
+import { ARENA } from './finance';
 import { ActionError } from './util';
 import type { Action, DelegateArea, Effect, Footballer, GameState, Tier } from './types';
 
@@ -77,7 +78,7 @@ export function runAssistant(state: GameState, apply: Apply, areas?: DelegateAre
       else if (y.age >= 18 && y.potHi < mean - 2) tryDo({ t: 'cut', id: y.id });
     }
     for (const y of p.youth.slice()) {
-      if (p.onLoan.length >= MAX_LOANS) break;
+      if (p.onLoan.filter((x) => !x.recovering).length >= MAX_LOANS) break;
       if (y.age >= 17 && y.ovr < mean - 8 && y.potHi >= mean) tryDo({ t: 'lend', id: y.id });
     }
   }
@@ -96,6 +97,12 @@ export function runAssistant(state: GameState, apply: Apply, areas?: DelegateAre
       const { cost } = seatsFor(p.capacity + p.capacityBuilding, 0);
       if (cost <= spare()) tryDo({ t: 'seats', size: 0 });
     }
+  }
+  // grandes projetos com o dinheiro que sobra (a diretoria faz isso sozinha no modo técnico)
+  if (on.has('estadio') && p.tier <= 2) {
+    if (!p.arena && p.cash > ARENA.arena.cost * 2.5) tryDo({ t: 'project', which: 'arena' });
+    else if (p.arena === 1 && p.cash > ARENA.multiuso.cost * 2.5) tryDo({ t: 'project', which: 'multiuso' });
+    if (p.arena && !p.naming && p.cash < ARENA.multiuso.cost) tryDo({ t: 'project', which: 'naming' });
   }
 
   if (on.has('mercado')) {

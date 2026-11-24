@@ -10,7 +10,7 @@ export const TICKET_POLICY = [
 ] as const;
 
 export function payroll(p: PlayerClub): number {
-  return p.squad.reduce((s, f) => s + f.wage, 0) + p.youth.reduce((s, f) => s + f.wage, 0);
+  return p.squad.reduce((s, f) => s + f.wage, 0) + p.youth.reduce((s, f) => s + f.wage, 0) + p.onLoan.reduce((s, f) => s + (f.recovering ? f.wage : 0), 0);
 }
 
 export function staffCost(p: PlayerClub): number {
@@ -43,10 +43,26 @@ export function masterSponsor(p: PlayerClub, tier: Tier): number {
  * Finanças de uma temporada. `position`/`size` dão a premiação por colocação
  * (use a posição esperada para projeções).
  */
+/** Sócios-torcedores: uma fatia da torcida que cresce com o humor. */
+export function socios(p: PlayerClub): number {
+  return Math.round(p.fans * (0.03 + p.mood / 1000));
+}
+
+/** Arena: ingresso mais caro (camarotes e conforto) e, na multiuso, receita de shows e eventos. */
+export const ARENA = {
+  arena: { cost: 120000, seats: 15000, ticket: 1.2, label: 'Arena moderna', text: 'Estádio novo com camarotes: +15 mil lugares e ingresso 20% mais rentável.' },
+  multiuso: { cost: 300000, seats: 10000, ticket: 1.35, label: 'Arena multiuso', text: 'Cobertura e estrutura para shows: +10 mil lugares, ingresso 35% mais rentável e receita de eventos o ano todo.' },
+  naming: { perSeason: 12000, seasons: 10, label: 'Naming rights', text: 'Vende o nome da arena para uma empresa: R$ 12 mi por temporada durante 10 temporadas.' },
+} as const;
+
 export function seasonFinance(p: PlayerClub, tier: Tier, homeGames: number, position: number, size: number, prizes = 0, idolGoals = 0): FinanceReport {
   const r = TIERS[tier];
   const att = attendance(p);
-  const tickets = Math.round(att * homeGames * r.ticket * TICKET_POLICY[p.ticket].price);
+  const arenaMult = p.arena === 2 ? ARENA.multiuso.ticket : p.arena === 1 ? ARENA.arena.ticket : 1;
+  const tickets = Math.round(att * homeGames * r.ticket * TICKET_POLICY[p.ticket].price * arenaMult);
+  const nSocios = socios(p);
+  const members = Math.round(nSocios * r.ticket * 6);
+  const events = p.arena === 2 ? Math.round(r.tv * 0.08) : 0;
   const prize = Math.round(r.tv * 0.4 * ((size - position) / (size - 1)));
   const tv = r.tv + prize;
   const sponsors = masterSponsor(p, tier) + p.sponsors.reduce((sum, s) => sum + s.perSeason, 0);
@@ -54,6 +70,6 @@ export function seasonFinance(p: PlayerClub, tier: Tier, homeGames: number, posi
   const staff = staffCost(p);
   const shop = commerce(p, att, homeGames, idolGoals);
   const up = upkeep(p) + shop.upkeep;
-  const net = tickets + tv + sponsors + shop.revenue + prizes - wages - staff - up;
-  return { tickets, tv, sponsors, wages, staff, upkeep: up, commerce: shop.revenue, prizes, net, cashEnd: p.cash + net, attendance: att };
+  const net = tickets + tv + sponsors + shop.revenue + prizes + members + events - wages - staff - up;
+  return { tickets, tv, sponsors, wages, staff, upkeep: up, commerce: shop.revenue, prizes, members, socios: nSocios, events, net, cashEnd: p.cash + net, attendance: att };
 }

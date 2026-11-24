@@ -675,3 +675,10 @@ h3 { font: 700 14px/1.2 var(--font-display); text-transform: uppercase; letter-s
 .bench { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
 .bench .pcard { background: var(--panel-2); }
 .pc-drag { position: fixed; z-index: 50; transform: translate(-50%, -60%); pointer-events: none; border-color: var(--accent); box-shadow: 0 8px 20px #000a; }
+.meeting-actions { display: grid; gap: 6px; }
+@media (min-width: 640px) { .meeting-actions { grid-template-columns: repeat(3, 1fr); } }
+.extra { border-width: 2px; }
+.extra-good { border-color: var(--good); background: linear-gradient(180deg, #2ecc7118, var(--panel) 60%); }
+.extra-good .kicker { color: var(--good); }
+.extra-bad { border-color: var(--bad); background: linear-gradient(180deg, #ff5c5c18, var(--panel) 60%); }
+.extra-bad .kicker { color: var(--bad); }

@@ -11,7 +11,7 @@ export { hashSeed } from './rng';
 export { encodeRun, decodeRun, encodeAction, decodeAction, seedFromEntropy, type RunCode } from './codec';
 export { runStats, computeScore, levelFor, LEVELS, type RunStats, type LevelInfo } from './score';
 export { stadiumAllows, teamStrength, renewalCap, coachEdge, PLAYER_ID } from './season';
-export { payroll, staffCost, upkeep, attendance, masterSponsor, TICKET_POLICY } from './finance';
+export { payroll, staffCost, upkeep, attendance, masterSponsor, TICKET_POLICY, ARENA, socios } from './finance';
 export { bestEleven, squadStrength, marketValue, marketWage, tryoutCost, playerImportance, FORMATIONS, type Importance } from './footballers';
 export { scaled } from './effects';
 export {
@@ -31,3 +31,4 @@ export { FATIGUE_FREE, FATIGUE_REST } from './squadplan';
 export { currentInterview, answered, interviewEffects, type Interview, type InterviewQuestion, type InterviewAnswer } from './interview';
 export { coachRanking, type RankingEntry } from './ranking';
 export { quickMoment } from './live';
+export { MEETING_LABEL } from './career';

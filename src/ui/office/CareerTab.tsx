@@ -1,5 +1,7 @@
 import {
   coachRanking,
+  MEETING_LABEL,
+  socios,
   BOARD_INFO, CAREER_END_AGE, COACH_STYLES, START_YEAR, TIERS, coachEdge, payroll, projectFinance, starsFor, tierForReputation,
   type GameState, type JobOffer,
 } from '../../engine';
@@ -136,7 +138,7 @@ export function CareerTab({ state, dispatch }: TabProps) {
 }
 
 /** Aba Diretoria (modo técnico): confiança, verba, folha, metas e o clube por dentro. */
-export function BoardTab({ state }: TabProps) {
+export function BoardTab({ state, dispatch }: TabProps) {
   const c = state.career!;
   const p = state.player;
   const b = c.board;
@@ -148,6 +150,22 @@ export function BoardTab({ state }: TabProps) {
       <Section title={`Diretoria ${info.label.toLowerCase()}`} note={info.text}>
         <Meter value={b.confidence} label="Confiança no técnico" text={confidenceText(b.confidence)} />
         <p className="muted">Cumprir a meta principal sobe a confiança; falhar, cair ou dar prejuízo derruba. Abaixo de 15, demissão.</p>
+      </Section>
+
+      <Section title="Reunião com a diretoria" note="Uma por janela. A chance depende da personalidade da diretoria e da confiança; pedir gasta confiança, e um não gasta mais.">
+        {state.office.meeting ? (
+          <p className={state.office.meeting.ok ? 'good' : 'bad'}>
+            {MEETING_LABEL[state.office.meeting.kind]}: {state.office.meeting.text}
+          </p>
+        ) : (
+          <div className="meeting-actions">
+            {MEETING_LABEL.map((label, k) => (
+              <button key={label} type="button" className="btn" onClick={() => dispatch({ t: 'meeting', kind: k as 0 | 1 | 2 })}>
+                {label}
+              </button>
+            ))}
+          </div>
+        )}
       </Section>
 
       <Section title="Verba da janela" note="Contratações precisam caber na verba; vender devolve metade do valor para a verba. Salários precisam caber no teto da folha.">
@@ -175,6 +193,8 @@ export function BoardTab({ state }: TabProps) {
           <div><dt>Saldo previsto</dt><dd className={proj.net < 0 ? 'bad' : 'good'}>{money(proj.net)}</dd></div>
           <div><dt>Estádio</dt><dd>{num(p.capacity)} lugares</dd></div>
           <div><dt>Torcida</dt><dd>{num(p.fans)} · humor {p.mood}</dd></div>
+          <div><dt>Sócios-torcedores</dt><dd>{num(socios(p))}</dd></div>
+          <div><dt>Arena</dt><dd>{p.arena === 2 ? 'multiuso' : p.arena === 1 ? 'moderna' : 'não tem'}{p.naming ? ' · nome vendido' : ''}</dd></div>
           <div><dt>CT · base · médico</dt><dd>{p.facilities.ct} · {p.facilities.academy} · {p.facilities.medical}</dd></div>
         </dl>
       </Section>

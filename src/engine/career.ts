@@ -1,8 +1,9 @@
 import { COACH_WAGE } from '../data/club';
-import { TIERS } from '../data/pyramid';
+import { FACILITY_COST, TIERS } from '../data/pyramid';
 import { initials } from './clubs';
 import { payroll } from './finance';
-import { marketWage } from './footballers';
+import { makeFootballer, marketWage } from './footballers';
+import { nextId } from './effects';
 import { projectFinance } from './office';
 import { deriveRng, type Rng } from './rng';
 import { clamp } from './util';
@@ -261,6 +262,9 @@ export function settleCareer(state: GameState, r: SeasonResult): string[] {
   if (r.outcome === 'acesso' || r.outcome === 'campeao') conf += 15;
   if (r.finance.net < 0) conf -= c.board.personality === 'mao_de_vaca' ? 15 : 6;
   for (const cup of r.cups) if (cup.champion) conf += 10;
+  // a torcida pesa na diretoria: protesto derruba, festa ajuda
+  if (r.mood < 25) conf -= 6;
+  else if (r.mood >= 85) conf += 3;
   const mine = r.awards ? [r.awards.general, ...r.awards.leagues].flatMap((s) => s.items).filter((i) => i.winner.mine && (i.id === 'tecnico' || i.id === 'tecnico_ano')) : [];
   conf += mine.length * 8;
   c.board.confidence = clamp(Math.round(c.board.confidence + conf), 0, 100);
@@ -314,4 +318,61 @@ export function careerWindow(state: GameState, withOffers: boolean): void {
   const p = state.player;
   p.coach = careerCoach(c, p.coach.style, p.coach.formation, p.tier);
   setBoardBudget(state);
+}
+
+/* ------------------------------ Reunião com a diretoria ------------------------------ */
+
+/** Chance base de a diretoria topar cada pedido (verba, reforço, estrutura), pela personalidade. */
+const MEETING_BASE: Record<BoardPersonality, [number, number, number]> = {
+  paciente: [0.4, 0.45, 0.55],
+  imediatista: [0.6, 0.6, 0.35],
+  mao_de_vaca: [0.15, 0.25, 0.3],
+};
+export const MEETING_LABEL = ['Pedir mais verba', 'Pedir um reforço', 'Pedir melhoria na estrutura'] as const;
+
+/**
+ * Reunião com a diretoria (uma por janela): pedir verba, um reforço pago pela diretoria ou uma obra de estrutura.
+ * A chance depende da personalidade e da confiança; pedir gasta confiança, e um "não" gasta mais.
+ */
+export function boardMeeting(state: GameState, kind: 0 | 1 | 2): { kind: 0 | 1 | 2; ok: boolean; text: string } {
+  const c = state.career!;
+  const p = state.player;
+  const rng = deriveRng(state.seed, state.season, 'reuniao', kind);
+  const chance = clamp(MEETING_BASE[c.board.personality][kind] + (c.board.confidence - 50) / 150, 0.05, 0.9);
+  let ok = rng.chance(chance);
+  let text: string;
+  if (ok && kind === 0) {
+    const extra = Math.max(Math.round(c.board.budget * 0.5), Math.round(TIERS[p.tier].moneyScale * 15));
+    c.board.budget += extra;
+    c.board.wageCap = Math.round(c.board.wageCap * 1.08);
+    text = `A diretoria libera mais R$ ${extra} mil de verba e aumenta um pouco o teto da folha.`;
+  } else if (ok && kind === 1) {
+    const mean = TIERS[p.tier].meanStrength;
+    const f = makeFootballer(rng, { id: nextId(state), ovr: mean + 4, age: rng.int(24, 28), season: state.season, contract: 3, scout: 4, names: usedNames(state) });
+    state.office.market.unshift({ player: f, fee: 0, from: 'Contratação da diretoria', profile: 'pronto' });
+    text = `A diretoria topa e traz ${f.name} (${f.pos}, ${f.ovr}) sem custo de transferência: ele está no topo do mercado, é só contratar.`;
+  } else if (ok && kind === 2) {
+    const fac = (['ct', 'academy', 'medical'] as const).slice().sort((a, b) => p.facilities[a] - p.facilities[b])[0];
+    const level = p.facilities[fac];
+    const cost = level < 5 ? FACILITY_COST[level] : Infinity;
+    if (p.cash >= cost) {
+      p.cash -= cost;
+      p.facilities[fac] = level + 1;
+      text = `A diretoria aprova a obra: ${fac === 'ct' ? 'centro de treinamento' : fac === 'academy' ? 'categorias de base' : 'departamento médico'} sobe para o nível ${level + 1}.`;
+    } else {
+      ok = false;
+      text = 'A diretoria até gostou da ideia, mas não tem caixa para a obra agora.';
+    }
+  } else {
+    text = ['A diretoria diz que não há dinheiro e que é para trabalhar com o que tem.', 'A diretoria recusa o reforço: "o elenco é bom o suficiente".', 'A diretoria nega a obra nesta temporada.'][kind];
+  }
+  c.board.confidence = clamp(c.board.confidence - (ok ? [4, 5, 3][kind] : [7, 7, 5][kind]), 0, 100);
+  state.news.push(`Reunião com a diretoria do ${p.name}: ${ok ? 'pedido atendido' : 'pedido negado'}`);
+  return { kind, ok, text };
+}
+
+/** Nomes de jogadores em uso (para o reforço da diretoria não repetir nome). */
+function usedNames(state: GameState): Set<string> {
+  const p = state.player;
+  return new Set([...p.squad, ...p.youth, ...p.onLoan, ...state.clubs.flatMap((c) => c.squad)].map((f) => f.name));
 }

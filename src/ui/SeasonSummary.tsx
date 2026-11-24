@@ -207,11 +207,12 @@ export function SeasonSummary({ result: r, state, onNext, onFast, fast }: Props)
         <div className="box">
           <h3>Finanças</h3>
           <p>
-            Receita {money(f.tickets + f.tv + f.sponsors + f.commerce + f.prizes)} · Custos {money(f.wages + f.staff + f.upkeep)}
+            Receita {money(f.tickets + f.tv + f.sponsors + f.commerce + f.prizes + (f.members ?? 0) + (f.events ?? 0))} · Custos {money(f.wages + f.staff + f.upkeep)}
           </p>
           <p className="muted">
             Público médio {f.attendance.toLocaleString('pt-BR')}
             {f.commerce > 0 ? ` · comércio ${money(f.commerce)}` : ''}
+            {f.socios ? ` · ${f.socios.toLocaleString('pt-BR')} sócios` : ''}
             {f.prizes > 0 ? ` · prêmios e cotas ${money(f.prizes)}` : ''}
           </p>
           <p className={f.net < 0 ? 'bad' : 'good'}>

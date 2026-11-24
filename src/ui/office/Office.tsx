@@ -166,7 +166,7 @@ function StatusBar({ state }: { state: GameState }) {
           tone={ok ? 'good' : 'bad'}
         />
       </dl>
-      {p.pendingDeduction > 0 && <p className="warn">Esta temporada começa com -{p.pendingDeduction} pontos por dívidas.</p>}
+      {p.pendingDeduction > 0 && <p className="warn">Esta temporada começa com -{p.pendingDeduction} pontos (punição).</p>}
       {p.negativeSeasons > 0 && p.pendingDeduction === 0 && <p className="warn">Caixa no vermelho há {p.negativeSeasons} temporada(s). Mais uma e o clube perde pontos.</p>}
     </section>
   );

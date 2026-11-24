@@ -134,3 +134,67 @@ describe('ranking de técnicos e continentais', () => {
     expect(news).toMatch(/campeão do Mundial de Clubes/);
   });
 });
+
+describe('clube, torcida e evento extraordinário', () => {
+  it('sócio-torcedor e arena entram nas finanças', async () => {
+    const { seasonFinance } = await import('../../src/engine/finance');
+    const s = newGame(1, { name: 'Unidos', colors: ['#c8102e', '#ffffff'], origin: 'pub' });
+    const p = s.player;
+    const base = seasonFinance(p, 1, 19, 10, 20);
+    expect(base.socios).toBeGreaterThan(0);
+    expect(base.members).toBeGreaterThan(0);
+    p.mood = 95;
+    expect(seasonFinance(p, 1, 19, 10, 20).socios).toBeGreaterThan(base.socios);
+    p.mood = 60;
+    p.arena = 2;
+    const arena = seasonFinance(p, 1, 19, 10, 20);
+    expect(arena.tickets).toBeGreaterThan(base.tickets);
+    expect(arena.events).toBeGreaterThan(0);
+  });
+
+  it('grandes projetos: arena só na Série A/B, multiuso depois, naming rights uma vez; no técnico é da diretoria', () => {
+    const s = newGame(1, { name: 'Unidos', colors: ['#c8102e', '#ffffff'], origin: 'pub' });
+    s.player.cash = 1e7;
+    expect(canApply(s, { t: 'project', which: 'arena' })).toBe(false);
+    s.player.tier = 1;
+    s.player.national = 1;
+    expect(canApply(s, { t: 'project', which: 'multiuso' })).toBe(false);
+    let t = apply(s, { t: 'project', which: 'arena' });
+    expect(t.player.arena).toBe(1);
+    t = apply(t, { t: 'project', which: 'naming' });
+    expect(canApply(t, { t: 'project', which: 'naming' })).toBe(false);
+    expect(t.player.sponsors.some((x) => x.name.includes('Naming'))).toBe(true);
+    const c = apply(newGame(1, COACH), { t: 'job', idx: 0 });
+    expect(canApply(c, { t: 'project', which: 'arena' })).toBe(false);
+  });
+
+  it('reunião com a diretoria: uma por janela, e pedir sempre custa confiança', () => {
+    const s = apply(newGame(4, COACH), { t: 'job', idx: 0 });
+    const conf = s.career!.board.confidence;
+    const t = apply(s, { t: 'meeting', kind: 0 });
+    expect(t.office.meeting).toBeTruthy();
+    expect(t.career!.board.confidence).toBeLessThan(conf);
+    expect(canApply(t, { t: 'meeting', kind: 1 })).toBe(false);
+    expect(decodeAction(encodeAction({ t: 'meeting', kind: 2 }))).toEqual({ t: 'meeting', kind: 2 });
+    expect(decodeAction(encodeAction({ t: 'project', which: 'multiuso' }))).toEqual({ t: 'project', which: 'multiuso' });
+  });
+
+  it('evento extraordinário: raro, nunca dois em menos de 3 temporadas', () => {
+    let events = 0;
+    let seasons = 0;
+    for (let seed = 1; seed <= 6; seed++) {
+      let s = newGame(seed, { name: 'Unidos', colors: ['#c8102e', '#ffffff'], origin: 'pub' });
+      const seen: number[] = [];
+      for (let i = 0; i < 14 && s.phase !== 'over'; i++) {
+        if (s.office.extraordinary) seen.push(s.season);
+        if (s.office.event) s = apply(s, { t: 'event', choice: 0 });
+        s = apply(apply(s, { t: 'play' }), { t: 'next' });
+        seasons++;
+      }
+      for (let k = 1; k < seen.length; k++) expect(seen[k] - seen[k - 1]).toBeGreaterThanOrEqual(3);
+      events += seen.length;
+    }
+    expect(events).toBeGreaterThan(0);
+    expect(events / seasons).toBeLessThan(0.35);
+  });
+});

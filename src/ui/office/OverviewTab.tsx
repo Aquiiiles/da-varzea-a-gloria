@@ -37,6 +37,13 @@ export function OverviewTab({ state, dispatch, goTo }: TabProps) {
 
   return (
     <div className="tab-stack">
+      {o.extraordinary && (
+        <section className={`panel extra ${o.extraordinary.good ? 'extra-good' : 'extra-bad'}`}>
+          <p className="kicker">Plantão extraordinário</p>
+          <h2 className="headline">{o.extraordinary.title}</h2>
+          <p className="lede">{o.extraordinary.text}</p>
+        </section>
+      )}
       {o.event && (
         <section className={`panel event${o.eventChoice === null ? '' : ' is-done'}`}>
           <p className="kicker kicker-alert">Plantão</p>

@@ -98,7 +98,7 @@ export function SquadTab({ state, dispatch }: TabProps) {
                       <button
                         type="button"
                         className="btn btn-small"
-                        disabled={!canLose || p.onLoan.length >= MAX_LOANS}
+                        disabled={!canLose || p.onLoan.filter((x) => !x.recovering).length >= MAX_LOANS}
                         onClick={() => dispatch({ t: 'lend', id: f.id }) && setOpen(null)}
                       >
                         Emprestar por 1 temporada
@@ -123,6 +123,15 @@ export function SquadTab({ state, dispatch }: TabProps) {
           );
         })}
       </Section>
+      {p.onLoan.some((f) => f.recovering) && (
+        <Section title="Em recuperação" note="Lesão grave: fora a temporada inteira. O clube segue pagando o salário e ele volta no fim da temporada.">
+          <ul className="pl-list">
+            {p.onLoan.filter((f) => f.recovering).map((f) => (
+              <PlayerLine key={f.id} f={f} tier={p.tier} meta="em recuperação" />
+            ))}
+          </ul>
+        </Section>
+      )}
     </div>
   );
 }

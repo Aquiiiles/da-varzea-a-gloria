@@ -451,7 +451,7 @@ export function simulateSeason(state: GameState): SeasonResult {
   const name = p.name;
   const headlines: string[] = [];
   const departures: string[] = [];
-  if (deduction > 0) headlines.push(`${name} começou a temporada com -${deduction} pontos por dívidas`);
+  if (deduction > 0) headlines.push(`${name} começou a temporada com -${deduction} pontos de punição`);
   p.pendingDeduction = 0;
 
   // venda forçada
@@ -531,11 +531,14 @@ export function simulateSeason(state: GameState): SeasonResult {
   if (p.coach.style === 'motivador') dm += 3;
   p.mood = clamp(Math.round(p.mood + dm + (55 - p.mood) * 0.1), 0, 100);
   if (p.mood < 25) {
+    // torcida com voz: protesto afasta torcedor (e, no modo técnico, pesa na diretoria)
     p.soul = clamp(p.soul - 2, 0, 100);
-    headlines.push(`Protesto na porta do estádio: torcida do ${name} pede mudanças`);
+    p.fans = Math.round(p.fans * 0.96);
+    headlines.push(`PROTESTO: torcida do ${name} vai à porta do estádio e pede mudanças`);
   } else if (p.mood >= 85) {
     p.hype = clamp(p.hype + 5, 0, 100);
-    headlines.push(`Torcida do ${name} em festa: estádio vira caldeirão`);
+    p.fans = Math.round(p.fans * 1.04);
+    headlines.push(`FESTA: torcida do ${name} lota as ruas e o estádio vira caldeirão`);
   }
 
   // vagas para a próxima temporada
@@ -1038,7 +1041,10 @@ function evolveClub(state: GameState, result: SeasonResult): void {
 
   // emprestados voltam: jogaram muito, evoluem mais
   for (const f of p.onLoan) {
-    develop(rng, f, { ct: 0, fitness: 0, inEleven: true, youth: f.age < YOUTH_AGE_LIMIT, academy: 1 });
+    const hurt = !!f.recovering;
+    delete f.recovering;
+    if (hurt) f.ovr = Math.max(30, f.ovr - 1);
+    else develop(rng, f, { ct: 0, fitness: 0, inEleven: true, youth: f.age < YOUTH_AGE_LIMIT, academy: 1 });
     if (f.contract > 0) f.contract--;
     const wasYouth = !!f.loanFromYouth;
     delete f.loanFromYouth;
@@ -1053,7 +1059,7 @@ function evolveClub(state: GameState, result: SeasonResult): void {
       p.alumni.push(f);
       continue;
     }
-    deps.push(`${f.name} volta de empréstimo com ${f.ovr} de overall`);
+    deps.push(hurt ? `${f.name} volta da lesão com ${f.ovr} de overall` : `${f.name} volta de empréstimo com ${f.ovr} de overall`);
   }
   p.onLoan = [];
 

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { PLAYER_ID, TIERS, moodLabel, type CompResult, type CupMatch, type GameState, type SeasonResult, type Tier } from '../engine';
+import { PLAYER_ID, TIERS, moodLabel, myAwards, type CompResult, type CupMatch, type GameState, type SeasonResult, type Tier } from '../engine';
 import { money, OUTCOME_LABEL } from './format';
 
 interface Props {
@@ -204,6 +204,19 @@ export function SeasonSummary({ result: r, state, onNext, onFast, fast }: Props)
         </div>
       </div>
 
+      {r.awards && myAwards(r.awards).length > 0 && (
+        <div className="box departures">
+          <h3>Prêmios do clube</h3>
+          <ul>
+            {myAwards(r.awards).map((w, i) => (
+              <li key={i} className="good">
+                🏅 {w.title}
+                {w.scope === 'Temporada' ? '' : ` (${w.scope})`}: {w.name}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
       {r.renewals.length > 0 && (
         <div className="box departures">
           <h3>Renovações automáticas</h3>

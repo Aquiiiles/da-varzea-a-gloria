@@ -6,6 +6,7 @@ import { ResultScreen } from './ResultScreen';
 import { SeasonSummary } from './SeasonSummary';
 import { LiveMatch } from './LiveMatch';
 import { SeasonView } from './SeasonView';
+import { AwardsCeremony } from './AwardsCeremony';
 
 /** Resultados que interrompem o modo rápido. */
 export function isDecisive(r: SeasonResult): boolean {
@@ -33,6 +34,9 @@ export function GameScreen({ state, dispatch, onRestart, fromLink }: Props) {
     const upTo = state.reveal ?? Infinity;
     return { season: r.season, seen: r.moments.map((m, i) => ((m.day ?? Infinity) <= upTo || state.reveal == null ? i : -1)).filter((i) => i >= 0) };
   });
+
+  /** temporada cuja cerimônia de prêmios já foi vista (ao abrir um save já terminado, conta como vista) */
+  const [awardsSeen, setAwardsSeen] = useState<number>(() => (state.reveal == null ? state.history.at(-1)?.season ?? 0 : 0));
 
   // modo rápido: o assistente gere e joga até algo decisivo (novo) acontecer
   useEffect(() => {
@@ -82,6 +86,11 @@ export function GameScreen({ state, dispatch, onRestart, fromLink }: Props) {
   // temporada em andamento: acompanhar jogo a jogo
   if (state.reveal != null && state.calendar && (state.phase === 'summary' || state.phase === 'over')) {
     return <SeasonView state={state} dispatch={dispatch} />;
+  }
+
+  // cerimônia de prêmios (uma vez por temporada, antes do balanço; o modo rápido pula)
+  if (last?.awards && awardsSeen < last.season && !fast && (state.phase === 'summary' || state.phase === 'over')) {
+    return <AwardsCeremony result={last} onDone={() => setAwardsSeen(last.season)} />;
   }
 
   if (state.phase === 'over') return <ResultScreen state={state} onRestart={onRestart} fromLink={fromLink} />;

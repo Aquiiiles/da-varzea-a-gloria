@@ -563,3 +563,18 @@ h3 { font: 700 14px/1.2 var(--font-display); text-transform: uppercase; letter-s
 .tired-bar { flex: 0 0 90px; height: 8px; background: var(--bg); border-radius: 99px; overflow: hidden; align-self: center; }
 .tired-bar span { display: block; height: 100%; }
 .window-banner { border-color: var(--good); }
+
+/* entrevista e coletiva */
+.interview { border-color: var(--live); }
+.interview-title { margin: 2px 0 2px; font: 700 20px var(--font-display); text-transform: uppercase; }
+.interview-q { margin-top: 12px; }
+.interview-ask { margin: 0 0 8px; font-weight: 700; }
+.interview-answers { display: grid; gap: 6px; }
+.interview-answers .option { text-align: left; display: flex; flex-direction: column; gap: 2px; }
+.interview-answers .option span { color: var(--muted); font-size: 13px; }
+.interview-quote { margin: 0; font-style: italic; color: var(--accent); }
+.interview .link { margin-top: 12px; }
+.youth-comps { list-style: none; margin: 0; padding: 0; }
+.youth-comps > li { padding: 8px 0; border-bottom: 1px solid #1c2531; }
+.youth-comps .yc-head { display: flex; justify-content: space-between; gap: 8px; }
+.youth-badge { display: inline-block; margin-left: 6px; font-size: 11px; color: var(--accent); }

@@ -220,6 +220,19 @@ export function SeasonSummary({ result: r, state, onNext, onFast, fast }: Props)
         </div>
       </div>
 
+      {r.youth && r.youth.length > 0 && (
+        <div className="box departures">
+          <h3>Base</h3>
+          <ul>
+            {r.youth.map((c) => (
+              <li key={c.key} className={c.won ? 'good' : ''}>
+                {c.name}: {c.finish.toLowerCase()}
+                {c.scorers[0] ? ` · artilheiro ${c.scorers[0].name} (${c.scorers[0].goals})` : ''}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
       {r.awards && myAwards(r.awards).length > 0 && (
         <div className="box departures">
           <h3>Prêmios do clube</h3>

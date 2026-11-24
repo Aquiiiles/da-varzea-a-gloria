@@ -5,6 +5,7 @@ import {
 } from '../engine';
 import type { Dispatch } from './App';
 import { LineupEditor } from './LineupEditor';
+import { InterviewCard } from './InterviewCard';
 
 const WEEKDAY = ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado'];
 const MONTH = ['janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho', 'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro'];
@@ -240,6 +241,8 @@ export function SeasonView({ state, dispatch, onOpenOffice }: { state: GameState
           <p className="muted">Sem jogos marcados. Avance até o fim da temporada para ver o balanço.</p>
         )}
       </section>
+
+      <InterviewCard state={state} dispatch={dispatch} />
 
       <SquadStatus state={state} day={day} />
 

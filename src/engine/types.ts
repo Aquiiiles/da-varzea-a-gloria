@@ -82,6 +82,32 @@ export interface Footballer {
   intent?: ContractIntent;
   /** salário combinado para a renovação (fixado na abertura da janela; não muda se ele evoluir até o fim) */
   askWage?: number;
+  /** destaque num campeonato da base (ex.: "Artilheiro da Copa de Juniores 2028") */
+  highlight?: string;
+  /** temporada em que o garoto da base pediu para subir ao profissional */
+  askUp?: number;
+}
+
+/** Um jogo do time de base do jogador. */
+export interface YouthGame {
+  round: string;
+  opponent: string;
+  gf: number;
+  ga: number;
+  pens?: [number, number];
+}
+
+/** Campanha num campeonato da base. */
+export interface YouthComp {
+  key: string;
+  name: string;
+  finish: string;
+  champion: string;
+  won: boolean;
+  games: YouthGame[];
+  scorers: { id: number; name: string; goals: number }[];
+  /** força do time da base na competição */
+  strength: number;
 }
 
 /**
@@ -364,6 +390,7 @@ export type Action =
   | { t: 'advance'; to: AdvanceTo } // mostra a temporada até o próximo jogo, semana, mês ou fim
   | { t: 'job'; idx: number } // técnico: aceita uma proposta de emprego
   | { t: 'lineup'; ids: number[] | null; rotate: boolean } // técnico: escalação (null = os melhores)
+  | { t: 'interview'; day: number; q: number; a: number } // entrevista pós-jogo ou coletiva (dia do jogo, pergunta, resposta)
   | { t: 'next' }; // sai do resumo para a próxima temporada
 
 /* ------------------------------ Partidas ------------------------------ */
@@ -448,6 +475,8 @@ export interface SeasonResult {
   moments: LiveMoment[];
   /** prêmios da temporada (gerais e de cada liga) */
   awards?: SeasonAwards;
+  /** campeonatos da base */
+  youth?: YouthComp[];
   /** clube do jogador nesta temporada (no modo técnico ele muda) */
   club?: { name: string; colors: [string, string] };
   /** modo técnico: como terminou a temporada para o técnico */
@@ -587,6 +616,8 @@ export interface LiveSeason {
   fatigue: { day: number; fatigue: Record<number, number> }[];
   /** escalação de cada jogo do clube (ids dos titulares) */
   elevens: { day: number; ids: number[] }[];
+  /** respostas em entrevistas e coletivas (os efeitos entram no fim da temporada) */
+  interviews?: { day: number; kind: 'pos' | 'coletiva'; q: number; a: number; quote: string; effect: { mood?: number; board?: number; rep?: number; morale?: number } }[];
 }
 
 /** 0 = próximo jogo, 1 = uma semana, 2 = até o fim do mês, 3 = até o fim da temporada */

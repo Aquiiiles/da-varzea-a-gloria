@@ -17,6 +17,7 @@ export { ActionError };
 import { effectsCashCost, loanFor, releaseCost, renewalOffer, seatsFor, sellPrice } from './office';
 import { applyNamePack, type NamePack } from './namepack';
 import { dayToDate, julyWindow } from './calendar';
+import { answered, currentInterview, interviewEffects } from './interview';
 import { CAREER_END_AGE, CAREER_START_AGE, careerWindow, refundBudget, settleCareer, spendBudget, takeOver, wageCheck } from './career';
 import { varzeaClubName } from './names';
 import { PALETTE } from '../data/names';
@@ -690,6 +691,19 @@ function midSeason(state: GameState, a: Action): void {
   const cal = state.calendar;
   if (!live || !cal || state.reveal == null) fail('não há temporada em andamento');
   const day = state.reveal;
+  if (a.t === 'interview') {
+    // entrevista: não muda os jogos (os efeitos entram no fim da temporada), então não refaz a prévia
+    const it = currentInterview(state);
+    if (!it || it.day !== a.day) fail('não há entrevista agora');
+    const q = it.questions[a.q];
+    if (!q) fail('pergunta inválida');
+    if (answered(state, it.day, it.kind).includes(a.q)) fail('pergunta já respondida');
+    const ans = q.answers[a.a];
+    (live.interviews ??= []).push({ day: it.day, kind: it.kind, q: a.q, a: a.a, quote: ans.text, effect: ans.effect });
+    const who = state.career ? state.career.name : p.coach.name;
+    state.news.push(`${who}${it.kind === 'coletiva' ? ' na coletiva' : ''}: "${ans.text}"`);
+    return;
+  }
   if (a.t === 'lineup' || a.t === 'formation') {
     if (!state.career) fail('a escalação é com o técnico');
     if (a.t === 'lineup') setLineup(p, a);
@@ -721,6 +735,7 @@ function midSeason(state: GameState, a: Action): void {
 
 /** Fecha a temporada de verdade (mesmas decisões da prévia): finanças, evolução, carreira, histórico. */
 function finishSeason(state: GameState): void {
+  const liveBefore = state.live;
   {
     {
       let result: SeasonResult;
@@ -734,6 +749,14 @@ function finishSeason(state: GameState): void {
         result = cached.result;
       } else {
         result = simulateSeason(state);
+      }
+      // entrevistas e coletivas: efeitos na torcida, diretoria, reputação e moral
+      const fx = interviewEffects({ ...state, live: liveBefore });
+      state.player.mood = Math.max(0, Math.min(100, state.player.mood + fx.mood));
+      state.player.coach.morale = Math.max(0, Math.min(100, state.player.coach.morale + fx.morale));
+      if (state.career) {
+        state.career.board.confidence = Math.max(0, Math.min(100, state.career.board.confidence + fx.board));
+        state.career.reputation = Math.max(0, Math.min(100, state.career.reputation + fx.rep));
       }
       state.reveal = null;
       state.live = null;

@@ -490,3 +490,22 @@ h3 { font: 700 14px/1.2 var(--font-display); text-transform: uppercase; letter-s
 .namepack-state { font-size: 13px; color: var(--muted); text-align: right; }
 .namepack-actions { display: flex; flex-wrap: wrap; gap: 8px; margin: 8px 0; }
 .namepack-actions label.btn { cursor: pointer; }
+
+/* temporada em andamento (calendário) */
+.season-view { padding-bottom: 96px; }
+.cal-today { font-size: 22px; }
+.cal-form { margin: 10px 0 0; display: flex; align-items: center; gap: 4px; flex-wrap: wrap; color: var(--muted); font-size: 13px; }
+.cal-list { list-style: none; margin: 4px 0 0; padding: 0; }
+.cal-match { display: grid; grid-template-columns: 44px 1fr auto auto; gap: 8px; align-items: center; padding: 8px 0; border-bottom: 1px solid #1c2531; font-size: 14px; }
+.cal-match:last-child { border-bottom: none; }
+.cal-date { color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }
+.cal-what { display: flex; flex-direction: column; min-width: 0; }
+.cal-what small { color: var(--muted); font-size: 11px; }
+.cal-what span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cal-score { font-variant-numeric: tabular-nums; white-space: nowrap; }
+.res-badge { display: inline-grid; place-items: center; width: 22px; height: 22px; border-radius: 4px; font: 700 12px var(--font-display); font-style: normal; color: #111; }
+.res-badge.res-V { background: var(--good); }
+.res-badge.res-E { background: var(--muted); }
+.res-badge.res-D { background: var(--bad); color: #fff; }
+.cal-bar .btn { font-size: 13px; padding: 12px 6px; }
+.cal-bar .btn-primary { font-size: 14px; }

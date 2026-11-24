@@ -3,6 +3,7 @@ import { ActionError, apply, decodeRun, encodeRun, negotiationFor, newGame, repl
 import { FoundationScreen } from './FoundationScreen';
 import { GameScreen } from './GameScreen';
 import { Ticker } from './Ticker';
+import { calendarTicker } from './SeasonView';
 import { loadNamePack, saveCareer } from '../storage';
 
 /** Seed nova vem da UI (o motor nunca gera entropia). */
@@ -103,7 +104,7 @@ export function App() {
           <span className="brand-live">AO VIVO</span>
           <span className="brand-name">DA VÁRZEA À GLÓRIA</span>
         </div>
-        <Ticker items={state ? state.news.slice(-8).reverse() : DEFAULT_NEWS} />
+        <Ticker items={state ? (state.reveal != null ? tickerDuringSeason(state) : state.news.slice(-8).reverse()) : DEFAULT_NEWS} />
       </header>
       <main className="stage">
         {state ? (
@@ -119,6 +120,12 @@ export function App() {
       )}
     </div>
   );
+}
+
+/** Durante a temporada, o letreiro só mostra o que já aconteceu (as manchetes do fim ficam para o resumo). */
+function tickerDuringSeason(state: GameState): string[] {
+  const items = calendarTicker(state);
+  return items.length > 0 ? items : [`Começa a temporada ${state.calendar?.year ?? ''}: ${state.player.name} estreia em breve`];
 }
 
 const DEFAULT_NEWS = [

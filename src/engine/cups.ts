@@ -1,6 +1,5 @@
 import { FOREIGN_CITY, FOREIGN_PREFIX, SA_CITY, SA_PREFIX } from '../data/names';
-import { PLAYER, roundPrep, twoLegs, type CompEnv } from './competitions';
-import { knockout, simulateLeague } from './league';
+import { PLAYER, leagueRun, roundPrep, single, tie, type CompEnv } from './competitions';
 import type { Rng } from './rng';
 import type { CompetitionId, CupMatch, CupRun, MatchResult, Tier } from './types';
 
@@ -54,8 +53,11 @@ function toMatch(env: CupEnv, round: string, r: MatchResult, advanced: boolean |
   };
 }
 
-/** Uma fase eliminatória. `twoLeg`: ida e volta; senão jogo único na casa do clube de nível mais baixo (o "pequeno"). */
-function playKoRound(env: CupEnv, pool: string[], round: string, opts: { twoLeg?: boolean; neutral?: boolean; byes?: number }, log: CupMatch[]): string[] {
+/**
+ * Uma fase eliminatória. `twoLeg`: ida e volta; senão jogo único na casa do clube de nível mais baixo (o "pequeno").
+ * `k`/`total`: rodada do calendário da copa (a volta é a rodada `k + 1`).
+ */
+function playKoRound(env: CupEnv, pool: string[], round: string, opts: { twoLeg?: boolean; neutral?: boolean; byes?: number }, log: CupMatch[], k: number, total: number): string[] {
   const { rng, ctx } = env;
   let entrants = pool.slice();
   const passed: string[] = [];
@@ -74,14 +76,14 @@ function playKoRound(env: CupEnv, pool: string[], round: string, opts: { twoLeg?
     const tb = env.tierOf(b) ?? 0;
     if (ta > tb) [a, b] = [b, a]; // a = grande, b = pequeno
     if (opts.twoLeg) {
-      const legs = twoLegs(rng, ctx, a, b);
+      const legs = tie(env, a, b, false, k, k + 1, total);
       if (a === PLAYER || b === PLAYER) {
         log.push(toMatch(env, `${round} (ida)`, legs[0], null));
         log.push(toMatch(env, `${round} (volta)`, legs[1], legs[1].winner === PLAYER));
       }
       passed.push(legs[1].winner!);
     } else {
-      const r = opts.neutral ? knockout(rng, ctx, a, b, true) : knockout(rng, ctx, b, a, false);
+      const r = opts.neutral ? single(env, a, b, true, k, total) : single(env, b, a, false, k, total);
       if (a === PLAYER || b === PLAYER) log.push(toMatch(env, round, r, r.winner === PLAYER));
       passed.push(r.winner!);
     }
@@ -122,8 +124,8 @@ export function stateCup(env: CupEnv, clubs: string[]): CupResult {
   const log: CupMatch[] = [];
   const R = STATE_CUP_ROUNDS;
   const byes = Math.max(0, 64 - clubs.length);
-  let pool = playKoRound(env, clubs, R[0], { byes }, log).slice(0, 32);
-  for (let i = 1; i < R.length; i++) pool = playKoRound(env, pool, R[i], { neutral: R[i] === 'Final' }, log);
+  let pool = playKoRound(env, clubs, R[0], { byes }, log, 0, R.length).slice(0, 32);
+  for (let i = 1; i < R.length; i++) pool = playKoRound(env, pool, R[i], { neutral: R[i] === 'Final' }, log, i, R.length);
   return { run: finishRun('estado', R, log, pool[0]), championId: pool[0], playerMatches: log };
 }
 
@@ -136,10 +138,11 @@ export function nationalCup(env: CupEnv, entrants: string[]): CupResult {
   const log: CupMatch[] = [];
   const R = NATIONAL_ROUNDS;
   // 64 → 32 → 16 (jogo único) → 8 → 4 → 2 → 1 (ida e volta)
+  const total = 2 + (R.length - 2) * 2;
   let pool = entrants.slice(0, 64);
-  pool = playKoRound(env, pool, R[0], {}, log);
-  pool = playKoRound(env, pool, R[1], {}, log);
-  for (let i = 2; i < R.length; i++) pool = playKoRound(env, pool, R[i], { twoLeg: true }, log);
+  pool = playKoRound(env, pool, R[0], {}, log, 0, total);
+  pool = playKoRound(env, pool, R[1], {}, log, 1, total);
+  for (let i = 2; i < R.length; i++) pool = playKoRound(env, pool, R[i], { twoLeg: true }, log, 2 + (i - 2) * 2, total);
   return { run: finishRun('copa', R, log, pool[0]), championId: pool[0], playerMatches: log };
 }
 
@@ -171,8 +174,9 @@ export function continentalCup(env: CupEnv, id: 'cc' | 'le', entrants: string[])
   const pool = env.rng.shuffle(entrants.slice(0, 32));
   const groups = Array.from({ length: 8 }, (_, i) => pool.slice(i * 4, i * 4 + 4));
   const qualified: string[] = [];
+  const total = 6 + 3 * 2 + 1;
   groups.forEach((g, gi) => {
-    const run = simulateLeague(env.rng, g, env.ctx);
+    const run = leagueRun(env, g, true, {}, 0, total);
     const order = run.table.map((r) => r.clubId);
     qualified.push(order[0], order[1]);
     if (g.includes(PLAYER)) {
@@ -186,24 +190,24 @@ export function continentalCup(env: CupEnv, id: 'cc' | 'le', entrants: string[])
   // oitavas: 1º de um grupo x 2º de outro
   let alive: string[] = [];
   for (let i = 0; i < 8; i += 2) alive.push(qualified[i * 2], qualified[(i + 1) * 2 + 1], qualified[(i + 1) * 2], qualified[i * 2 + 1]);
-  for (const round of CONTINENTAL_ROUNDS.slice(1)) {
-    alive = playKoRoundOrdered(env, alive, round, round === 'Final', log);
-  }
+  CONTINENTAL_ROUNDS.slice(1).forEach((round, i) => {
+    alive = playKoRoundOrdered(env, alive, round, round === 'Final', log, 6 + i * 2, total);
+  });
   return { run: finishRun(id, CONTINENTAL_ROUNDS, log, alive[0]), championId: alive[0], playerMatches: log };
 }
 
 /** Mata-mata com chaveamento já definido (pares em ordem). */
-function playKoRoundOrdered(env: CupEnv, pool: string[], round: string, final: boolean, log: CupMatch[]): string[] {
+function playKoRoundOrdered(env: CupEnv, pool: string[], round: string, final: boolean, log: CupMatch[], k: number, total: number): string[] {
   const out: string[] = [];
   for (let i = 0; i + 1 < pool.length; i += 2) {
     const a = pool[i];
     const b = pool[i + 1];
     if (final) {
-      const r = knockout(env.rng, env.ctx, a, b, true);
+      const r = single(env, a, b, true, k, total);
       if (a === PLAYER || b === PLAYER) log.push(toMatch(env, round, r, r.winner === PLAYER));
       out.push(r.winner!);
     } else {
-      const legs = twoLegs(env.rng, env.ctx, a, b);
+      const legs = tie(env, a, b, false, k, k + 1, total);
       if (a === PLAYER || b === PLAYER) {
         log.push(toMatch(env, `${round} (ida)`, legs[0], null));
         log.push(toMatch(env, `${round} (volta)`, legs[1], legs[1].winner === PLAYER));
@@ -220,6 +224,8 @@ export const WORLD_ROUNDS = ['Quartas de final', 'Semifinal', 'Final'];
 export function worldCup(env: CupEnv, entrants: string[]): CupResult {
   const log: CupMatch[] = [];
   let pool = env.rng.shuffle(entrants.slice(0, 8));
-  for (const round of WORLD_ROUNDS) pool = playKoRoundOrdered(env, pool, round, true, log);
+  WORLD_ROUNDS.forEach((round, i) => {
+    pool = playKoRoundOrdered(env, pool, round, true, log, i, WORLD_ROUNDS.length);
+  });
   return { run: finishRun('mundial', WORLD_ROUNDS, log, pool[0]), championId: pool[0], playerMatches: log };
 }

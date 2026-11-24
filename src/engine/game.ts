@@ -8,7 +8,7 @@ import { deriveRng } from './rng';
 import { PLAYER_ID, decideIntents, simulateSeason, teamStrength } from './season';
 import { MAX_ROUNDS, evaluateBid, negotiationFor } from './negotiation';
 import { replacementFor } from './aisquad';
-import type { Action, Club, DelegateArea, Footballer, Foundation, GameEvent, GameState, Opportunity, Origin, PlayerClub, Tier } from './types';
+import type { Action, AdvanceTo, Club, DelegateArea, Footballer, Foundation, GameEvent, GameState, Opportunity, Origin, PlayerClub, SeasonCalendar, Tier } from './types';
 import { runAssistant } from './assistant';
 import { BUSINESSES } from '../data/club';
 import { coachAccepts, coachCandidates, coachRequest, coachSeverance, expectedRank, seasonObjectives, startingCoach } from './clubops';
@@ -16,6 +16,7 @@ import { ActionError } from './util';
 export { ActionError };
 import { effectsCashCost, loanFor, releaseCost, renewalOffer, seatsFor, sellPrice } from './office';
 import { applyNamePack, type NamePack } from './namepack';
+import { dayToDate } from './calendar';
 
 interface OriginPreset {
   label: string;
@@ -252,9 +253,17 @@ export function canApply(state: GameState, action: Action): boolean {
 export function applyMut(state: GameState, a: Action): void {
   const p = state.player;
   const o = state.office;
+  if (a.t === 'advance') {
+    // a temporada já foi simulada; avançar só mostra mais dias do calendário
+    if (state.reveal == null || !state.calendar) fail('não há temporada em andamento');
+    state.reveal = advanceTarget(state.calendar, state.reveal, a.to);
+    return;
+  }
   if (state.phase === 'over') fail('a run acabou');
   if (a.t === 'next') {
     if (state.phase !== 'summary') fail('não há resumo aberto');
+    state.reveal = null;
+    state.calendar = null;
     state.season++;
     state.phase = 'office';
     startSeason(state);
@@ -538,6 +547,7 @@ export function applyMut(state: GameState, a: Action): void {
       const areas = (Object.keys(p.delegate) as DelegateArea[]).filter((k) => p.delegate[k]);
       if (areas.length > 0) runAssistant(state, applyMut, areas);
       const result = simulateSeason(state);
+      state.reveal = state.calendar ? state.calendar.start : null;
       state.history.push(result);
       state.news.push(...result.headlines);
       state.phase = state.over ? 'over' : 'summary';
@@ -548,6 +558,25 @@ export function applyMut(state: GameState, a: Action): void {
       return;
     }
   }
+}
+
+/** Até que dia mostrar a temporada; null = acabou (vai para o resumo). */
+export function advanceTarget(cal: SeasonCalendar, reveal: number, to: AdvanceTo): number | null {
+  let target: number;
+  if (to === 0) {
+    const next = cal.matches.find((m) => m.day > reveal);
+    target = next ? next.day : cal.end;
+  } else if (to === 1) {
+    target = reveal + 7;
+  } else if (to === 2) {
+    // até o último dia do mês atual (se já for o último dia, até o fim do mês seguinte)
+    const { m } = dayToDate(cal.year, reveal);
+    const endOf = (month: number) => Math.round((Date.UTC(cal.year, month, 0) - Date.UTC(cal.year, 0, 0)) / 86400000);
+    target = endOf(m) > reveal ? endOf(m) : endOf(m + 1);
+  } else {
+    target = cal.end;
+  }
+  return target >= cal.end ? null : target;
 }
 
 /** Reconstrói uma run inteira a partir da seed, fundação e ações. */

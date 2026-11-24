@@ -19,3 +19,6 @@ export {
 } from '../data/pyramid';
 export { COACH_STYLES, BUSINESSES, DELEGATE_INFO } from '../data/club';
 export { initials } from './clubs';
+export { playedMatches, upcomingMatches, stageStarted, partialTable, outcomeOf } from './calendarView';
+export { dayToDate, weekdayOf } from './calendar';
+export { advanceTarget } from './game';

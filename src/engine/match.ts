@@ -4,9 +4,14 @@ import type { MatchResult } from './types';
 /** Vantagem padrão de jogar em casa, em pontos de força. */
 export const BASE_HOME_ADVANTAGE = 1.5;
 
+/** Escala da saturação da diferença de força no placar. */
+export const GOAL_SATURATION = 10;
+
 /** Médias de gols (Poisson) a partir da diferença de força (escala de overall: ~4 pontos por divisão). */
 export function goalRates(homeStrength: number, awayStrength: number, homeAdv: number): [number, number] {
-  const d = homeStrength - awayStrength + homeAdv;
+  // a diferença satura: até ~4 pontos quase linear; diferenças enormes não viram goleadas absurdas
+  const raw = homeStrength - awayStrength + homeAdv;
+  const d = GOAL_SATURATION * Math.tanh(raw / GOAL_SATURATION);
   const lh = 1.25 * Math.exp(0.12 * d);
   const la = 1.25 * Math.exp(-0.12 * d);
   return [Math.min(6, Math.max(0.12, lh)), Math.min(6, Math.max(0.12, la))];

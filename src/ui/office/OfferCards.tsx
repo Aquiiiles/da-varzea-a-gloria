@@ -1,8 +1,9 @@
 import { useState } from 'react';
-import { BOARD_INFO, TIERS, marketValue, type Footballer, type GameState, type JobOffer, type Offer } from '../../engine';
+import { BOARD_INFO, TIERS, marketValue, playerImportance, type Footballer, type GameState, type JobOffer, type Offer } from '../../engine';
 import type { Dispatch } from '../App';
 import { Crest } from '../Crest';
-import { money, num } from '../format';
+import { money, monthly, num, potLabel } from '../format';
+import { INTENT_LABEL } from './SquadTab';
 
 /** Proposta de emprego: escudo, série, diretoria, projeto e como é o clube por dentro. */
 export function JobOfferCard({ state, offer, onAccept, primary }: { state: GameState; offer: JobOffer; onAccept: () => void; primary?: boolean }) {
@@ -48,6 +49,49 @@ export function JobOfferCard({ state, offer, onAccept, primary }: { state: GameS
   );
 }
 
+/** Perfil do jogador na negociação: o quanto ele pesa no time e os dados dele no clube. */
+function PlayerProfile({ state, f }: { state: GameState; f: Footballer }) {
+  const p = state.player;
+  const imp = playerImportance(p.squad, p.coach.formation, f.id);
+  const tone = imp.label === 'Peça-chave' ? 'bad' : imp.label === 'Titular importante' ? 'warnc' : imp.starter ? '' : 'good';
+  return (
+    <div className="player-profile">
+      <div className="pp-head">
+        <span className={`pp-role ${tone}`}>{imp.label}</span>
+        <span className="muted">
+          {imp.rank}º do elenco · {imp.posRank}º de {imp.posCount} {f.pos === 'GOL' ? 'goleiros' : f.pos === 'DEF' ? 'defensores' : f.pos === 'MEI' ? 'meias' : 'atacantes'}
+        </span>
+      </div>
+      <p className="pp-impact">
+        {imp.delta > 0 ? (
+          <>
+            Sem ele, o time perde <b className={imp.delta >= 1 ? 'bad' : ''}>{imp.delta.toFixed(1)}</b> de força
+            {imp.replacement ? (
+              <>
+                {' '}
+                e quem entra é <b>{imp.replacement.name}</b> ({imp.replacement.ovr}).
+              </>
+            ) : (
+              '.'
+            )}
+          </>
+        ) : (
+          'A saída dele não muda a força do time.'
+        )}
+      </p>
+      <dl className="pp-facts">
+        <div><dt>Idade</dt><dd>{f.age}</dd></div>
+        <div><dt>Potencial</dt><dd>{potLabel(f)}</dd></div>
+        <div><dt>Contrato</dt><dd>{f.contract} temp.</dd></div>
+        <div><dt>Salário</dt><dd>{monthly(f.wage)}</dd></div>
+        <div><dt>Pelo clube</dt><dd>{f.apps} jogos · {f.goals} gols</dd></div>
+        <div><dt>Origem</dt><dd>{f.homegrown ? 'cria da base' : 'contratado'}</dd></div>
+      </dl>
+      {f.intent && <p className={`pp-intent ${INTENT_LABEL[f.intent].tone}`}>Contrato: {INTENT_LABEL[f.intent].text}</p>}
+    </div>
+  );
+}
+
 /** Proposta por um jogador do elenco: aceitar, negociar (pedir mais) ou recusar. */
 export function SaleOfferCard({ state, offer, f, idx, dispatch, disabled }: { state: GameState; offer: Offer; f: Footballer; idx: number; dispatch: Dispatch; disabled: boolean }) {
   const buyer = state.clubs.find((c) => c.name === offer.club);
@@ -56,6 +100,7 @@ export function SaleOfferCard({ state, offer, f, idx, dispatch, disabled }: { st
   const tone = ratio >= 1.2 ? 'good' : ratio < 0.9 ? 'bad' : '';
   const label = ratio >= 1.2 ? `${Math.round((ratio - 1) * 100)}% acima do valor` : ratio < 0.9 ? `${Math.round((1 - ratio) * 100)}% abaixo do valor` : 'perto do valor';
   const [asking, setAsking] = useState(false);
+  const [profile, setProfile] = useState(false);
   const [ask, setAsk] = useState(() => Math.round(Math.max(offer.fee * 1.2, value)));
   const scale = Math.max(offer.fee, value * 1.4);
   return (
@@ -82,6 +127,10 @@ export function SaleOfferCard({ state, offer, f, idx, dispatch, disabled }: { st
         <i style={{ left: `${Math.min(100, (value / scale) * 100)}%` }} />
       </div>
       <p className="offer-note">Valor de mercado: {money(value)}. A proposta expira no fim da janela.</p>
+      <button type="button" className="link" onClick={() => setProfile(!profile)}>
+        {profile ? 'Esconder perfil' : `Ver perfil de ${f.name.split(' ')[0]}`}
+      </button>
+      {profile && <PlayerProfile state={state} f={f} />}
       {offer.message && <p className="offer-msg">{offer.message}</p>}
       {asking && (
         <div className="offer-ask">

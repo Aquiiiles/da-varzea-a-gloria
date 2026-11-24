@@ -88,3 +88,22 @@ describe('propostas pelos seus jogadores', () => {
     expect(offer.wage).toBeGreaterThan(10);
   });
 });
+
+describe('perfil do jogador na negociação', () => {
+  it('o melhor titular pesa mais que o pior reserva, e o substituto é de fora do time', async () => {
+    const { playerImportance, bestEleven } = await import('../../src/engine/footballers');
+    const s = newGame(3, { name: 'Unidos', colors: ['#c8102e', '#ffffff'], origin: 'pub' });
+    const sq = s.player.squad;
+    const xi = bestEleven(sq, s.player.coach.formation).ids;
+    const best = sq.filter((f) => xi.has(f.id)).sort((a, b) => b.ovr - a.ovr)[0];
+    const worst = sq.filter((f) => !xi.has(f.id)).sort((a, b) => a.ovr - b.ovr)[0];
+    const a = playerImportance(sq, s.player.coach.formation, best.id);
+    const b = playerImportance(sq, s.player.coach.formation, worst.id);
+    expect(a.starter).toBe(true);
+    expect(b.starter).toBe(false);
+    expect(a.delta).toBeGreaterThanOrEqual(b.delta);
+    expect(a.replacement).not.toBeNull();
+    expect(xi.has(a.replacement!.id)).toBe(false);
+    expect(b.replacement).toBeNull();
+  });
+});

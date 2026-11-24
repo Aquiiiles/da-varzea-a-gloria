@@ -34,6 +34,8 @@ A cada temporada você abre o **Escritório do Presidente** (abas em grade, nada
 
 Depois de jogar a temporada, você acompanha o **calendário**: avança por **próximo jogo**, **semana**, **mês** ou **até o fim**, com tabela parcial, últimos resultados e próximos jogos. Os jogos ao vivo aparecem na data em que acontecem.
 
+Todo jogo de todos os clubes gera **autores dos gols, assistências e notas**. No fim da temporada há a **cerimônia de prêmios**: de cada liga (craque, artilheiro, seleção, técnico e revelação) e gerais (**Bola de Ouro**, **Chuteira de Ouro**, time da temporada, técnico da temporada e revelação do ano). Os prêmios do seu clube vão para a sala de troféus.
+
 O botão **Assistente decide** faz uma gestão conservadora por você, e **Rápido** deixa o assistente gerir e jogar até algo decisivo acontecer.
 
 O calendário é o brasileiro: **Estadual** no 1º semestre e **série nacional** no 2º (Séries A e B em pontos corridos, Série C com quadrangulares, Série D com grupos e mata-mata). As vagas na Série D saem do Estadual. Há ainda a **Copa do Estado**, a **Copa Nacional** (o pequeno joga em casa nas fases iniciais), a **Copa Continental** (top 6 da Série A e campeão da Copa Nacional), a **Copa Sul** e o **Mundial de Clubes**. Finais, playoff, última rodada decisiva, zebra na copa e clássico são mostrados **ao vivo**, com narração.

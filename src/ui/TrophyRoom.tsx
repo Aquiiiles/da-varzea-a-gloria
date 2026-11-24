@@ -1,4 +1,4 @@
-import { TIERS, achievements, clubRecords, trophies, type GameState, type Tier } from '../engine';
+import { TIERS, achievements, clubRecords, myAwards, trophies, type GameState, type Tier } from '../engine';
 import { num } from './format';
 
 /** Taça desenhada em SVG; o tamanho cresce com a importância. */
@@ -21,6 +21,7 @@ export function TrophyRoom({ state }: { state: GameState }) {
   const list = trophies(state);
   const rec = clubRecords(state);
   const ach = achievements(state);
+  const awards = state.history.flatMap((r) => (r.awards ? myAwards(r.awards).map((w) => ({ ...w, year: r.year })) : []));
 
   return (
     <div className="tab-stack">
@@ -59,6 +60,28 @@ export function TrophyRoom({ state }: { state: GameState }) {
             </li>
           ))}
         </ul>
+      </section>
+
+      <section className="panel section">
+        <h2 className="section-title">Prêmios individuais ({awards.length})</h2>
+        {awards.length === 0 ? (
+          <p className="empty">Nenhum prêmio ainda. Um craque da casa na seleção do campeonato já seria um começo.</p>
+        ) : (
+          <ul className="award-others">
+            {awards
+              .slice()
+              .reverse()
+              .map((w, i) => (
+                <li key={i}>
+                  <strong>
+                    {w.year} · {w.title}
+                    {w.scope === 'Temporada' ? '' : ` (${w.scope})`}
+                  </strong>
+                  <span>{w.name}</span>
+                </li>
+              ))}
+          </ul>
+        )}
       </section>
 
       <section className="panel section">

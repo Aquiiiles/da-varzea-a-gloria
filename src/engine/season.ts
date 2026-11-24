@@ -1,9 +1,11 @@
 import { SERIE_D_SPOTS, SQUAD_MAX, SQUAD_MIN, START_YEAR, TIERS, YOUTH_AGE_LIMIT, YOUTH_MAX } from '../data/pyramid';
-import { aiScorers, evolveAiClubs, refreshStrength, type AiTransfer } from './aisquad';
+import { evolveAiClubs, refreshStrength, type AiTransfer } from './aisquad';
 import { levelOf, makeClub, syncTier } from './clubs';
 import { homegrownInXI, moraleEdge, startingCoach } from './clubops';
 import { estadual, pointsLeague, serieC, serieD, PLAYER, type CompEnv, type CompTracker, type LeagueOutcome } from './competitions';
 import { SEASON_END, SEASON_START, matchDay, type CalendarKey } from './calendar';
+import { SeasonStats } from './stats';
+import { computeAwards, myAwards, type AwardsInput, type LeagueInfo } from './awards';
 import { continentalCup, foreignClubs, nationalCup, stateCup, worldCup, type CupEnv, type CupResult } from './cups';
 import { nextId } from './effects';
 import { TICKET_POLICY, attendance, seasonFinance } from './finance';
@@ -156,9 +158,14 @@ export function simulateSeason(state: GameState): SeasonResult {
       st.matches.push([m.day ?? 0, st.ids.indexOf(m.home), st.ids.indexOf(m.away), m.hg, m.ag]);
     },
   });
+  const stats = new SeasonStats(
+    (id) => (id === PLAYER ? p.squad : byId.get(id)?.squad ?? null),
+    (id) => (id === PLAYER ? p.coach.formation : '4-4-2'),
+  );
   const env = (label: CalendarKey, target?: Tier, track?: [CompId, string]): CompEnv & CupEnv => {
     let n = 0;
     return {
+      detail: (m, rng) => stats.record(label, m, rng),
       rng: deriveRng(seed, season, label),
       matchRng: () => deriveRng(seed, season, label, 'jogo', n++),
       dayOf: (k, total) => matchDay(label, year, k, total),
@@ -200,7 +207,9 @@ export function simulateSeason(state: GameState): SeasonResult {
     cupMatches.push(...res.playerMatches);
   };
   const ourState = [...stateIds('A'), ...stateIds('B'), ...stateIds('V')];
+  const cupChampions: AwardsInput['cupChampions'] = [];
   const copaEstado = stateCup(env('copa-estado'), ourState);
+  cupChampions.push({ id: 'estado', clubId: copaEstado.championId });
   addCup(copaEstado);
 
   // Copa Nacional: Séries A e B, 12 melhores da C, 2 melhores do Estadual sem série nacional,
@@ -218,6 +227,7 @@ export function simulateSeason(state: GameState): SeasonResult {
     entrants.add(id);
   }
   const copa = nationalCup(env('copa'), [...entrants]);
+  cupChampions.push({ id: 'copa', clubId: copa.championId });
   addCup(copa);
 
   let ccChampion = false;
@@ -227,12 +237,15 @@ export function simulateSeason(state: GameState): SeasonResult {
     for (const f of others) foreign.set(f.id, f);
     const res = continentalCup(env(p.continental), p.continental, [PLAYER, ...domestic, ...others.map((f) => f.id)]);
     addCup(res);
+    cupChampions.push({ id: p.continental, clubId: res.championId });
     ccChampion = p.continental === 'cc' && res.championId === PLAYER;
   }
   if (p.worldCup) {
     const others = foreignClubs(deriveRng(seed, season, 'foreign', 'mundial'), 7, 80, 4.5, 'fwc', false);
     for (const f of others) foreign.set(f.id, f);
-    addCup(worldCup(env('mundial'), [PLAYER, ...others.map((f) => f.id)]));
+    const wc = worldCup(env('mundial'), [PLAYER, ...others.map((f) => f.id)]);
+    addCup(wc);
+    cupChampions.push({ id: 'mundial', clubId: wc.championId });
   }
   const cupPrizes = cupRuns.reduce((sum, c) => sum + c.prize, 0);
 
@@ -348,8 +361,16 @@ export function simulateSeason(state: GameState): SeasonResult {
   const ms = TIERS[tier].moneyScale;
   const objectiveBonus = objectives.reduce((sum, o) => sum + (o.met ? Math.round((o.main ? 6 : 2) * ms) : 0), 0);
 
-  const goalsFor = allMatches.reduce((sum, m) => sum + (m.home === PLAYER ? m.hg : m.ag), 0);
-  const topScorer = distributeGoals(deriveRng(seed, season, 'scorers'), p.squad, goalsFor, allMatches.length);
+  // gols e jogos de verdade (detalhes de cada partida) para o elenco do jogador
+  const total = stats.total;
+  let topScorer: { name: string; goals: number } | null = null;
+  for (const f of p.squad) {
+    const st = total.get(f.id);
+    if (!st) continue;
+    f.goals += st.goals;
+    f.apps += st.apps;
+    if (!topScorer || st.goals > topScorer.goals) topScorer = { name: f.name, goals: st.goals };
+  }
   const idolGoals = Math.max(0, ...p.squad.map((f) => f.goals));
 
   // ---------------------- momentos ao vivo ----------------------
@@ -475,14 +496,57 @@ export function simulateSeason(state: GameState): SeasonResult {
   p.copaSpot = copaEstado.championId === PLAYER;
   if (p.copaSpot) headlines.push(`${name} garante vaga na Copa Nacional pela Copa do Estado`);
 
-  // gols dos jogadores da IA em todas as ligas (artilharia real)
-  const goalRng = deriveRng(seed, season, 'ai-goals');
-  let serieAScorer: { name: string; club: string; goals: number } | null = null;
-  for (const out of [serA, serB, serC, serD, estA, estB, varzea]) {
-    for (const t of out.tables ?? []) {
-      const top = aiScorers(goalRng, t, byId);
-      if (out === serA && top && (!serieAScorer || top.goals > serieAScorer.goals)) serieAScorer = top;
+  // gols e jogos dos jogadores da IA (detalhes de cada partida)
+  for (const c of state.clubs) {
+    for (const f of c.squad) {
+      const st = total.get(f.id);
+      if (!st) continue;
+      f.goals += st.goals;
+      f.apps += st.apps;
     }
+  }
+  // ---------------------- prêmios ----------------------
+  const worldAwardNews: string[] = [];
+  const leagueInfo = (key: string, compId: CompId, name: string, t: Tier, ids: string[], out: LeagueOutcome): LeagueInfo => ({
+    key, compId, name, tier: t, ids, ranking: out.ranking, champion: out.champion, promoted: out.promoted,
+  });
+  const awards = computeAwards({
+    seed,
+    stats,
+    leagues: [
+      leagueInfo('serie-a', 'serie_a', 'Série A', 1, natIds(1), serA),
+      leagueInfo('serie-b', 'serie_b', 'Série B', 2, natIds(2), serB),
+      leagueInfo('serie-c', 'serie_c', 'Série C', 3, natIds(3), serC),
+      leagueInfo('serie-d', 'serie_d', 'Série D', 4, natIds(4), serD),
+      leagueInfo('est-a', 'estadual_a', 'Estadual', 5, stateIds('A'), estA),
+      leagueInfo('est-b', 'estadual_b', 'Estadual Série B', 6, stateIds('B'), estB),
+      leagueInfo('varzea', 'varzea', 'Várzea', 7, stateIds('V'), varzea),
+    ],
+    playerId: PLAYER,
+    playerCoach: p.coach.name,
+    nameOf,
+    tierOf,
+    strengthOf: (id) => (id === PLAYER ? pStrength : byId.get(id)?.strength ?? 0),
+    cupChampions,
+  });
+  const won = myAwards(awards);
+  for (const w of won) headlines.push(`PRÊMIO: ${w.name} leva ${w.title.toLowerCase()}${w.scope === 'Temporada' ? '' : ` da ${w.scope}`}`);
+  if (won.length > 0) {
+    p.hype = clamp(p.hype + 4 * won.length, 0, 100);
+    if (won.some((w) => w.title.startsWith('Técnico'))) p.coach.morale = clamp(p.coach.morale + 10, 0, 100);
+  }
+  const bola = awards.general.items.find((i) => i.id === 'bola');
+  if (bola) worldAwardNews.push(`${bola.winner.name} (${bola.winner.club}) ganha a Bola de Ouro`);
+  const boot = awards.general.items.find((i) => i.id === 'chuteira');
+  if (boot) worldAwardNews.push(`${boot.winner.name} (${boot.winner.club}) leva a Chuteira de Ouro: ${boot.winner.detail}`);
+  const coachYear = awards.general.items.find((i) => i.id === 'tecnico_ano');
+  if (coachYear) worldAwardNews.push(`${coachYear.winner.name} (${coachYear.winner.club}) é eleito o técnico da temporada`);
+
+  let serieAScorer: { name: string; club: string; goals: number } | null = null;
+  for (const [id, st] of stats.byComp.get('serie-a') ?? []) {
+    const who = stats.people.get(id);
+    if (!who || who.clubId === PLAYER) continue;
+    if (!serieAScorer || st.goals > serieAScorer.goals) serieAScorer = { name: who.f.name, club: nameOf(who.clubId), goals: st.goals };
   }
 
   const newsInput: NewsInput = {
@@ -539,7 +603,8 @@ export function simulateSeason(state: GameState): SeasonResult {
   const ids = { next: () => nextId(state), names: allNames(state), season: season + 1 };
   applyMovements(state, nextNat, nextState, leaveState, ids);
   newsInput.transfers = evolveAiClubs(deriveRng(seed, season, 'ai-evolve'), state.clubs, ids);
-  result.worldNews = buildWorldNews(deriveRng(seed, season, 'news'), newsInput);
+  result.worldNews = [...buildWorldNews(deriveRng(seed, season, 'news'), newsInput), ...worldAwardNews];
+  result.awards = awards;
   if (bankrupt) state.over = 'falencia';
   return result;
 }
@@ -621,7 +686,6 @@ function buildWorldNews(rng: Rng, n: NewsInput): string[] {
   return out;
 }
 
-const GOAL_WEIGHT = { GOL: 0, DEF: 0.5, MEI: 2, ATA: 5 };
 
 interface MomentInput {
   p: GameState['player'];
@@ -731,25 +795,6 @@ function buildCalendar(
 
 const CUP_PRIORITY: Record<CompetitionId, number> = { mundial: 0, cc: 1, le: 2, copa: 3, estado: 4 };
 
-/** Distribui os gols do time entre o elenco (titulares marcam mais). */
-function distributeGoals(rng: Rng, squad: Footballer[], goals: number, games: number) {
-  if (squad.length === 0) return null;
-  const { ids } = bestEleven(squad);
-  for (const f of squad) f.apps += ids.has(f.id) ? games : Math.round(games * 0.25);
-  const weight = (f: Footballer) => GOAL_WEIGHT[f.pos] * (ids.has(f.id) ? 1 : 0.2) * Math.pow(1.06, f.ovr - 50);
-  const seasonGoals = new Map<number, number>();
-  for (let g = 0; g < goals; g++) {
-    const f = rng.weighted(squad, weight);
-    seasonGoals.set(f.id, (seasonGoals.get(f.id) ?? 0) + 1);
-  }
-  let top: { name: string; goals: number } | null = null;
-  for (const f of squad) {
-    const g = seasonGoals.get(f.id) ?? 0;
-    f.goals += g;
-    if (!top || g > top.goals) top = { name: f.name, goals: g };
-  }
-  return top;
-}
 
 /**
  * Intenção de cada jogador para o fim da temporada, decidida na abertura da janela

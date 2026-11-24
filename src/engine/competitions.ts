@@ -17,6 +17,8 @@ export interface CompEnv {
   dayOf: (k: number, total: number) => number;
   /** registra as fases e os jogos das competições do jogador (tabelas parciais no calendário) */
   track?: CompTracker;
+  /** detalhes do jogo (autores, assistências, notas), com o sorteio do próprio jogo */
+  detail?: (m: MatchResult, rng: Rng) => void;
   ctx: LeagueContext;
   name: (id: string) => string;
   tierOf: (id: string) => Tier | null;
@@ -100,15 +102,21 @@ export function stamp<T extends MatchResult>(m: T, day: number): T {
 
 /** Ida e volta com sorteio próprio de cada jogo e datas (rodadas `k1` e `k2` de `total`). */
 export function tie(env: CompEnv, better: string, other: string, advantage: boolean, k1: number, k2: number, total: number): [MatchResult, MatchResult] {
-  const legs = twoLegs([env.matchRng(), env.matchRng()], env.ctx, better, other, advantage);
+  const rngs: [Rng, Rng] = [env.matchRng(), env.matchRng()];
+  const legs = twoLegs(rngs, env.ctx, better, other, advantage);
   stamp(legs[0], env.dayOf(k1, total));
   stamp(legs[1], env.dayOf(k2, total));
+  env.detail?.(legs[0], rngs[0]);
+  env.detail?.(legs[1], rngs[1]);
   return legs;
 }
 
 /** Jogo eliminatório único (prorrogação e pênaltis) com data. */
 export function single(env: CompEnv, h: string, a: string, neutral: boolean, k: number, total: number): MatchResult {
-  return stamp(knockout(env.matchRng(), env.ctx, h, a, neutral), env.dayOf(k, total));
+  const rng = env.matchRng();
+  const m = stamp(knockout(rng, env.ctx, h, a, neutral), env.dayOf(k, total));
+  env.detail?.(m, rng);
+  return m;
 }
 
 function cupMatch(env: CompEnv, round: string, r: MatchResult, playerTier: Tier, advanced: boolean | null): CupMatch {
@@ -164,7 +172,9 @@ export function leagueRun(env: CompEnv, ids: string[], double: boolean, deductio
     const day = env.dayOf(k0 + r, total);
     const res: MatchResult[] = [];
     for (const [h, a] of round) {
-      const m = stamp(playMatch(env.matchRng(), h, a, env.ctx.strength(h, a), env.ctx.strength(a, h), env.ctx.homeAdv(h), env.ctx.goalMult?.(h, a)), day);
+      const rng = env.matchRng();
+      const m = stamp(playMatch(rng, h, a, env.ctx.strength(h, a), env.ctx.strength(a, h), env.ctx.homeAdv(h), env.ctx.goalMult?.(h, a)), day);
+      env.detail?.(m, rng);
       applyResult(table, m);
       if (stage >= 0) env.track!.match(stage, m);
       res.push(m);
@@ -425,13 +435,15 @@ export interface EstadualSpec {
 function singleWithAdvantage(env: CompEnv, better: string, other: string, day: number): MatchResult {
   const { ctx } = env;
   const bonus = (id: string) => ctx.knockoutBonus?.(id) ?? 0;
-  const m = stamp(playMatch(env.matchRng(), better, other, ctx.strength(better, other) + bonus(better), ctx.strength(other, better) + bonus(other), ctx.homeAdv(better), ctx.goalMult?.(better, other)), day);
+  const rng = env.matchRng();
+  const m = stamp(playMatch(rng, better, other, ctx.strength(better, other) + bonus(better), ctx.strength(other, better) + bonus(other), ctx.homeAdv(better), ctx.goalMult?.(better, other)), day);
   if (m.hg > m.ag) m.winner = better;
   else if (m.ag > m.hg) m.winner = other;
   else {
     m.winner = better;
     m.advantage = true;
   }
+  env.detail?.(m, rng);
   return m;
 }
 

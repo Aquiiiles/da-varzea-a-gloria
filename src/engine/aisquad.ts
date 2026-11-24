@@ -1,7 +1,7 @@
 import { TIERS } from '../data/pyramid';
 import { develop, makeFootballer, retires, squadStrength } from './footballers';
 import type { Rng } from './rng';
-import type { Club, Footballer, Position, TableRow, Tier } from './types';
+import type { Club, Footballer, Position, Tier } from './types';
 
 /** Composição de um elenco da IA (20 jogadores). */
 const PLAN: Position[] = ['GOL', 'GOL', 'DEF', 'DEF', 'DEF', 'DEF', 'DEF', 'DEF', 'MEI', 'MEI', 'MEI', 'MEI', 'MEI', 'MEI', 'ATA', 'ATA', 'ATA', 'ATA', 'DEF', 'MEI'];
@@ -134,28 +134,7 @@ export function refreshStrength(c: Club): void {
   c.strength = Math.round(squadStrength(c.squad) * 10) / 10;
 }
 
-const GOAL_WEIGHT = { GOL: 0, DEF: 0.5, MEI: 2, ATA: 5 };
 
-/** Distribui os gols de cada clube da IA entre o elenco; devolve o artilheiro da tabela. */
-export function aiScorers(rng: Rng, table: readonly TableRow[], byId: Map<string, Club>): { name: string; club: string; goals: number } | null {
-  let top: { name: string; club: string; goals: number } | null = null;
-  for (const row of table) {
-    const c = byId.get(row.clubId);
-    if (!c || c.squad.length === 0) continue;
-    const season = new Map<number, number>();
-    for (let g = 0; g < row.gf; g++) {
-      const f = rng.weighted(c.squad, (x) => GOAL_WEIGHT[x.pos] * Math.pow(1.06, x.ovr - 50));
-      season.set(f.id, (season.get(f.id) ?? 0) + 1);
-    }
-    for (const f of c.squad) {
-      const g = season.get(f.id) ?? 0;
-      f.goals += g;
-      f.apps += row.played;
-      if (!top || g > top.goals) top = { name: f.name, club: c.name, goals: g };
-    }
-  }
-  return top;
-}
 
 export function tierTarget(tier: Tier, prestige = 0): number {
   return TIERS[tier].meanStrength + prestige;

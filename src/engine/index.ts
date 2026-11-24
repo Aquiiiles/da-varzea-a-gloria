@@ -22,3 +22,4 @@ export { initials } from './clubs';
 export { playedMatches, upcomingMatches, stageStarted, partialTable, outcomeOf } from './calendarView';
 export { dayToDate, weekdayOf } from './calendar';
 export { advanceTarget } from './game';
+export { myAwards } from './awards';

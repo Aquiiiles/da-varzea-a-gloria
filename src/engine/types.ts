@@ -442,6 +442,8 @@ export interface SeasonResult {
   cups: CupRun[];
   objectives: Objective[];
   moments: LiveMoment[];
+  /** prêmios da temporada (gerais e de cada liga) */
+  awards?: SeasonAwards;
   derby: { w: number; d: number; l: number } | null;
   /** torcedômetro no fim da temporada e variação */
   mood: number;
@@ -515,6 +517,39 @@ export interface GameState {
   calendar?: SeasonCalendar | null;
   /** até que dia do calendário a temporada já foi mostrada (null = já terminou de mostrar) */
   reveal?: number | null;
+}
+
+/** Um nome numa premiação (jogador ou técnico). */
+export interface AwardEntry {
+  name: string;
+  club: string;
+  /** é do clube do jogador? */
+  mine: boolean;
+  pos?: Position;
+  age?: number;
+  detail: string;
+}
+
+export interface AwardItem {
+  id: 'craque' | 'artilheiro' | 'tecnico' | 'revelacao' | 'bola' | 'chuteira' | 'tecnico_ano' | 'revelacao_ano';
+  title: string;
+  winner: AwardEntry;
+  /** os 3 finalistas (o vencedor primeiro) */
+  finalists: AwardEntry[];
+}
+
+export interface AwardSet {
+  /** "Temporada" (gerais) ou o nome da liga */
+  scope: string;
+  compId?: CompId;
+  items: AwardItem[];
+  /** seleção (time da temporada / do campeonato), 4-3-3 */
+  team?: AwardEntry[];
+}
+
+export interface SeasonAwards {
+  general: AwardSet;
+  leagues: AwardSet[];
 }
 
 /** Fase de pontos de uma competição do jogador, com todos os jogos (para as tabelas parciais). */

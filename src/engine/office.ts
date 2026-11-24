@@ -35,10 +35,28 @@ export function releaseCost(state: GameState, id: number): number {
  * Salário na renovação: valor de mercado do overall ATUAL (veterano em queda aceita redução).
  * Quem evoluiu pede 10% a mais; cria da base aceita 5% a menos.
  */
-export function renewWage(ovr: number, currentWage: number, homegrown = false): number {
+/** Aumento máximo numa renovação (fração do salário atual). Crias da casa pedem menos. */
+export const MAX_RAISE = { normal: 0.4, homegrown: 0.3 };
+/** Salário pode cair no máximo 20% numa renovação (veterano em queda). */
+export const MAX_CUT = 0.2;
+
+/** Quanto o jogador valeria no mercado se renovasse sem limite (base para decidir se ele quer um clube maior). */
+export function renewTarget(ovr: number, currentWage: number, homegrown = false): number {
   const market = marketWage(ovr);
   const mult = homegrown ? 0.95 : market > currentWage ? 1.1 : 1;
   return round1(market * mult);
+}
+
+/**
+ * Salário da renovação: o de mercado, mas com aumento de no máximo 40% (30% para crias da casa)
+ * e redução de no máximo 20%. Na vida real ninguém dobra o salário numa renovação.
+ */
+export function renewWage(ovr: number, currentWage: number, homegrown = false): number {
+  const target = renewTarget(ovr, currentWage, homegrown);
+  if (currentWage <= 0) return target;
+  const hi = currentWage * (1 + (homegrown ? MAX_RAISE.homegrown : MAX_RAISE.normal));
+  const lo = currentWage * (1 - MAX_CUT);
+  return round1(Math.min(hi, Math.max(lo, target)));
 }
 
 export function effectsCashCost(state: GameState, effects: readonly Effect[]): number {
@@ -67,7 +85,7 @@ export function projectFinance(state: GameState) {
  */
 export function renewalOffer(f: Footballer): { wage: number; label: string } | null {
   if (f.intent === 'aposenta') return null;
-  const base = renewWage(f.ovr, f.wage, f.homegrown);
+  const base = f.askWage ?? renewWage(f.ovr, f.wage, f.homegrown);
   if (f.intent === 'sai') return { wage: round1(base * 1.3), label: 'Convencer a ficar' };
   if (f.intent === 'clube_maior') return { wage: round1(Math.max(base, marketWage(f.ovr) * 1.15) * 1.1), label: 'Cobrir o salário do clube grande' };
   return { wage: base, label: 'Renovar agora' };

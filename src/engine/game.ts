@@ -306,6 +306,7 @@ export function applyMut(state: GameState, a: Action): void {
       f.contract = f.age >= 32 ? 2 : 4;
       f.leaving = false;
       delete f.intent;
+      delete f.askWage;
       state.news.push(`${f.name} renova contrato com o ${p.name}`);
       return;
     }

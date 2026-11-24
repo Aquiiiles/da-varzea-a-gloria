@@ -10,7 +10,7 @@ import { bestEleven, develop, makeFootballer, marketValue, marketWage, retires, 
 import { applyResult, emptyRow, sortTable, type LeagueContext } from './league';
 import { moment } from './live';
 import { BASE_HOME_ADVANTAGE, type GoalMult } from './match';
-import { renewWage } from './office';
+import { renewTarget, renewWage } from './office';
 import { deriveRng, type Rng } from './rng';
 import { clamp } from './util';
 import type {
@@ -673,13 +673,15 @@ export function decideIntents(state: GameState): void {
   const { ids } = bestEleven(p.squad, p.coach.formation);
   for (const f of p.squad) {
     delete f.intent;
+    delete f.askWage;
     if (f.age >= 33 && retires(rng, { ...f, age: f.age + 1 })) {
       f.intent = 'aposenta';
       continue;
     }
     if (f.contract !== 1) continue;
     const ask = renewWage(f.ovr, f.wage, f.homegrown);
-    if (ask > renewalCap(p.tier, f.wage)) f.intent = 'clube_maior';
+    f.askWage = ask;
+    if (renewTarget(f.ovr, f.wage, f.homegrown) > renewalCap(p.tier, f.wage)) f.intent = 'clube_maior';
     else if (rng.chance(refusalChance(f, ids.has(f.id)))) f.intent = 'sai';
     else f.intent = ask > f.wage * 1.15 ? 'aumento' : 'renova';
   }
@@ -753,7 +755,9 @@ function evolveClub(state: GameState, result: SeasonResult): void {
     f.contract--;
     // o fim da temporada só cumpre o que já estava visível na janela (sem sorteio escondido)
     const intent = f.intent;
+    const agreed = f.askWage;
     delete f.intent;
+    delete f.askWage;
     if (intent === 'aposenta') {
       deps.push(`${f.name} (${f.age} anos) pendura as chuteiras`);
       p.alumni.push(f);
@@ -771,7 +775,7 @@ function evolveClub(state: GameState, result: SeasonResult): void {
     } else if (f.contract <= 0) {
       // renovação automática: salário de mercado (com o overall novo), veteranos por 1 ano
       const old = f.wage;
-      f.wage = renewWage(f.ovr, f.wage, f.homegrown);
+      f.wage = agreed ?? renewWage(f.ovr, f.wage, f.homegrown);
       f.contract = f.age >= 32 ? 1 : 3;
       result.renewals.push(`${f.name} renova por ${f.contract} ano(s)${f.wage > old ? ` com aumento de R$ ${Math.round(f.wage - old)} mil/temp.` : ''}`);
       stay.push(f);

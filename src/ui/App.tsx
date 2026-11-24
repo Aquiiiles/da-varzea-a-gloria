@@ -3,7 +3,7 @@ import { ActionError, apply, decodeRun, encodeRun, negotiationFor, newGame, repl
 import { FoundationScreen } from './FoundationScreen';
 import { GameScreen } from './GameScreen';
 import { Ticker } from './Ticker';
-import { saveCareer } from '../storage';
+import { loadNamePack, saveCareer } from '../storage';
 
 /** Seed nova vem da UI (o motor nunca gera entropia). */
 function freshSeed(): number {
@@ -20,7 +20,7 @@ function loadFromUrl(): GameState | null {
   const code = decodeRun(window.location.search);
   if (!code) return null;
   try {
-    return replay(code.seed, code.foundation, code.actions);
+    return replay(code.seed, code.foundation, code.actions, { pack: loadNamePack() });
   } catch {
     return null;
   }
@@ -48,7 +48,7 @@ export function App() {
   }, [toast]);
 
   const start = useCallback((f: Foundation, seed?: number) => {
-    const s = newGame(seed ?? freshSeed(), f);
+    const s = newGame(seed ?? freshSeed(), f, { pack: loadNamePack() });
     saveCareer(s);
     setState(s);
   }, []);
@@ -58,7 +58,7 @@ export function App() {
     const code = decodeRun(query);
     if (!code) return setToast({ text: 'Save inválido.' });
     try {
-      setState(replay(code.seed, code.foundation, code.actions));
+      setState(replay(code.seed, code.foundation, code.actions, { pack: loadNamePack() }));
     } catch {
       setToast({ text: 'Não foi possível carregar este save.' });
     }

@@ -3,7 +3,7 @@
  * o estado é reconstruído pelo motor com `replay`, então o save é pequeno e nunca fica inconsistente.
  * Todo acesso ao localStorage é protegido: em aba anônima ou com o storage bloqueado, o jogo segue sem saves.
  */
-import { computeScore, encodeRun, levelFor, runStats, TIERS, type GameState } from './engine';
+import { computeScore, encodeRun, levelFor, parseNamePack, runStats, TIERS, type GameState, type NamePack } from './engine';
 import { dailyLabel } from './ui/daily';
 
 const CAREERS_KEY = 'dvg:careers:v3';
@@ -106,4 +106,30 @@ export function saveCareer(state: GameState): void {
 
 export function deleteCareer(id: string): void {
   write(CAREERS_KEY, read<CareerSave>(CAREERS_KEY).filter((c) => c.id !== id));
+}
+
+/* ------------------------------ Pacote de nomes ------------------------------ */
+
+const PACK_KEY = 'dvg:namepack:v1';
+
+/** Pacote de nomes importado pelo jogador (fica só neste navegador). */
+export function loadNamePack(): NamePack | null {
+  try {
+    const raw = localStorage.getItem(PACK_KEY);
+    if (!raw) return null;
+    const pack = parseNamePack(JSON.parse(raw));
+    return typeof pack === 'string' ? null : pack;
+  } catch {
+    return null;
+  }
+}
+
+export function saveNamePack(pack: NamePack | null): boolean {
+  try {
+    if (pack) localStorage.setItem(PACK_KEY, JSON.stringify(pack));
+    else localStorage.removeItem(PACK_KEY);
+    return true;
+  } catch {
+    return false;
+  }
 }

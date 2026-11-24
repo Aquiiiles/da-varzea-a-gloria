@@ -46,3 +46,45 @@ describe('correções', () => {
     expect(canApply(s, { t: 'tryout' })).toBe(true);
   });
 });
+
+describe('propostas pelos seus jogadores', () => {
+  const withOffer = (): GameState => {
+    const s = newGame(5, { name: 'Unidos', colors: ['#c8102e', '#ffffff'], origin: 'pub' });
+    const f = s.player.squad[0];
+    s.office.offers = [{ playerId: f.id, fee: 100, club: s.clubs[0].name, clubTier: s.clubs[0].tier, max: 130 }];
+    return s;
+  };
+
+  it('negociar: até o limite do clube vende pelo valor pedido', () => {
+    const s = withOffer();
+    const cash = s.player.cash;
+    const t = apply(s, { t: 'counter', idx: 0, fee: 125 });
+    expect(t.player.cash).toBe(cash + 125);
+    expect(t.office.offers[0]).toBeNull();
+  });
+
+  it('negociar acima do limite: o clube faz a última oferta; insistir faz ele desistir', () => {
+    let s = withOffer();
+    s = apply(s, { t: 'counter', idx: 0, fee: 200 });
+    expect(s.office.offers[0]!.fee).toBe(130);
+    expect(s.office.offers[0]!.final).toBe(true);
+    s = apply(s, { t: 'counter', idx: 0, fee: 150 });
+    expect(s.office.offers[0]).toBeNull();
+  });
+
+  it('recusar tira a proposta; pedir menos que a oferta não vale; tudo vai no link', () => {
+    const s = withOffer();
+    expect(canApply(s, { t: 'counter', idx: 0, fee: 90 })).toBe(false);
+    expect(apply(s, { t: 'reject', idx: 0 }).office.offers[0]).toBeNull();
+    expect(decodeAction(encodeAction({ t: 'counter', idx: 1, fee: 4500 }))).toEqual({ t: 'counter', idx: 1, fee: 4500 });
+    expect(decodeAction(encodeAction({ t: 'reject', idx: 2 }))).toEqual({ t: 'reject', idx: 2 });
+  });
+
+  it('segurar quem quer ir para um clube maior custa no máximo 2,5x o salário', async () => {
+    const { renewalOffer } = await import('../../src/engine/office');
+    const f = { ...newGame(1, COACH).player.squad[0], ovr: 80, wage: 10, intent: 'clube_maior' as const };
+    const offer = renewalOffer(f)!;
+    expect(offer.wage).toBeLessThanOrEqual(25);
+    expect(offer.wage).toBeGreaterThan(10);
+  });
+});

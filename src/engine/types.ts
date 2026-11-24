@@ -151,6 +151,12 @@ export interface Offer {
   fee: number;
   club: string;
   clubTier: Tier;
+  /** quanto o clube aceita pagar no máximo (escondido; a negociação revela) */
+  max?: number;
+  /** o clube já fez a última oferta */
+  final?: boolean;
+  /** resposta do clube na negociação */
+  message?: string;
 }
 
 /* ------------------------------ Clube do jogador ------------------------------ */
@@ -397,6 +403,8 @@ export type Action =
   | { t: 'lineup'; ids: number[] | null; rotate: boolean } // técnico: escalação (null = os melhores)
   | { t: 'interview'; day: number; q: number; a: number } // entrevista pós-jogo ou coletiva (dia do jogo, pergunta, resposta)
   | { t: 'tactic'; v: Tactic } // técnico: estratégia de jogo
+  | { t: 'counter'; idx: number; fee: number } // pede mais por um jogador seu (proposta idx)
+  | { t: 'reject'; idx: number } // recusa a proposta idx
   | { t: 'next' }; // sai do resumo para a próxima temporada
 
 /* ------------------------------ Partidas ------------------------------ */

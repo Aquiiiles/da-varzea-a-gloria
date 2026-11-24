@@ -324,7 +324,8 @@ export function incomingOffers(rng: Rng, squad: readonly Footballer[], tier: Tie
     if (!rng.chance(Math.min(0.6, 0.03 + star + prospect + leaving))) continue;
     const buyer = rng.pick(buyers);
     const premium = 1 + (tier - buyer.tier) * 0.08;
-    offers.push({ playerId: f.id, fee: Math.round(marketValue(f) * rng.float(0.75, 1.15) * premium), club: buyer.name, clubTier: buyer.tier });
+    const fee = Math.round(marketValue(f) * rng.float(0.75, 1.15) * premium);
+    offers.push({ playerId: f.id, fee, club: buyer.name, clubTier: buyer.tier, max: Math.round(fee * rng.float(1.05, 1.35)) });
   }
   return offers;
 }

@@ -87,6 +87,10 @@ export function renewalOffer(f: Footballer): { wage: number; label: string } | n
   if (f.intent === 'aposenta') return null;
   const base = f.askWage ?? renewWage(f.ovr, f.wage, f.homegrown);
   if (f.intent === 'sai') return { wage: round1(base * 1.3), label: 'Convencer a ficar' };
-  if (f.intent === 'clube_maior') return { wage: round1(Math.max(base, marketWage(f.ovr) * 1.15) * 1.1), label: 'Cobrir o salário do clube grande' };
+  // cobrir a proposta do clube maior: o salário de mercado dele, mas no máximo 2,5x o atual (ninguém pede 10x)
+  if (f.intent === 'clube_maior') {
+    const target = Math.max(base, marketWage(f.ovr) * 1.15) * 1.1;
+    return { wage: round1(Math.max(base, Math.min(target, f.wage * 2.5))), label: 'Cobrir a proposta do clube maior' };
+  }
   return { wage: base, label: 'Renovar agora' };
 }

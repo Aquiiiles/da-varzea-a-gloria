@@ -95,13 +95,13 @@ export function OverviewTab({ state, dispatch, goTo }: TabProps) {
       </Section>
 
       {o.offers.some(Boolean) && (
-        <Section title="Propostas recebidas" note="Clubes interessados nos seus jogadores. Ignorar é recusar; elas expiram no fim da janela.">
+        <Section title="Propostas recebidas" note="Clubes interessados nos seus jogadores. Aceite, negocie um valor maior ou recuse.">
           <div className="offer-grid">
             {o.offers.map((of, idx) => {
               if (!of) return null;
               const f = p.squad.find((x) => x.id === of.playerId);
               if (!f) return null;
-              return <SaleOfferCard key={idx} state={state} offer={of} f={f} disabled={p.squad.length <= SQUAD_MIN} onSell={() => dispatch({ t: 'offer', idx })} />;
+              return <SaleOfferCard key={`${idx}-${of.fee}`} state={state} offer={of} f={f} idx={idx} dispatch={dispatch} disabled={p.squad.length <= SQUAD_MIN} />;
             })}
           </div>
         </Section>

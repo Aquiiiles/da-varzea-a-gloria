@@ -19,7 +19,7 @@ export function OverviewTab({ state, dispatch, goTo }: TabProps) {
     });
   }
   const renewing = p.squad.filter((f) => f.contract === 1 && !f.leaving && f.intent !== 'sai' && f.intent !== 'clube_maior' && f.intent !== 'aposenta');
-  const raise = renewing.reduce((s, f) => s + Math.max(0, renewWage(f.ovr, f.wage, f.homegrown) - f.wage), 0);
+  const raise = renewing.reduce((s, f) => s + Math.max(0, (f.askWage ?? renewWage(f.ovr, f.wage, f.homegrown)) - f.wage), 0);
   if (renewing.length > 0 && raise > proj.wages * 0.08) {
     alerts.push({ text: `${renewing.length} contrato(s) renovam sozinhos no fim da temporada, somando +${money(raise)} na folha. Libere quem você não quer manter.`, tab: 'elenco' });
   }

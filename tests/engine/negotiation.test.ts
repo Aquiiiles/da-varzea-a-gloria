@@ -153,3 +153,30 @@ describe('contratos transparentes', () => {
     expect(canApply(s, { t: 'renew', id: f.id })).toBe(false);
   });
 });
+
+describe('salários nas renovações', () => {
+  it('renovação aumenta no máximo 40% (30% para cria da casa) e corta no máximo 20%', async () => {
+    const { renewWage } = await import('../../src/engine/office');
+    expect(renewWage(70, 100)).toBeCloseTo(140);
+    expect(renewWage(70, 100, true)).toBeCloseTo(130);
+    expect(renewWage(40, 100)).toBeCloseTo(80);
+  });
+
+  it('o fim da temporada cumpre o salário combinado na janela, mesmo se o jogador evoluir', async () => {
+    const { decideIntents } = await import('../../src/engine/season');
+    const s = structuredClone(newGame(77, FOUNDATION));
+    if (s.office.event) s.office.eventChoice = 1;
+    const f = s.player.squad[0];
+    f.contract = 1;
+    f.age = 20;
+    f.intent = undefined;
+    decideIntents(s);
+    if (f.intent !== 'renova' && f.intent !== 'aumento') { f.intent = 'renova'; f.askWage = f.wage * 1.2; }
+    const agreed = f.askWage!;
+    f.ovr += 8; // evoluiu muito até o fim
+    simulateSeason(s);
+    const after = s.player.squad.find((x) => x.id === f.id);
+    expect(after).toBeDefined();
+    expect(after!.wage).toBeCloseTo(agreed);
+  });
+});

@@ -80,6 +80,8 @@ export interface Footballer {
   loanFromYouth?: boolean;
   /** intenção para o fim da temporada (decidida na abertura da janela, visível para o presidente) */
   intent?: ContractIntent;
+  /** salário combinado para a renovação (fixado na abertura da janela; não muda se ele evoluir até o fim) */
+  askWage?: number;
 }
 
 /**

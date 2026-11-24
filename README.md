@@ -37,6 +37,8 @@ A cada temporada você abre o **Escritório do Presidente** (abas em grade, nada
 - **Finanças:** caixa, orçamento previsto, preço do ingresso, patrocínios e banco.
 - **Notícias** do mundo da bola e **Troféus** (sala de troféus, conquistas e recordes).
 
+Durante a temporada há **cansaço** (quem joga muito rende menos) e **lesões** (departamento médico com data de volta). No modo técnico você escolhe a **escalação** (ou deixa no automático, com rodízio) a qualquer momento, e em julho abre a **janela do meio do ano** para contratar e vender. Cada decisão vale só para os jogos seguintes.
+
 Depois de jogar a temporada, você acompanha o **calendário**: avança por **próximo jogo**, **semana**, **mês** ou **até o fim**, com tabela parcial, últimos resultados e próximos jogos. Os jogos ao vivo aparecem na data em que acontecem.
 
 Todo jogo de todos os clubes gera **autores dos gols, assistências e notas**. No fim da temporada há a **cerimônia de prêmios**: de cada liga (craque, artilheiro, seleção, técnico e revelação) e gerais (**Bola de Ouro**, **Chuteira de Ouro**, time da temporada, técnico da temporada e revelação do ano). Os prêmios do seu clube vão para a sala de troféus.

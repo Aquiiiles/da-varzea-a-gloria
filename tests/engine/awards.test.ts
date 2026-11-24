@@ -8,7 +8,7 @@ import { FOUNDATION } from './helpers';
 function season(seed = 12): GameState {
   let s = newGame(seed, FOUNDATION);
   if (s.office.event) s = apply(s, { t: 'event', choice: 1 });
-  return apply(s, { t: 'play' });
+  return apply(apply(s, { t: 'play' }), { t: 'advance', to: 3 });
 }
 
 describe('detalhes dos jogos', () => {

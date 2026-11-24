@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import type { GameState, SeasonResult } from '../engine';
+import type { GameState, LiveMoment, SeasonResult } from '../engine';
 import type { Dispatch } from './App';
 import { Office } from './office/Office';
 import { ResultScreen } from './ResultScreen';
@@ -26,17 +26,23 @@ export function GameScreen({ state, dispatch, onRestart, fromLink }: Props) {
   const fast = fastFrom !== null;
   const setFast = (on: boolean) => setFastFrom(on ? state.history.length : null);
   const last = state.history[state.history.length - 1];
-  /** transmissão ao vivo: jogos já assistidos da temporada (índices em `moments`) */
-  // ao abrir um save/link, os jogos até o dia já mostrado contam como assistidos
-  const [live, setLive] = useState<{ season: number; seen: number[] }>(() => {
-    const r = state.history.at(-1);
-    if (!r) return { season: 0, seen: [] };
-    const upTo = state.reveal ?? Infinity;
-    return { season: r.season, seen: r.moments.map((m, i) => ((m.day ?? Infinity) <= upTo || state.reveal == null ? i : -1)).filter((i) => i >= 0) };
+  const running = state.phase === 'season' && !!state.live && state.reveal != null && !!state.calendar;
+  /** jogos ao vivo já assistidos (temporada:tipo:dia); ao abrir um save, o que já passou conta como assistido */
+  const keyOf = (season: number, m: LiveMoment) => `${season}:${m.kind}:${m.day ?? 0}`;
+  const [seen, setSeen] = useState<Set<string>>(() => {
+    const out = new Set<string>();
+    if (state.phase === 'season' && state.live) {
+      for (const m of state.live.moments) if ((m.day ?? Infinity) <= (state.reveal ?? -1)) out.add(keyOf(state.season, m));
+    } else if (last) {
+      for (const m of last.moments) out.add(keyOf(last.season, m));
+    }
+    return out;
   });
+  /** escritório aberto durante a temporada (janela do meio do ano) */
+  const [officeOpen, setOfficeOpen] = useState(false);
 
   /** temporada cuja cerimônia de prêmios já foi vista (ao abrir um save já terminado, conta como vista) */
-  const [awardsSeen, setAwardsSeen] = useState<number>(() => (state.reveal == null ? state.history.at(-1)?.season ?? 0 : 0));
+  const [awardsSeen, setAwardsSeen] = useState<number>(() => (state.phase === 'season' ? 0 : state.history.at(-1)?.season ?? 0));
 
   // modo rápido: o assistente gere e joga até algo decisivo (novo) acontecer
   useEffect(() => {
@@ -51,41 +57,40 @@ export function GameScreen({ state, dispatch, onRestart, fromLink }: Props) {
     }
     const t = setTimeout(() => {
       const ok =
-        state.phase === 'summary'
-          ? state.reveal != null
-            ? dispatch({ t: 'advance', to: 3 }, { t: 'next' })
-            : dispatch({ t: 'next' })
-          : dispatch({ t: 'auto' }, { t: 'play' });
+        state.phase === 'season'
+          ? dispatch({ t: 'advance', to: 3 })
+          : state.phase === 'summary'
+            ? dispatch({ t: 'next' })
+            : dispatch({ t: 'auto' }, { t: 'play' });
       if (!ok) setFastFrom(null);
     }, 150);
     return () => clearTimeout(t);
   }, [fastFrom, state, last, dispatch]);
 
   // jogo ao vivo: o próximo (por data) que a temporada já alcançou e ainda não foi assistido
-  if (last && (state.phase === 'summary' || state.phase === 'over')) {
-    const seen = live.season === last.season ? live.seen : [];
-    const upTo = state.reveal ?? Infinity;
-    const pending = last.moments
-      .map((m, i) => ({ m, i }))
-      .filter(({ m, i }) => !seen.includes(i) && (m.day ?? Infinity) <= upTo)
-      .sort((a, b) => (a.m.day ?? 999) - (b.m.day ?? 999));
+  if (!fast && (running || state.phase === 'summary' || state.phase === 'over')) {
+    const season = running ? state.season : last?.season ?? 0;
+    const moments = running ? state.live!.moments : last?.moments ?? [];
+    const upTo = running ? state.reveal! : Infinity;
+    const pending = moments.filter((m) => !seen.has(keyOf(season, m)) && (m.day ?? Infinity) <= upTo).sort((a, b) => (a.day ?? 999) - (b.day ?? 999));
     if (pending.length > 0) {
-      const { m, i } = pending[0];
+      const m = pending[0];
       return (
         <LiveMatch
-          key={`${last.season}-${i}`}
+          key={keyOf(season, m)}
           moment={m}
-          index={seen.length}
-          total={last.moments.length}
-          onDone={() => setLive({ season: last.season, seen: [...seen, i] })}
+          index={moments.filter((x) => seen.has(keyOf(season, x))).length}
+          total={moments.length}
+          onDone={() => setSeen(new Set([...seen, keyOf(season, m)]))}
         />
       );
     }
   }
 
-  // temporada em andamento: acompanhar jogo a jogo
-  if (state.reveal != null && state.calendar && (state.phase === 'summary' || state.phase === 'over')) {
-    return <SeasonView state={state} dispatch={dispatch} />;
+  // temporada em andamento: acompanhar jogo a jogo (e o escritório na janela de julho)
+  if (running) {
+    if (officeOpen) return <Office state={state} dispatch={dispatch} onFast={() => setFast(true)} onBack={() => setOfficeOpen(false)} />;
+    return <SeasonView state={state} dispatch={dispatch} onOpenOffice={() => setOfficeOpen(true)} />;
   }
 
   // cerimônia de prêmios (uma vez por temporada, antes do balanço; o modo rápido pula)

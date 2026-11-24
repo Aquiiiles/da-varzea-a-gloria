@@ -78,6 +78,12 @@ export function matchDay(key: CalendarKey, year: number, k: number, total: numbe
   return slots(key, year, total)[Math.min(total - 1, Math.max(0, k))];
 }
 
+/** Janela do meio do ano: 1º a 31 de julho (dias do ano). */
+export function julyWindow(year: number): [number, number] {
+  const start = Math.round((Date.UTC(year, 6, 1) - Date.UTC(year, 0, 0)) / 86400000);
+  return [start, start + 30];
+}
+
 /** Dia do ano → [dia, mês] (para a interface). */
 export function dayToDate(year: number, day: number): { d: number; m: number } {
   const dt = new Date(Date.UTC(year, 0, day));

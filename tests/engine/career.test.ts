@@ -71,7 +71,7 @@ describe('modo técnico', () => {
   it('confiança no chão = demissão; na janela seguinte vêm 3 propostas', () => {
     let s = hired(5);
     s.career!.board.confidence = 0;
-    s = apply(s, { t: 'play' });
+    s = apply(apply(s, { t: 'play' }), { t: 'advance', to: 3 });
     expect(s.career!.unemployed).toBe(true);
     expect(s.career!.stints[0].exit).toBe('demitido');
     expect(s.history.at(-1)!.headlines.some((h) => h.startsWith('DEMITIDO'))).toBe(true);
@@ -96,7 +96,7 @@ describe('modo técnico', () => {
   it(`a carreira vai até os ${CAREER_END_AGE} anos e usa a escada do técnico`, () => {
     const s = newGame(11, COACH);
     for (let i = 0; i < 200 && s.phase !== 'over'; i++) {
-      if (s.phase === 'summary') {
+      if (s.phase === 'summary' || s.phase === 'season') {
         applyMut(s, { t: 'next' });
         continue;
       }

@@ -5,6 +5,7 @@ import {
 import type { Dispatch } from '../App';
 import { money, num } from '../format';
 import { Stars } from './CoachTab';
+import { LineupEditor } from '../LineupEditor';
 import type { TabProps } from './Office';
 import { Section } from './common';
 
@@ -138,6 +139,10 @@ export function CareerTab({ state, dispatch }: TabProps) {
             </button>
           ))}
         </div>
+      </Section>
+
+      <Section title="Escalação" note="Marque os 11 titulares ou deixe no automático. Lesionados ficam de fora; com o rodízio, quem está muito cansado descansa.">
+        <LineupEditor key={JSON.stringify(p.lineup ?? null) + p.coach.formation} state={state} dispatch={dispatch} />
       </Section>
 
       <Section title="Carreira">

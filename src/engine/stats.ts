@@ -77,7 +77,18 @@ export class SeasonStats {
   constructor(
     private readonly squadOf: (clubId: string) => readonly Footballer[] | null,
     private readonly formationOf: (clubId: string) => Formation,
+    /** titulares do clube do jogador em cada jogo (escalação, cansaço e lesões) */
+    private readonly playerXI?: (day: number) => Footballer[],
   ) {}
+
+  /** XI de um jogo do clube do jogador (muda de jogo para jogo). */
+  private playerEleven(day: number): Eleven {
+    const xi = this.playerXI!(day);
+    for (const f of xi) if (!this.people.has(f.id)) this.people.set(f.id, { f, clubId: 'player' });
+    const [gw, gc] = weights(xi, (f) => GOAL_WEIGHT[f.pos] * Math.pow(1.025, f.ovr - 50));
+    const [aw, ac] = weights(xi, (f) => ASSIST_WEIGHT[f.pos] * Math.pow(1.02, f.ovr - 50));
+    return { xi, mean: xi.length > 0 ? xi.reduce((s, f) => s + f.ovr, 0) / xi.length : 0, gw, gc, aw, ac };
+  }
 
   private elevenOf(clubId: string): Eleven {
     let e = this.xi.get(clubId);
@@ -129,7 +140,7 @@ export class SeasonStats {
     ];
     const map = this.compMap(comp);
     for (const [clubId, gf, ga] of sides) {
-      const e = this.elevenOf(clubId);
+      const e = clubId === 'player' && this.playerXI ? this.playerEleven(m.day ?? 0) : this.elevenOf(clubId);
       const n = e.xi.length;
       if (n === 0) continue; // clube estrangeiro: sem elenco
       const goals = new Int8Array(n);

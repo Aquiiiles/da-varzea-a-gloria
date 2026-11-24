@@ -27,15 +27,16 @@ describe('calendário', () => {
 
   it('jogar a temporada abre o calendário no começo; os jogos do clube vêm em ordem de data', () => {
     const s = playedSeason();
-    expect(s.phase).toBe('summary');
+    expect(s.phase).toBe('season');
     expect(s.calendar).toBeTruthy();
     expect(s.reveal).toBe(s.calendar!.start);
     const days = s.calendar!.matches.map((m) => m.day);
     expect(days.length).toBeGreaterThan(15);
     expect(days).toEqual([...days].sort((a, b) => a - b));
-    // a tabela parcial no fim bate com a tabela final da competição principal
+    // a tabela parcial (prévia) no fim bate com a tabela final, que só sai ao fechar a temporada
     const stage = s.calendar!.stages[0];
-    const finalRows = s.history.at(-1)!.comps[0].tables[0].rows.map((r) => [r.clubId, r.points]);
+    const done = apply(s, { t: 'advance', to: 3 });
+    const finalRows = done.history.at(-1)!.comps[0].tables[0].rows.map((r) => [r.clubId, r.points]);
     expect(partialTable(stage, s.calendar!.end).map((r) => [r.clubId, r.points])).toEqual(finalRows);
   });
 
@@ -70,7 +71,7 @@ describe('calendário', () => {
   });
 
   it('avançar não muda nenhum resultado (a temporada já foi simulada)', () => {
-    const a = playedSeason(9);
+    const a = apply(playedSeason(9), { t: 'advance', to: 3 });
     let b = playedSeason(9);
     b = apply(b, { t: 'advance', to: 1 });
     b = apply(b, { t: 'advance', to: 3 });

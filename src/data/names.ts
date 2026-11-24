@@ -116,7 +116,9 @@ export const REAL_SA = [
   'Libertad', 'Talleres', 'Argentinos Juniors', 'Lanús', 'Defensa y Justicia', 'Rosario Central', "Newell's Old Boys", 'Huracán', 'Sporting Cristal',
   'Universitario', 'Alianza Lima', 'Bolívar', 'The Strongest', 'Emelec', 'Junior', 'América de Cali', 'Deportivo Cali', 'Once Caldas',
   'Universidad Católica', 'Cobreloa', 'Defensor Sporting', 'Liverpool (URU)', 'Danubio', 'Guaraní', 'Caracas', 'Deportivo Táchira', 'Aucas',
-  'Melgar', 'Always Ready', 'Nacional (PAR)',
+  'Melgar', 'Always Ready', 'Nacional (PAR)', 'Cienciano', 'Deportes Tolima', 'Independiente Medellín', 'Santa Fe', 'Atlético Tucumán',
+  'Banfield', 'Gimnasia La Plata', 'Unión La Calera', 'Palestino', 'Huachipato', 'Montevideo Wanderers', 'Sportivo Luqueño', 'Nacional Potosí',
+  'Delfín', 'Deportivo Cuenca', 'Universidad César Vallejo',
 ];
 
 /** Clubes de outros continentes (Mundial de Clubes), dos mais fortes para os menores. */

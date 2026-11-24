@@ -1,6 +1,6 @@
 import { personName } from './footballers';
-import type { Rng } from './rng';
-import type { Footballer, LiveEvent, LiveMoment, MatchResult } from './types';
+import { deriveRng, type Rng } from './rng';
+import type { CalendarMatch, Footballer, GameState, LiveEvent, LiveMoment, MatchResult } from './types';
 
 const GOAL = [
   'GOOOL! {p} manda para o fundo da rede!',
@@ -105,4 +105,24 @@ export function moment(
   const awayName = name(r.away);
   const opp = playerHome ? r.away : r.home;
   return { kind, title, stake, homeName, awayName, playerHome, result: r, events: narrate(rng, r, playerHome, homeName, awayName, squad, oppSquad(opp)) };
+}
+
+/**
+ * Narração rápida de um jogo do calendário (ao avançar jogo a jogo). Usa o placar já simulado;
+ * o sorteio da narração é próprio do dia, então rever o mesmo jogo conta a mesma história.
+ */
+export function quickMoment(state: GameState, m: CalendarMatch): LiveMoment {
+  const p = state.player;
+  const opp = `adv:${m.opponent}`;
+  const home = m.home ? 'player' : opp;
+  const away = m.home ? opp : 'player';
+  const r: MatchResult = { home, away, hg: m.home ? m.gf : m.ga, ag: m.home ? m.ga : m.gf };
+  if (m.pens) r.pens = m.home ? m.pens : [m.pens[1], m.pens[0]];
+  if (m.extraTime) r.extraTime = true;
+  if (m.advanced !== null) r.winner = m.advanced ? 'player' : opp;
+  const club = state.clubs.find((c) => c.name === m.opponent);
+  const name = (id: string) => (id === 'player' ? p.name : m.opponent);
+  const mo = moment(deriveRng(state.seed, state.season, 'narra', m.day), 'jogo', `${m.comp} · ${m.round}`, m.home ? 'Em casa.' : 'Fora de casa.', r, 'player', name, p.squad, () => club?.squad ?? []);
+  mo.day = m.day;
+  return mo;
 }

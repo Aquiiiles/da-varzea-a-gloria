@@ -8,6 +8,7 @@ import { SeasonStats } from './stats';
 import { SquadPlan } from './squadplan';
 import { STYLE_TACTIC, TACTICS } from '../data/club';
 import { youthSeason } from './youthcomps';
+import { recordCoachPoints, seasonCoachPoints } from './ranking';
 import { computeAwards, myAwards, type AwardsInput, type LeagueInfo } from './awards';
 import { continentalCup, foreignClubs, nationalCup, stateCup, worldCup, type CupEnv, type CupResult } from './cups';
 import { nextId } from './effects';
@@ -266,30 +267,40 @@ export function simulateSeason(state: GameState): SeasonResult {
     cupChampions.push({ id: 'copa', clubId: copa.championId });
     addCup(copa);
 
+    // Libertadores (6 melhores da Série A) e Sul-Americana (7º ao 12º) todo ano, com ou sem o jogador
     let ccChampion = false;
-    if (p.continental) {
-      const domestic = byStrength(natIds(1)).slice(0, p.continental === 'cc' ? 5 : 3);
-      const others = foreignClubs(deriveRng(seed, season, 'foreign', p.continental), 32 - 1 - domestic.length, p.continental === 'cc' ? 79 : 74, 4, `f${p.continental}`, true);
+    const continental: Partial<Record<'cc' | 'le' | 'mundial', string>> = {};
+    const ranked = byStrength(natIds(1));
+    const inLiberta: string[] = [];
+    for (const id of ['cc', 'le'] as const) {
+      const mine = p.continental === id;
+      const domestic = id === 'cc' ? ranked.slice(0, mine ? 5 : 6) : ranked.slice(6, mine ? 11 : 12);
+      // um clube estrangeiro não joga as duas copas no mesmo ano
+      const others = foreignClubs(deriveRng(seed, season, 'foreign', id), 32 - domestic.length - (mine ? 1 : 0), id === 'cc' ? 76 : 71, 4, `f${id}`, true, inLiberta);
+      if (id === 'cc') inLiberta.push(...others.map((f) => f.name));
       for (const f of others) foreign.set(f.id, f);
-      const res = continentalCup(env(p.continental), p.continental, [PLAYER, ...domestic, ...others.map((f) => f.id)]);
+      const res = continentalCup(env(id), id, [...(mine ? [PLAYER] : []), ...domestic, ...others.map((f) => f.id)]);
       addCup(res);
-      cupChampions.push({ id: p.continental, clubId: res.championId });
-      ccChampion = p.continental === 'cc' && res.championId === PLAYER;
+      cupChampions.push({ id, clubId: res.championId });
+      continental[id] = res.championId;
+      if (id === 'cc') ccChampion = mine && res.championId === PLAYER;
     }
-    if (p.worldCup) {
-      const others = foreignClubs(deriveRng(seed, season, 'foreign', 'mundial'), 7, 80, 4.5, 'fwc', false);
+    // Mundial: o jogador vai no ano seguinte ao título; sem ele, o campeão da Libertadores do ano disputa em dezembro
+    if (p.worldCup || continental.cc !== PLAYER) {
+      const others = foreignClubs(deriveRng(seed, season, 'foreign', 'mundial'), 7, 81, 4, 'fwc', false);
       for (const f of others) foreign.set(f.id, f);
-      const wc = worldCup(env('mundial'), [PLAYER, ...others.map((f) => f.id)]);
+      const wc = worldCup(env('mundial'), [p.worldCup ? PLAYER : continental.cc!, ...others.map((f) => f.id)]);
       addCup(wc);
       cupChampions.push({ id: 'mundial', clubId: wc.championId });
+      continental.mundial = wc.championId;
     }
-    return { estA, estB, varzea, serA, serB, serC, serD, stateOut, natOut, cupRuns, cupMatches, copaEstado, copa, ccChampion, cupChampions };
+    return { estA, estB, varzea, serA, serB, serC, serD, stateOut, natOut, cupRuns, cupMatches, copaEstado, copa, ccChampion, cupChampions, continental };
   };
   pass = 1;
   runAll();
   plan.build(pass1Days);
   pass = 2;
-  const { estA, estB, varzea, serA, serB, serC, serD, stateOut, natOut, cupRuns, cupMatches, copaEstado, copa, ccChampion, cupChampions } = runAll();
+  const { estA, estB, varzea, serA, serB, serC, serD, stateOut, natOut, cupRuns, cupMatches, copaEstado, copa, ccChampion, cupChampions, continental } = runAll();
   const cupPrizes = cupRuns.reduce((sum, c) => sum + c.prize, 0);
 
   // ---------------------- movimentos e vagas ----------------------
@@ -594,18 +605,21 @@ export function simulateSeason(state: GameState): SeasonResult {
   const leagueInfo = (key: string, compId: CompId, name: string, t: Tier, ids: string[], out: LeagueOutcome): LeagueInfo => ({
     key, compId, name, tier: t, ids, ranking: out.ranking, champion: out.champion, promoted: out.promoted,
   });
+  const leagues = [
+    leagueInfo('serie-a', 'serie_a', 'Série A', 1, natIds(1), serA),
+    leagueInfo('serie-b', 'serie_b', 'Série B', 2, natIds(2), serB),
+    leagueInfo('serie-c', 'serie_c', 'Série C', 3, natIds(3), serC),
+    leagueInfo('serie-d', 'serie_d', 'Série D', 4, natIds(4), serD),
+    leagueInfo('est-a', 'estadual_a', 'Estadual', 5, stateIds('A'), estA),
+    leagueInfo('est-b', 'estadual_b', 'Estadual Série B', 6, stateIds('B'), estB),
+    leagueInfo('varzea', 'varzea', 'Várzea', 7, stateIds('V'), varzea),
+  ];
+  // ranking de técnicos: pontos da temporada (só as últimas 5 contam)
+  recordCoachPoints(state, seasonCoachPoints(leagues, cupChampions, PLAYER));
   const awards = computeAwards({
     seed,
     stats,
-    leagues: [
-      leagueInfo('serie-a', 'serie_a', 'Série A', 1, natIds(1), serA),
-      leagueInfo('serie-b', 'serie_b', 'Série B', 2, natIds(2), serB),
-      leagueInfo('serie-c', 'serie_c', 'Série C', 3, natIds(3), serC),
-      leagueInfo('serie-d', 'serie_d', 'Série D', 4, natIds(4), serD),
-      leagueInfo('est-a', 'estadual_a', 'Estadual', 5, stateIds('A'), estA),
-      leagueInfo('est-b', 'estadual_b', 'Estadual Série B', 6, stateIds('B'), estB),
-      leagueInfo('varzea', 'varzea', 'Várzea', 7, stateIds('V'), varzea),
-    ],
+    leagues,
     playerId: PLAYER,
     playerCoach: p.coach.name,
     nameOf,
@@ -638,7 +652,7 @@ export function simulateSeason(state: GameState): SeasonResult {
     nameOf,
     natOut,
     stateOut,
-    cups: { estado: copaEstado.championId, copa: copa.championId },
+    cups: { estado: copaEstado.championId, copa: copa.championId, ...continental },
     nextNat,
     dQualified,
     serieAScorer,
@@ -730,7 +744,7 @@ interface NewsInput {
   nameOf: (id: string) => string;
   natOut: Record<NationalDiv, LeagueOutcome>;
   stateOut: Record<StateDiv, LeagueOutcome>;
-  cups: { estado: string; copa: string };
+  cups: { estado: string; copa: string; cc?: string; le?: string; mundial?: string };
   nextNat: Map<string, NationalDiv | null>;
   dQualified: string[];
   serieAScorer: { name: string; club: string; goals: number } | null;
@@ -752,6 +766,9 @@ function buildWorldNews(rng: Rng, n: NewsInput): string[] {
   out.push(`${nm(n.stateOut.B.champion)} vence o Estadual Série B; ${nm(n.stateOut.V.champion)} é o rei da Várzea`);
   out.push(`${nm(n.cups.copa)} levanta a Copa do Brasil`);
   out.push(`${nm(n.cups.estado)} conquista a Copa do Estado`);
+  if (n.cups.cc) out.push(`${nm(n.cups.cc)} conquista a Libertadores`);
+  if (n.cups.le) out.push(`${nm(n.cups.le)} é campeão da Sul-Americana`);
+  if (n.cups.mundial) out.push(`${nm(n.cups.mundial)} é campeão do Mundial de Clubes`);
   if (n.dQualified.length > 0) out.push(`Vagas do estado na Série D: ${list(n.dQualified)}`);
   // gigante em queda
   const giant = n.state.clubs.find((c) => (c.prestige ?? 0) >= 4 && n.natOut[1].relegated.includes(c.id));

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import type { GameState, LiveMoment, SeasonResult } from '../engine';
+import { quickMoment, type GameState, type LiveMoment, type SeasonResult } from '../engine';
 import type { Dispatch } from './App';
 import { Office } from './office/Office';
 import { ResultScreen } from './ResultScreen';
@@ -40,6 +40,30 @@ export function GameScreen({ state, dispatch, onRestart, fromLink }: Props) {
   });
   /** escritório aberto durante a temporada (janela do meio do ano) */
   const [officeOpen, setOfficeOpen] = useState(false);
+  /** narração ao avançar jogo a jogo: preferência (guardada no navegador) e o dia do jogo a narrar */
+  const [narration, setNarration] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem('dvg:narrar') !== '0';
+    } catch {
+      return true;
+    }
+  });
+  const [narrateDay, setNarrateDay] = useState<number | null>(null);
+  const toggleNarration = () => {
+    const next = !narration;
+    setNarration(next);
+    try {
+      localStorage.setItem('dvg:narrar', next ? '1' : '0');
+    } catch {
+      /* sem armazenamento: vale só nesta sessão */
+    }
+  };
+  const nextMatch = () => {
+    const cal = state.calendar;
+    const day = state.reveal;
+    const next = cal && day != null ? cal.matches.find((m) => m.day > day) : undefined;
+    if (dispatch({ t: 'advance', to: 0 }) && narration && next) setNarrateDay(next.day);
+  };
 
   /** temporada cuja cerimônia de prêmios já foi vista (ao abrir um save já terminado, conta como vista) */
   const [awardsSeen, setAwardsSeen] = useState<number>(() => (state.phase === 'season' ? 0 : state.history.at(-1)?.season ?? 0));
@@ -87,10 +111,28 @@ export function GameScreen({ state, dispatch, onRestart, fromLink }: Props) {
     }
   }
 
+  // narração rápida do jogo que acabou de acontecer (se não for um dos jogos ao vivo especiais)
+  if (running && narrateDay !== null && !fast) {
+    const m = state.calendar!.matches.find((x) => x.day === narrateDay && x.day <= state.reveal!);
+    const special = state.live!.moments.some((x) => x.day === narrateDay);
+    if (m && !special) {
+      return <LiveMatch key={`narra-${narrateDay}`} moment={quickMoment(state, m)} index={0} total={1} quick onDone={() => setNarrateDay(null)} />;
+    }
+  }
+
   // temporada em andamento: acompanhar jogo a jogo (e o escritório na janela de julho)
   if (running) {
     if (officeOpen) return <Office state={state} dispatch={dispatch} onFast={() => setFast(true)} onBack={() => setOfficeOpen(false)} />;
-    return <SeasonView state={state} dispatch={dispatch} onOpenOffice={() => setOfficeOpen(true)} />;
+    return (
+      <SeasonView
+        state={state}
+        dispatch={dispatch}
+        onOpenOffice={() => setOfficeOpen(true)}
+        onNextMatch={nextMatch}
+        narration={narration}
+        onToggleNarration={toggleNarration}
+      />
+    );
   }
 
   // cerimônia de prêmios (uma vez por temporada, antes do balanço; o modo rápido pula)

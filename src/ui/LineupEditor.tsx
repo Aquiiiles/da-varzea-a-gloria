@@ -1,17 +1,40 @@
-import { useState } from 'react';
-import { FATIGUE_FREE, FATIGUE_REST, STYLE_TACTIC, TACTICS, bestEleven, fatigueAt, injuredAt, type GameState, type Position, type Tactic } from '../engine';
+import { useRef, useState, type PointerEvent as ReactPointerEvent } from 'react';
+import {
+  FATIGUE_FREE, FATIGUE_REST, FORMATIONS, STYLE_TACTIC, TACTICS, bestEleven, fatigueAt, injuredAt,
+  type Footballer, type Formation, type GameState, type Position, type Tactic,
+} from '../engine';
 import type { Dispatch } from './App';
 
-const POS: { id: Position; label: string }[] = [
-  { id: 'GOL', label: 'Goleiros' },
-  { id: 'DEF', label: 'Defensores' },
-  { id: 'MEI', label: 'Meias' },
-  { id: 'ATA', label: 'Atacantes' },
-];
+const ORDER: Position[] = ['GOL', 'DEF', 'MEI', 'ATA'];
+const FORMATION_LIST: Formation[] = ['4-4-2', '4-3-3', '3-5-2', '4-5-1'];
+
+/** Vagas do esquema, do goleiro ao ataque. */
+function slotsOf(formation: Formation): Position[] {
+  return ORDER.flatMap((pos) => Array(FORMATIONS[formation][pos]).fill(pos) as Position[]);
+}
+
+/** Distribui os titulares nas vagas, preferindo cada um na sua posição. */
+function arrange(squad: readonly Footballer[], ids: number[], formation: Formation): (number | null)[] {
+  const slots = slotsOf(formation);
+  const chosen = ids.map((id) => squad.find((f) => f.id === id)).filter((f): f is Footballer => !!f);
+  const out: (number | null)[] = slots.map(() => null);
+  const left = chosen.slice().sort((a, b) => b.ovr - a.ovr);
+  slots.forEach((pos, i) => {
+    const k = left.findIndex((f) => f.pos === pos);
+    if (k >= 0) out[i] = left.splice(k, 1)[0].id;
+  });
+  slots.forEach((_, i) => {
+    if (out[i] === null && left.length > 0) out[i] = left.shift()!.id;
+  });
+  return out;
+}
+
+type Spot = { kind: 'slot'; i: number } | { kind: 'bench'; id: number };
+const same = (a: Spot | null, b: Spot | null) => !!a && !!b && (a.kind === 'slot' && b.kind === 'slot' ? a.i === b.i : a.kind === 'bench' && b.kind === 'bench' && a.id === b.id);
 
 /**
- * Escalação (modo técnico): escolha os 11 titulares ou deixe o automático (os melhores).
- * Lesionado não joga; com o rodízio ligado, quem está muito cansado descansa.
+ * Escalação no campinho (modo técnico): arraste um jogador do banco para uma vaga (ou entre vagas),
+ * ou toque em dois jogadores para trocar. Lesionado não joga; com o rodízio, quem está muito cansado descansa.
  * Durante a temporada, vale para os jogos depois de hoje.
  */
 export function LineupEditor({ state, dispatch }: { state: GameState; dispatch: Dispatch }) {
@@ -20,20 +43,98 @@ export function LineupEditor({ state, dispatch }: { state: GameState; dispatch: 
   const day = state.reveal ?? -1;
   const injured = new Set(live ? injuredAt(live, day).map((i) => i.id) : []);
   const fatigue = live ? fatigueAt(live, day) : {};
-  const auto = bestEleven(p.squad, p.coach.formation).ids;
+  const formation = p.coach.formation;
+  const slotPos = slotsOf(formation);
   const current = p.lineup?.ids ?? null;
-  const [picked, setPicked] = useState<Set<number>>(() => new Set(current ?? [...auto]));
+  const [slots, setSlots] = useState<(number | null)[]>(() => arrange(p.squad, current ?? [...bestEleven(p.squad, formation).ids], formation));
   const [rotate, setRotate] = useState(p.lineup?.rotate ?? true);
-  const dirty = current === null || picked.size !== current.length || current.some((id) => !picked.has(id)) || rotate !== (p.lineup?.rotate ?? true);
+  const [selected, setSelected] = useState<Spot | null>(null);
+  const [drag, setDrag] = useState<{ from: Spot; x: number; y: number; id: number } | null>(null);
+  const start = useRef<{ x: number; y: number; from: Spot; id: number; moved: boolean } | null>(null);
 
-  const toggle = (id: number) => {
-    const next = new Set(picked);
-    if (next.has(id)) next.delete(id);
-    else if (next.size < 11) next.add(id);
-    setPicked(next);
+  const byId = new Map(p.squad.map((f) => [f.id, f]));
+  const onPitch = new Set(slots.filter((x): x is number => x !== null));
+  const bench = p.squad.filter((f) => !onPitch.has(f.id)).sort((a, b) => ORDER.indexOf(a.pos) - ORDER.indexOf(b.pos) || b.ovr - a.ovr);
+  const filled = slots.filter((x) => x !== null).length;
+  const sameAsSaved = !!current && current.length === filled && current.every((id) => onPitch.has(id)) && rotate === (p.lineup?.rotate ?? true);
+
+  /** troca o conteúdo de dois lugares (vaga ↔ vaga, vaga ↔ banco) */
+  const swap = (a: Spot, b: Spot) => {
+    if (same(a, b)) return;
+    const next = slots.slice();
+    const idAt = (s: Spot) => (s.kind === 'slot' ? next[s.i] : s.id);
+    const ia = idAt(a);
+    const ib = idAt(b);
+    if (a.kind === 'bench' && b.kind === 'bench') return;
+    if (a.kind === 'slot') next[a.i] = ib ?? null;
+    if (b.kind === 'slot') next[b.i] = ia ?? null;
+    setSlots(next);
+  };
+
+  const tap = (s: Spot) => {
+    if (selected && !same(selected, s)) {
+      swap(selected, s);
+      setSelected(null);
+    } else setSelected(same(selected, s) ? null : s);
+  };
+
+  const spotFromPoint = (x: number, y: number): Spot | null => {
+    const el = document.elementFromPoint(x, y)?.closest('[data-spot]') as HTMLElement | null;
+    if (!el) return null;
+    const [kind, v] = el.dataset.spot!.split(':');
+    return kind === 'slot' ? { kind: 'slot', i: Number(v) } : { kind: 'bench', id: Number(v) };
+  };
+
+  const down = (e: ReactPointerEvent, from: Spot, id: number | null) => {
+    if (id === null) return tap(from);
+    (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+    start.current = { x: e.clientX, y: e.clientY, from, id, moved: false };
+  };
+  const move = (e: ReactPointerEvent) => {
+    const s = start.current;
+    if (!s) return;
+    if (!s.moved && Math.hypot(e.clientX - s.x, e.clientY - s.y) < 8) return;
+    s.moved = true;
+    setDrag({ from: s.from, id: s.id, x: e.clientX, y: e.clientY });
+  };
+  const up = (e: ReactPointerEvent) => {
+    const s = start.current;
+    start.current = null;
+    setDrag(null);
+    if (!s) return;
+    if (!s.moved) return tap(s.from);
+    const to = spotFromPoint(e.clientX, e.clientY);
+    if (to) swap(s.from, to);
+    setSelected(null);
+  };
+
+  const Card = ({ f, spot, slot }: { f: Footballer; spot: Spot; slot?: Position }) => {
+    const tired = fatigue[f.id] ?? 0;
+    const out = injured.has(f.id);
+    const offPos = slot && slot !== f.pos;
+    return (
+      <button
+        type="button"
+        className={`pcard${same(selected, spot) ? ' is-sel' : ''}${out ? ' is-out' : ''}${drag && same(drag.from, spot) ? ' is-ghost' : ''}`}
+        data-spot={spot.kind === 'slot' ? `slot:${spot.i}` : `bench:${f.id}`}
+        onPointerDown={(e) => down(e, spot, f.id)}
+        onPointerMove={move}
+        onPointerUp={up}
+        onPointerCancel={() => ((start.current = null), setDrag(null))}
+      >
+        <span className={`pc-pos${offPos ? ' bad' : ''}`}>{f.pos}</span>
+        <span className="pc-name">{f.name.split(' ').slice(-1)[0]}</span>
+        <b className="pc-ovr">{f.ovr}</b>
+        {out ? <i className="pc-flag">lesionado</i> : tired > FATIGUE_FREE ? <i className="pc-tired" style={{ width: `${tired}%`, background: tired >= FATIGUE_REST ? 'var(--bad)' : 'var(--warn)' }} /> : null}
+      </button>
+    );
   };
 
   const tactic: Tactic = p.tactic ?? STYLE_TACTIC[p.coach.style];
+  // linhas do campo, do ataque (em cima) ao goleiro (embaixo)
+  const rows = [...ORDER].reverse().map((pos) => ({ pos, idx: slotPos.map((x, i) => (x === pos ? i : -1)).filter((i) => i >= 0) }));
+  const dragged = drag ? byId.get(drag.id) : undefined;
+
   return (
     <div className="lineup">
       <p className="lineup-pos">Estratégia</p>
@@ -45,45 +146,71 @@ export function LineupEditor({ state, dispatch }: { state: GameState; dispatch: 
         ))}
       </div>
       <p className="muted">{TACTICS[tactic].effect}</p>
+
+      <p className="lineup-pos">Esquema</p>
+      <div className="seg formation-mini">
+        {FORMATION_LIST.map((f) => (
+          <button key={f} type="button" className={`seg-btn${formation === f ? ' is-on' : ''}`} onClick={() => formation !== f && dispatch({ t: 'formation', f })}>
+            <strong>{f}</strong>
+          </button>
+        ))}
+      </div>
+
       <p className="muted">
-        {current ? 'Escalação escolhida por você.' : 'Automático: o time escala os melhores do esquema.'} {picked.size}/11 marcados · esquema{' '}
-        {p.coach.formation}
-        {live ? ' · vale para os jogos depois de hoje' : ''}
+        Arraste um jogador para a vaga (ou toque em dois para trocar).{live ? ' Vale para os jogos depois de hoje.' : ''}{' '}
+        {current ? 'Escalação escolhida por você.' : 'Agora no automático (os melhores do esquema).'}
       </p>
-      {POS.map((g) => {
-        const list = p.squad.filter((f) => f.pos === g.id).sort((a, b) => b.ovr - a.ovr);
-        if (list.length === 0) return null;
-        return (
-          <div key={g.id} className="lineup-group">
-            <p className="lineup-pos">{g.label}</p>
-            {list.map((f) => {
-              const tired = fatigue[f.id] ?? 0;
-              const out = injured.has(f.id);
-              return (
-                <label key={f.id} className={`lineup-row${picked.has(f.id) ? ' is-on' : ''}${out ? ' is-out' : ''}`}>
-                  <input type="checkbox" checked={picked.has(f.id)} onChange={() => toggle(f.id)} />
-                  <span className="lineup-name">
-                    {f.name} <small>{f.age} anos</small>
-                  </span>
-                  {out && <em className="tag-out">lesionado</em>}
-                  {!out && tired > FATIGUE_FREE && <em className={tired >= FATIGUE_REST ? 'tag-out' : 'tag-tired'}>cansaço {tired}</em>}
-                  <b>{f.ovr}</b>
-                </label>
+
+      <div className="pitch">
+        {rows.map((r) => (
+          <div key={r.pos} className="pitch-row">
+            {r.idx.map((i) => {
+              const id = slots[i];
+              const f = id !== null ? byId.get(id) : undefined;
+              const spot: Spot = { kind: 'slot', i };
+              return f ? (
+                <Card key={i} f={f} spot={spot} slot={slotPos[i]} />
+              ) : (
+                <button key={i} type="button" className={`pcard pc-empty${same(selected, spot) ? ' is-sel' : ''}`} data-spot={`slot:${i}`} onClick={() => tap(spot)}>
+                  <span className="pc-pos">{slotPos[i]}</span>
+                  <span className="pc-name">vaga</span>
+                </button>
               );
             })}
           </div>
-        );
-      })}
+        ))}
+      </div>
+
+      <p className="lineup-pos">Banco e reservas</p>
+      <div className="bench">
+        {bench.map((f) => (
+          <Card key={f.id} f={f} spot={{ kind: 'bench', id: f.id }} />
+        ))}
+      </div>
+
+      {drag && dragged && (
+        <div className="pcard pc-drag" style={{ left: drag.x, top: drag.y }} aria-hidden="true">
+          <span className="pc-pos">{dragged.pos}</span>
+          <span className="pc-name">{dragged.name.split(' ').slice(-1)[0]}</span>
+          <b className="pc-ovr">{dragged.ovr}</b>
+        </div>
+      )}
+
       <label className="lineup-rotate">
         <input type="checkbox" checked={rotate} onChange={(e) => setRotate(e.target.checked)} />
         Rodízio: poupar quem estiver muito cansado (cansaço {FATIGUE_REST}+)
       </label>
       <div className="actions">
-        <button type="button" className="btn btn-primary" disabled={picked.size !== 11 || !dirty} onClick={() => dispatch({ t: 'lineup', ids: [...picked], rotate })}>
+        <button
+          type="button"
+          className="btn btn-primary"
+          disabled={filled !== 11 || sameAsSaved}
+          onClick={() => dispatch({ t: 'lineup', ids: slots.filter((x): x is number => x !== null), rotate })}
+        >
           Salvar escalação
         </button>
         <button type="button" className="btn" disabled={current === null && rotate === (p.lineup?.rotate ?? true)} onClick={() => dispatch({ t: 'lineup', ids: null, rotate })}>
-          Automático (os melhores)
+          Automático
         </button>
       </div>
     </div>

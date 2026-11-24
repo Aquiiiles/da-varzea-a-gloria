@@ -107,3 +107,30 @@ describe('perfil do jogador na negociação', () => {
     expect(b.replacement).toBeNull();
   });
 });
+
+describe('ranking de técnicos e continentais', () => {
+  it('ranking soma as últimas 5 temporadas; no topo, técnicos da Série A; o jogador aparece', async () => {
+    const { coachRanking } = await import('../../src/engine/ranking');
+    let s = apply(newGame(8, COACH), { t: 'job', idx: 0 });
+    for (let i = 0; i < 6; i++) {
+      if (s.career!.unemployed) s = apply(s, { t: 'job', idx: 0 });
+      s = apply(apply(s, { t: 'play' }), { t: 'next' });
+    }
+    const rows = coachRanking(s);
+    expect(rows.filter((r) => r.me)).toHaveLength(1);
+    expect(Object.values(s.coachPoints!).every((l) => l.length <= 5)).toBe(true);
+    const top = rows[0];
+    expect(s.clubs.find((c) => c.name === top.club)?.national).toBe(1);
+    expect(rows.find((r) => r.me)!.pos).toBeGreaterThan(10);
+  });
+
+  it('Libertadores, Sul-Americana e Mundial acontecem todo ano, mesmo sem o jogador', () => {
+    let s = newGame(2, { name: 'Unidos', colors: ['#c8102e', '#ffffff'], origin: 'pub' });
+    if (s.office.event) s = apply(s, { t: 'event', choice: 0 });
+    s = apply(apply(s, { t: 'play' }), { t: 'next' });
+    const news = s.history.at(-1)!.worldNews.join(' | ');
+    expect(news).toMatch(/conquista a Libertadores/);
+    expect(news).toMatch(/campeão da Sul-Americana/);
+    expect(news).toMatch(/campeão do Mundial de Clubes/);
+  });
+});

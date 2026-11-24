@@ -12,7 +12,7 @@ export { encodeRun, decodeRun, encodeAction, decodeAction, seedFromEntropy, type
 export { runStats, computeScore, levelFor, LEVELS, type RunStats, type LevelInfo } from './score';
 export { stadiumAllows, teamStrength, renewalCap, coachEdge, PLAYER_ID } from './season';
 export { payroll, staffCost, upkeep, attendance, masterSponsor, TICKET_POLICY } from './finance';
-export { bestEleven, squadStrength, marketValue, marketWage, tryoutCost, playerImportance, type Importance } from './footballers';
+export { bestEleven, squadStrength, marketValue, marketWage, tryoutCost, playerImportance, FORMATIONS, type Importance } from './footballers';
 export { scaled } from './effects';
 export {
   TIERS, MAX_SEASONS, START_YEAR, FACILITY_COST, STAFF_WAGE, SEAT_PACKS, STADIUM_FINANCE, STADIUM_INSTALLMENT_NAME, LOAN_NAME, SQUAD_MIN, SQUAD_MAX, YOUTH_MAX, YOUTH_AGE_LIMIT, MAX_LOANS, LOAN_AGE_LIMIT,
@@ -29,3 +29,5 @@ export { injuredAt, fatigueAt } from './calendarView';
 export { julyWindow } from './calendar';
 export { FATIGUE_FREE, FATIGUE_REST } from './squadplan';
 export { currentInterview, answered, interviewEffects, type Interview, type InterviewQuestion, type InterviewAnswer } from './interview';
+export { coachRanking, type RankingEntry } from './ranking';
+export { quickMoment } from './live';

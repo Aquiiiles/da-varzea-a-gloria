@@ -2,7 +2,8 @@ import { SERIE_D_SPOTS, SQUAD_MAX, SQUAD_MIN, START_YEAR, TIERS, YOUTH_AGE_LIMIT
 import { aiScorers, evolveAiClubs, refreshStrength, type AiTransfer } from './aisquad';
 import { levelOf, makeClub, syncTier } from './clubs';
 import { homegrownInXI, moraleEdge, startingCoach } from './clubops';
-import { estadual, pointsLeague, serieC, serieD, PLAYER, type CompEnv, type LeagueOutcome } from './competitions';
+import { estadual, pointsLeague, serieC, serieD, PLAYER, type CompEnv, type CompTracker, type LeagueOutcome } from './competitions';
+import { SEASON_END, SEASON_START, matchDay, type CalendarKey } from './calendar';
 import { continentalCup, foreignClubs, nationalCup, stateCup, worldCup, type CupEnv, type CupResult } from './cups';
 import { nextId } from './effects';
 import { TICKET_POLICY, attendance, seasonFinance } from './finance';
@@ -14,8 +15,8 @@ import { renewTarget, renewWage } from './office';
 import { deriveRng, type Rng } from './rng';
 import { clamp } from './util';
 import type {
-  Club, CoachStyle, CompResult, CompetitionId, CupMatch, CupRun, Footballer, GameState, LiveMoment, MatchResult, NationalDiv, Outcome, SeasonResult,
-  StateDiv, TableRow, Tier,
+  CalendarMatch, CalendarStage, Club, CoachStyle, CompId, CompResult, CompetitionId, CupMatch, CupRun, Footballer, GameState, LiveMoment, MatchResult, NationalDiv,
+  Outcome, SeasonResult, StateDiv, TableRow, Tier,
 } from './types';
 
 export const PLAYER_ID = PLAYER;
@@ -142,14 +143,33 @@ export function simulateSeason(state: GameState): SeasonResult {
   const capacityAtInspection = p.capacity + p.capacityBuilding;
   const nameOf = (id: string) => (id === PLAYER ? p.name : foreign.get(id)?.name ?? byId.get(id)?.name ?? id);
   const tierOf = (id: string): Tier | null => (id === PLAYER ? tier : byId.get(id)?.tier ?? null);
-  const env = (label: string, target?: Tier): CompEnv & CupEnv => ({
-    rng: deriveRng(seed, season, label),
-    ctx,
+  const year = START_YEAR + season - 1;
+  const stages: CalendarStage[] = [];
+  /** registra as fases de pontos das competições do jogador (tabelas parciais do calendário) */
+  const tracker = (comp: CompId, compName: string): CompTracker => ({
+    stage(name, ids, deductions) {
+      stages.push({ comp, compName, name, ids: ids.slice(), deductions: { ...deductions }, matches: [] });
+      return stages.length - 1;
+    },
+    match(i, m) {
+      const st = stages[i];
+      st.matches.push([m.day ?? 0, st.ids.indexOf(m.home), st.ids.indexOf(m.away), m.hg, m.ag]);
+    },
+  });
+  const env = (label: CalendarKey, target?: Tier, track?: [CompId, string]): CompEnv & CupEnv => {
+    let n = 0;
+    return {
+      rng: deriveRng(seed, season, label),
+      matchRng: () => deriveRng(seed, season, label, 'jogo', n++),
+      dayOf: (k, total) => matchDay(label, year, k, total),
+      track: track ? tracker(track[0], track[1]) : undefined,
+      ctx,
     name: nameOf,
     tierOf,
-    playerTier: tier,
-    eligible: (id) => id !== PLAYER || target === undefined || stadiumAllows(capacityAtInspection, target),
-  });
+      playerTier: tier,
+      eligible: (id) => id !== PLAYER || target === undefined || stadiumAllows(capacityAtInspection, target),
+    };
+  };
   const deduction = p.pendingDeduction;
   const mainIsNational = p.national !== null;
   const ded = (isMain: boolean): Record<string, number> => (isMain && deduction > 0 ? { [PLAYER]: deduction } : {});
@@ -158,15 +178,16 @@ export function simulateSeason(state: GameState): SeasonResult {
   const natIds = (d: NationalDiv) => [...state.clubs.filter((c) => c.national === d).map((c) => c.id), ...(p.national === d ? [PLAYER] : [])];
 
   // ---------------------- 1º semestre: estaduais ----------------------
-  const estA = estadual(env('est-a'), STATE_COMP.A, stateIds('A'), ded(!mainIsNational && p.stateDiv === 'A'));
-  const estB = estadual(env('est-b', 5), STATE_COMP.B, stateIds('B'), ded(!mainIsNational && p.stateDiv === 'B'));
-  const varzea = estadual(env('varzea', 6), STATE_COMP.V, stateIds('V'), ded(!mainIsNational && p.stateDiv === 'V'));
+  const mine = (on: boolean, id: CompId, name: string): [CompId, string] | undefined => (on ? [id, name] : undefined);
+  const estA = estadual(env('est-a', undefined, mine(p.stateDiv === 'A', 'estadual_a', 'Estadual')), STATE_COMP.A, stateIds('A'), ded(!mainIsNational && p.stateDiv === 'A'));
+  const estB = estadual(env('est-b', 5, mine(p.stateDiv === 'B', 'estadual_b', 'Estadual Série B')), STATE_COMP.B, stateIds('B'), ded(!mainIsNational && p.stateDiv === 'B'));
+  const varzea = estadual(env('varzea', 6, mine(p.stateDiv === 'V', 'varzea', 'Várzea')), STATE_COMP.V, stateIds('V'), ded(!mainIsNational && p.stateDiv === 'V'));
 
   // ---------------------- 2º semestre: séries nacionais ----------------------
-  const serA = pointsLeague(env('serie-a'), 'serie_a', 'Série A', 1, natIds(1), 0, 4, ded(p.national === 1));
-  const serB = pointsLeague(env('serie-b', 1), 'serie_b', 'Série B', 2, natIds(2), 4, 4, ded(p.national === 2));
-  const serC = serieC(env('serie-c', 2), natIds(3), ded(p.national === 3));
-  const serD = serieD(env('serie-d', 3), natIds(4));
+  const serA = pointsLeague(env('serie-a', undefined, mine(p.national === 1, 'serie_a', 'Série A')), 'serie_a', 'Série A', 1, natIds(1), 0, 4, ded(p.national === 1));
+  const serB = pointsLeague(env('serie-b', 1, mine(p.national === 2, 'serie_b', 'Série B')), 'serie_b', 'Série B', 2, natIds(2), 4, 4, ded(p.national === 2));
+  const serC = serieC(env('serie-c', 2, mine(p.national === 3, 'serie_c', 'Série C')), natIds(3), ded(p.national === 3));
+  const serD = serieD(env('serie-d', 3, mine(p.national === 4, 'serie_d', 'Série D')), natIds(4));
 
   const stateOut: Record<StateDiv, LeagueOutcome> = { A: estA, B: estB, V: varzea };
   const natOut: Record<NationalDiv, LeagueOutcome> = { 1: serA, 2: serB, 3: serC, 4: serD };
@@ -333,6 +354,9 @@ export function simulateSeason(state: GameState): SeasonResult {
 
   // ---------------------- momentos ao vivo ----------------------
   const moments = buildMoments(deriveRng(seed, season, 'live'), { p, nameOf, comps, lastRound, cupRuns, leagueMatches, tier, serD: p.national === 4 ? serD : null, squadOf: (id) => byId.get(id)?.squad ?? [] });
+
+  // ---------------------- calendário (para mostrar a temporada aos poucos) ----------------------
+  state.calendar = buildCalendar(season, year, stages, comps, cupRuns, nameOf, tierOf);
 
   // ---------------------- finanças ----------------------
   const homeGames = allMatches.filter((m) => m.home === PLAYER).length;
@@ -614,7 +638,11 @@ interface MomentInput {
 /** Até 3 jogos da temporada para mostrar ao vivo (os mais importantes primeiro). */
 function buildMoments(rng: Rng, m: MomentInput): LiveMoment[] {
   const out: LiveMoment[] = [];
-  const add = (kind: LiveMoment['kind'], title: string, stake: string, r: MatchResult) => out.push(moment(rng, kind, title, stake, r, PLAYER, m.nameOf, m.p.squad, m.squadOf));
+  const add = (kind: LiveMoment['kind'], title: string, stake: string, r: MatchResult) => {
+    const mo = moment(rng, kind, title, stake, r, PLAYER, m.nameOf, m.p.squad, m.squadOf);
+    if (r.day !== undefined) mo.day = r.day;
+    out.push(mo);
+  };
   const decisive = (matches: CupMatch[], round: string) => matches.filter((x) => x.round === round || x.round === `${round} (volta)`).pop();
   const finals: Record<CompetitionId, LiveMoment['kind']> = { estado: 'final_estado', copa: 'final_copa', cc: 'final_cc', le: 'final_le', mundial: 'mundial' };
   for (const c of m.cupRuns.slice().sort((a, b) => CUP_PRIORITY[a.id] - CUP_PRIORITY[b.id])) {
@@ -639,6 +667,66 @@ function buildMoments(rng: Rng, m: MomentInput): LiveMoment[] {
     if (derby) add('classico', 'Clássico', 'O jogo que a cidade espera o ano inteiro.', derby);
   }
   return out.slice(0, 3);
+}
+
+function fromCupMatch(comp: string, m: CupMatch): CalendarMatch {
+  const r = m.result;
+  const out: CalendarMatch = {
+    day: r.day ?? 0,
+    comp,
+    round: m.round,
+    opponent: m.opponent,
+    opponentTier: m.opponentTier,
+    home: m.home,
+    gf: m.home ? r.hg : r.ag,
+    ga: m.home ? r.ag : r.hg,
+    advanced: m.advanced,
+  };
+  if (r.pens) out.pens = m.home ? r.pens : [r.pens[1], r.pens[0]];
+  if (r.extraTime) out.extraTime = true;
+  if (r.advantage) out.advantage = true;
+  return out;
+}
+
+/** Calendário da temporada do jogador: fases de pontos (tabelas parciais) e todos os jogos dele em ordem de data. */
+function buildCalendar(
+  season: number,
+  year: number,
+  stages: CalendarStage[],
+  comps: CompResult[],
+  cupRuns: CupRun[],
+  nameOf: (id: string) => string,
+  tierOf: (id: string) => Tier | null,
+): GameState['calendar'] {
+  const matches: CalendarMatch[] = [];
+  const clubNames: Record<string, string> = {};
+  for (const st of stages) {
+    for (const id of st.ids) clubNames[id] = nameOf(id);
+    const me = st.ids.indexOf(PLAYER);
+    if (me < 0) continue;
+    let n = 0;
+    for (const [day, h, a, hg, ag] of st.matches) {
+      if (h !== me && a !== me) continue;
+      n++;
+      const home = h === me;
+      const opp = st.ids[home ? a : h];
+      matches.push({
+        day,
+        comp: st.compName,
+        round: st.name === 'Classificação' || st.name === '1ª fase' ? `${n}ª rodada` : `${st.name} · ${n}ª rodada`,
+        opponent: nameOf(opp),
+        opponentTier: tierOf(opp),
+        home,
+        gf: home ? hg : ag,
+        ga: home ? ag : hg,
+        advanced: null,
+      });
+    }
+  }
+  for (const c of comps) for (const t of c.ties) matches.push(fromCupMatch(c.name, t));
+  for (const c of cupRuns) for (const t of c.matches) matches.push(fromCupMatch(c.name, t));
+  matches.sort((a, b) => a.day - b.day);
+  return { season, year, start: SEASON_START, end: SEASON_END, stages, matches, clubNames };
 }
 
 const CUP_PRIORITY: Record<CompetitionId, number> = { mundial: 0, cc: 1, le: 2, copa: 3, estado: 4 };

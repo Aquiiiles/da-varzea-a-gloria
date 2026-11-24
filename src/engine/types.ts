@@ -216,6 +216,8 @@ export interface LiveEvent {
 }
 
 export interface LiveMoment {
+  /** dia do calendário (o jogo é mostrado quando a temporada chega nele) */
+  day?: number;
   kind: 'playoff' | 'ultima_rodada' | 'zebra' | 'final_copa' | 'final_cc' | 'final_le' | 'mundial' | 'classico' | 'final_estadual' | 'final_estado';
   title: string;
   stake: string;
@@ -357,6 +359,7 @@ export type Action =
   | { t: 'event'; choice: 0 | 1 }
   | { t: 'auto' } // assistente faz a gestão da temporada
   | { t: 'play' } // simula a temporada
+  | { t: 'advance'; to: AdvanceTo } // mostra a temporada até o próximo jogo, semana, mês ou fim
   | { t: 'next' }; // sai do resumo para a próxima temporada
 
 /* ------------------------------ Partidas ------------------------------ */
@@ -373,6 +376,8 @@ export interface MatchResult {
   winner?: string;
   /** empate no confronto: classificou o de melhor campanha */
   advantage?: boolean;
+  /** dia do ano em que o jogo acontece (calendário) */
+  day?: number;
 }
 
 export interface TableRow {
@@ -486,6 +491,9 @@ export interface SeasonOffice {
   soldHomegrown: number;
 }
 
+/** 0 = próximo jogo, 1 = uma semana, 2 = até o fim do mês, 3 = até o fim da temporada */
+export type AdvanceTo = 0 | 1 | 2 | 3;
+
 export interface GameState {
   version: 3;
   seed: number;
@@ -503,4 +511,48 @@ export interface GameState {
   news: string[];
   over: null | 'falencia' | 'fim';
   serial: number;
+  /** calendário da última temporada simulada (só a atual; não vai para o histórico) */
+  calendar?: SeasonCalendar | null;
+  /** até que dia do calendário a temporada já foi mostrada (null = já terminou de mostrar) */
+  reveal?: number | null;
+}
+
+/** Fase de pontos de uma competição do jogador, com todos os jogos (para as tabelas parciais). */
+export interface CalendarStage {
+  comp: CompId;
+  compName: string;
+  name: string;
+  ids: string[];
+  deductions: Record<string, number>;
+  /** [dia, índice do mandante, índice do visitante, gols do mandante, gols do visitante] (índices em `ids`) */
+  matches: [number, number, number, number, number][];
+}
+
+/** Um jogo do clube do jogador no calendário. */
+export interface CalendarMatch {
+  day: number;
+  comp: string;
+  round: string;
+  opponent: string;
+  opponentTier: Tier | null;
+  home: boolean;
+  gf: number;
+  ga: number;
+  pens?: [number, number];
+  extraTime?: boolean;
+  advantage?: boolean;
+  /** mata-mata: passou de fase? (null = não decide) */
+  advanced: boolean | null;
+}
+
+export interface SeasonCalendar {
+  season: number;
+  year: number;
+  /** primeiro e último dia da temporada */
+  start: number;
+  end: number;
+  stages: CalendarStage[];
+  /** jogos do jogador em ordem de data */
+  matches: CalendarMatch[];
+  clubNames: Record<string, string>;
 }

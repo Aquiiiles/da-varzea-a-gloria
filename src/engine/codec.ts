@@ -53,6 +53,7 @@ export function encodeAction(a: Action): string {
     case 'event': return `v${a.choice}`;
     case 'auto': return 'a';
     case 'play': return 'j';
+    case 'advance': return `D${a.to}`;
     case 'next': return 'z';
   }
 }
@@ -96,6 +97,7 @@ export function decodeAction(tok: string): Action | null {
     case 'v': return n === 0 || n === 1 ? { t: 'event', choice: n } : null;
     case 'a': return rest === '' ? { t: 'auto' } : null;
     case 'j': return rest === '' ? { t: 'play' } : null;
+    case 'D': return n === 0 || n === 1 || n === 2 || n === 3 ? { t: 'advance', to: n } : null;
     case 'z': return rest === '' ? { t: 'next' } : null;
     default: return null;
   }

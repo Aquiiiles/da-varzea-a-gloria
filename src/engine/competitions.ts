@@ -1,4 +1,4 @@
-import { knockout, roundRobin, simulateLeague, sortTable, applyResult, emptyRow, type LeagueContext } from './league';
+import { knockout, roundRobin, sortTable, applyResult, emptyRow, type LeagueContext } from './league';
 import { playMatch } from './match';
 import type { Rng } from './rng';
 import type { CompId, CompResult, CupMatch, MatchResult, TableRow, Tier } from './types';
@@ -6,12 +6,28 @@ import type { CompId, CompResult, CupMatch, MatchResult, TableRow, Tier } from '
 export const PLAYER = 'player';
 
 export interface CompEnv {
+  /** sorteios da competição (grupos, chaves) */
   rng: Rng;
+  /**
+   * Sorteio próprio de cada jogo, na ordem em que os jogos aparecem na competição.
+   * Assim o resultado de um jogo não depende de quanto aleatório os jogos anteriores consumiram.
+   */
+  matchRng: () => Rng;
+  /** data (dia do ano) da `k`-ésima rodada de `total` */
+  dayOf: (k: number, total: number) => number;
+  /** registra as fases e os jogos das competições do jogador (tabelas parciais no calendário) */
+  track?: CompTracker;
   ctx: LeagueContext;
   name: (id: string) => string;
   tierOf: (id: string) => Tier | null;
   /** o clube pode subir (estádio)? */
   eligible: (id: string) => boolean;
+}
+
+export interface CompTracker {
+  /** abre uma fase de pontos e devolve o índice dela */
+  stage(name: string, ids: string[], deductions: Record<string, number>): number;
+  match(stage: number, m: MatchResult): void;
 }
 
 export interface LeagueOutcome {
@@ -51,18 +67,16 @@ function shootout(rng: Rng, hs: number, as: number): [number, number] {
 }
 
 /**
- * Ida e volta: `better` decide em casa (2º jogo). Empate no agregado vai para os pênaltis.
- * Retorna os dois jogos; o vencedor fica em `legs[1].winner`.
- */
-/**
  * Confronto de ida e volta; o de melhor campanha (`better`) decide em casa.
  * Com `advantage`, empate no agregado classifica o de melhor campanha (sem pênaltis), como nos mata-matas regionais.
+ * `rng` pode ser um só (testes) ou um por jogo.
  */
-export function twoLegs(rng: Rng, ctx: LeagueContext, better: string, other: string, advantage = false): [MatchResult, MatchResult] {
+export function twoLegs(rng: Rng | [Rng, Rng], ctx: LeagueContext, better: string, other: string, advantage = false): [MatchResult, MatchResult] {
+  const [r1, r2] = Array.isArray(rng) ? rng : [rng, rng];
   const bonus = (id: string) => ctx.knockoutBonus?.(id) ?? 0;
   const s = (a: string, b: string) => ctx.strength(a, b) + bonus(a);
-  const m1 = playMatch(rng, other, better, s(other, better), s(better, other), ctx.homeAdv(other), ctx.goalMult?.(other, better));
-  const m2 = playMatch(rng, better, other, s(better, other), s(other, better), ctx.homeAdv(better), ctx.goalMult?.(better, other));
+  const m1 = playMatch(r1, other, better, s(other, better), s(better, other), ctx.homeAdv(other), ctx.goalMult?.(other, better));
+  const m2 = playMatch(r2, better, other, s(better, other), s(other, better), ctx.homeAdv(better), ctx.goalMult?.(better, other));
   const aggBetter = m1.ag + m2.hg;
   const aggOther = m1.hg + m2.ag;
   if (aggBetter > aggOther) m2.winner = better;
@@ -71,11 +85,30 @@ export function twoLegs(rng: Rng, ctx: LeagueContext, better: string, other: str
     m2.winner = better;
     m2.advantage = true;
   } else {
-    m2.pens = shootout(rng, s(better, other), s(other, better));
+    m2.pens = shootout(r2, s(better, other), s(other, better));
     m2.winner = m2.pens[0] > m2.pens[1] ? better : other;
   }
   m1.winner = undefined;
   return [m1, m2];
+}
+
+/** Põe a data no jogo. */
+export function stamp<T extends MatchResult>(m: T, day: number): T {
+  m.day = day;
+  return m;
+}
+
+/** Ida e volta com sorteio próprio de cada jogo e datas (rodadas `k1` e `k2` de `total`). */
+export function tie(env: CompEnv, better: string, other: string, advantage: boolean, k1: number, k2: number, total: number): [MatchResult, MatchResult] {
+  const legs = twoLegs([env.matchRng(), env.matchRng()], env.ctx, better, other, advantage);
+  stamp(legs[0], env.dayOf(k1, total));
+  stamp(legs[1], env.dayOf(k2, total));
+  return legs;
+}
+
+/** Jogo eliminatório único (prorrogação e pênaltis) com data. */
+export function single(env: CompEnv, h: string, a: string, neutral: boolean, k: number, total: number): MatchResult {
+  return stamp(knockout(env.matchRng(), env.ctx, h, a, neutral), env.dayOf(k, total));
 }
 
 function cupMatch(env: CompEnv, round: string, r: MatchResult, playerTier: Tier, advanced: boolean | null): CupMatch {
@@ -116,23 +149,35 @@ export function roundPrep(round: string): string {
   return /^(oitavas|quartas)/.test(r) ? `nas ${r}` : `na ${r}`;
 }
 
-function leagueRun(env: CompEnv, ids: string[], double: boolean, deductions: Record<string, number>) {
-  if (double) return simulateLeague(env.rng, ids, env.ctx, deductions);
-  // turno único: só a primeira metade do turno e returno
+/**
+ * Pontos corridos (turno único ou turno e returno). A rodada `r` acontece na rodada `k0 + r` do calendário.
+ * `trackName`: se a competição é do jogador, registra a fase para as tabelas parciais.
+ */
+export function leagueRun(env: CompEnv, ids: string[], double: boolean, deductions: Record<string, number>, k0: number, total: number, trackName?: string) {
   const table = new Map<string, TableRow>();
   for (const id of ids) table.set(id, emptyRow(id, deductions[id] ?? 0));
-  const schedule = roundRobin(ids).slice(0, ids.length % 2 === 0 ? ids.length - 1 : ids.length);
+  const full = roundRobin(ids);
+  const schedule = double ? full : full.slice(0, ids.length % 2 === 0 ? ids.length - 1 : ids.length);
+  const stage = env.track && trackName ? env.track.stage(trackName, ids, deductions) : -1;
   const rounds: MatchResult[][] = [];
-  for (const round of schedule) {
+  schedule.forEach((round, r) => {
+    const day = env.dayOf(k0 + r, total);
     const res: MatchResult[] = [];
     for (const [h, a] of round) {
-      const m = playMatch(env.rng, h, a, env.ctx.strength(h, a), env.ctx.strength(a, h), env.ctx.homeAdv(h), env.ctx.goalMult?.(h, a));
+      const m = stamp(playMatch(env.matchRng(), h, a, env.ctx.strength(h, a), env.ctx.strength(a, h), env.ctx.homeAdv(h), env.ctx.goalMult?.(h, a)), day);
       applyResult(table, m);
+      if (stage >= 0) env.track!.match(stage, m);
       res.push(m);
     }
     rounds.push(res);
-  }
+  });
   return { table: sortTable([...table.values()]), rounds };
+}
+
+/** Rodadas de uma fase de pontos (para o calendário). */
+export function roundsOf(n: number, double: boolean): number {
+  const r = n % 2 === 0 ? n - 1 : n;
+  return double ? r * 2 : r;
 }
 
 function playerLeagueMatches(rounds: MatchResult[][]): MatchResult[] {
@@ -179,7 +224,8 @@ function compResult(env: CompEnv, id: CompId, name: string, tier: Tier, ids: str
 
 /** Séries A e B: pontos corridos, turno e returno. */
 export function pointsLeague(env: CompEnv, id: CompId, name: string, tier: Tier, ids: string[], up: number, down: number, deductions: Record<string, number>): LeagueOutcome {
-  const run = leagueRun(env, ids, true, deductions);
+  const total = roundsOf(ids.length, true);
+  const run = leagueRun(env, ids, true, deductions, 0, total, 'Classificação');
   const order = run.table.map((r) => r.clubId);
   const { picked, barred } = takeEligible(order, up, env);
   const relegated = order.slice(-down);
@@ -205,14 +251,16 @@ export function pointsLeague(env: CompEnv, id: CompId, name: string, tier: Tier,
  */
 export function serieC(env: CompEnv, ids: string[], deductions: Record<string, number>): LeagueOutcome {
   const tier: Tier = 3;
-  const first = leagueRun(env, ids, false, deductions);
+  const r1 = roundsOf(ids.length, false);
+  const total = r1 + 6 + 2;
+  const first = leagueRun(env, ids, false, deductions, 0, total, '1ª fase');
   const order = first.table.map((r) => r.clubId);
   const top8 = order.slice(0, 8);
   const groups = [
     [top8[0], top8[3], top8[4], top8[7]],
     [top8[1], top8[2], top8[5], top8[6]],
   ];
-  const groupTables = groups.map((g) => leagueRun(env, g, true, {}));
+  const groupTables = groups.map((g, gi) => leagueRun(env, g, true, {}, r1, total, `Quadrangular ${gi === 0 ? 'A' : 'B'}`));
   const promoted: string[] = [];
   let barred = false;
   for (const gt of groupTables) {
@@ -224,7 +272,7 @@ export function serieC(env: CompEnv, ids: string[], deductions: Record<string, n
   const ties: CupMatch[] = [];
   const better = order.indexOf(leaders[0]) < order.indexOf(leaders[1]) ? leaders[0] : leaders[1];
   const other = better === leaders[0] ? leaders[1] : leaders[0];
-  const final = twoLegs(env.rng, env.ctx, better, other);
+  const final = tie(env, better, other, false, r1 + 6, r1 + 7, total);
   logTie(env, ties, 'Final', final, tier);
   const champion = final[1].winner!;
   const vice = champion === better ? other : better;
@@ -278,7 +326,8 @@ const GROUP_LETTERS = 'ABCDEFGH';
 export function serieD(env: CompEnv, ids: string[]): LeagueOutcome {
   const tier: Tier = 4;
   const groups = snakeGroups(ids, 8, (id) => env.ctx.strength(id, id));
-  const tables = groups.map((g) => leagueRun(env, g, true, {}));
+  const total = 6 + 8;
+  const tables = groups.map((g, gi) => leagueRun(env, g, true, {}, 0, total, g.includes(PLAYER) ? `Grupo ${GROUP_LETTERS[gi]}` : undefined));
   const ties: CupMatch[] = [];
   // oitavas: 1º do grupo X x 2º do grupo vizinho
   let alive: string[] = [];
@@ -295,12 +344,12 @@ export function serieD(env: CompEnv, ids: string[]): LeagueOutcome {
     }
     return 999;
   };
-  const playRound = (ps: [string, string][], name: string, losers: string[]) => {
+  const playRound = (ps: [string, string][], name: string, losers: string[], k: number) => {
     const winners: string[] = [];
     for (const [a, b] of ps) {
       const better = seedRank(a) <= seedRank(b) ? a : b;
       const other = better === a ? b : a;
-      const legs = twoLegs(env.rng, env.ctx, better, other, true);
+      const legs = tie(env, better, other, true, k, k + 1, total);
       logTie(env, ties, name, legs, tier);
       const w = legs[1].winner!;
       winners.push(w);
@@ -313,9 +362,9 @@ export function serieD(env: CompEnv, ids: string[]): LeagueOutcome {
     { name: 'Quartas de final', losers: [] },
     { name: 'Semifinal', losers: [] },
   ];
-  alive = playRound(pairs, 'Oitavas de final', koRounds[0].losers);
+  alive = playRound(pairs, 'Oitavas de final', koRounds[0].losers, 6);
   const qfPairs: [string, string][] = [[alive[0], alive[1]], [alive[2], alive[3]], [alive[4], alive[5]], [alive[6], alive[7]]];
-  alive = playRound(qfPairs, 'Quartas de final', koRounds[1].losers);
+  alive = playRound(qfPairs, 'Quartas de final', koRounds[1].losers, 8);
   // quem passa das quartas sobe (se tiver estádio; senão, o eliminado daquele confronto herda a vaga)
   const promoted: string[] = [];
   let barred = false;
@@ -327,10 +376,10 @@ export function serieD(env: CompEnv, ids: string[]): LeagueOutcome {
       if (env.eligible(loser)) promoted.push(loser);
     }
   });
-  const sfWinners = playRound([[alive[0], alive[1]], [alive[2], alive[3]]], 'Semifinal', koRounds[2].losers);
+  const sfWinners = playRound([[alive[0], alive[1]], [alive[2], alive[3]]], 'Semifinal', koRounds[2].losers, 10);
   const better = seedRank(sfWinners[0]) <= seedRank(sfWinners[1]) ? sfWinners[0] : sfWinners[1];
   const other = better === sfWinners[0] ? sfWinners[1] : sfWinners[0];
-  const final = twoLegs(env.rng, env.ctx, better, other);
+  const final = tie(env, better, other, false, 12, 13, total);
   logTie(env, ties, 'Final', final, tier);
   const champion = final[1].winner!;
   const vice = champion === better ? other : better;
@@ -373,10 +422,10 @@ export interface EstadualSpec {
  * final (ida e volta nos estaduais). Os finalistas sobem; os últimos da 1ª fase caem.
  */
 /** Jogo único na casa do de melhor campanha; empate classifica quem fez a melhor 1ª fase. */
-function singleWithAdvantage(env: CompEnv, better: string, other: string): MatchResult {
+function singleWithAdvantage(env: CompEnv, better: string, other: string, day: number): MatchResult {
   const { ctx } = env;
   const bonus = (id: string) => ctx.knockoutBonus?.(id) ?? 0;
-  const m = playMatch(env.rng, better, other, ctx.strength(better, other) + bonus(better), ctx.strength(other, better) + bonus(other), ctx.homeAdv(better), ctx.goalMult?.(better, other));
+  const m = stamp(playMatch(env.matchRng(), better, other, ctx.strength(better, other) + bonus(better), ctx.strength(other, better) + bonus(other), ctx.homeAdv(better), ctx.goalMult?.(better, other)), day);
   if (m.hg > m.ag) m.winner = better;
   else if (m.ag > m.hg) m.winner = other;
   else {
@@ -387,12 +436,16 @@ function singleWithAdvantage(env: CompEnv, better: string, other: string): Match
 }
 
 export function estadual(env: CompEnv, spec: EstadualSpec, ids: string[], deductions: Record<string, number>): LeagueOutcome {
-  const first = leagueRun(env, ids, false, deductions);
+  const r1 = roundsOf(ids.length, false);
+  const names = spec.knockout === 8 ? ['Quartas de final', 'Semifinal'] : ['Semifinal'];
+  const legsPer = spec.twoLegFinal ? 2 : 1;
+  const total = r1 + (names.length + 1) * legsPer;
+  const first = leagueRun(env, ids, false, deductions, 0, total, '1ª fase');
   const order = first.table.map((r) => r.clubId);
   const ties: CupMatch[] = [];
   let alive = order.slice(0, spec.knockout);
   const koRounds: { name: string; losers: string[] }[] = [];
-  const names = spec.knockout === 8 ? ['Quartas de final', 'Semifinal'] : ['Semifinal'];
+  let k = r1;
   for (const roundName of names) {
     const losers: string[] = [];
     const next: string[] = [];
@@ -400,7 +453,7 @@ export function estadual(env: CompEnv, spec: EstadualSpec, ids: string[], deduct
     for (let i = 0; i < n / 2; i++) {
       const better = alive[i];
       const other = alive[n - 1 - i];
-      const legs = spec.twoLegFinal ? twoLegs(env.rng, env.ctx, better, other, true) : [singleWithAdvantage(env, better, other)];
+      const legs = spec.twoLegFinal ? tie(env, better, other, true, k, k + 1, total) : [singleWithAdvantage(env, better, other, env.dayOf(k, total))];
       logTie(env, ties, roundName, legs, spec.tier);
       const w = legs[legs.length - 1].winner!;
       next.push(w);
@@ -408,9 +461,10 @@ export function estadual(env: CompEnv, spec: EstadualSpec, ids: string[], deduct
     }
     koRounds.push({ name: roundName, losers });
     alive = next.sort((a, b) => order.indexOf(a) - order.indexOf(b));
+    k += legsPer;
   }
   const [better, other] = alive;
-  const finalLegs = spec.twoLegFinal ? twoLegs(env.rng, env.ctx, better, other) : [knockout(env.rng, env.ctx, better, other, true)];
+  const finalLegs = spec.twoLegFinal ? tie(env, better, other, false, k, k + 1, total) : [single(env, better, other, true, k, total)];
   logTie(env, ties, 'Final', finalLegs, spec.tier);
   const champion = finalLegs[finalLegs.length - 1].winner!;
   const vice = champion === better ? other : better;

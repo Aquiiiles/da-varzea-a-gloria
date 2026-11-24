@@ -1,17 +1,6 @@
 import type { AwardEntry, AwardItem, AwardSet, SeasonResult } from '../engine';
 
 const POS_ORDER = ['GOL', 'DEF', 'MEI', 'ATA'] as const;
-const ICON: Record<AwardItem['id'], string> = {
-  bola: '⚽',
-  chuteira: '👟',
-  tecnico_ano: '📋',
-  revelacao_ano: '🌱',
-  craque: '⭐',
-  artilheiro: '🎯',
-  tecnico: '📋',
-  revelacao: '🌱',
-};
-
 function Who({ e }: { e: AwardEntry }) {
   return (
     <>
@@ -25,7 +14,7 @@ function Award({ it, big }: { it: AwardItem; big?: boolean }) {
   return (
     <article className={`award${big ? ' award-big' : ''}${it.winner.mine ? ' is-mine' : ''}`}>
       <p className="award-title">
-        <span aria-hidden="true">{ICON[it.id]}</span> {it.title}
+        {it.title}
       </p>
       <p className="award-winner">
         <Who e={it.winner} />

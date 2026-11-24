@@ -82,7 +82,7 @@ export interface Footballer {
   intent?: ContractIntent;
   /** salário combinado para a renovação (fixado na abertura da janela; não muda se ele evoluir até o fim) */
   askWage?: number;
-  /** destaque num campeonato da base (ex.: "Artilheiro da Copa de Juniores 2028") */
+  /** destaque num campeonato da base (ex.: "Artilheiro da Copinha 2028") */
   highlight?: string;
   /** temporada em que o garoto da base pediu para subir ao profissional */
   askUp?: number;
@@ -297,7 +297,7 @@ export interface PlayerClub extends Club {
   worldCup: boolean;
   /** histórico do clássico (liga e copas) */
   derby: { w: number; d: number; l: number };
-  /** vaga na Copa Nacional desta temporada (campeão da Copa do Estado do ano anterior) */
+  /** vaga na Copa do Brasil desta temporada (campeão da Copa do Estado do ano anterior) */
   copaSpot: boolean;
   sponsors: Sponsor[];
   squad: Footballer[];

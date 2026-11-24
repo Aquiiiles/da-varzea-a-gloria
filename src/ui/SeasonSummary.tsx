@@ -147,7 +147,7 @@ export function SeasonSummary({ result: r, state, onNext, onFast, fast }: Props)
           <ul className="objectives">
             {r.objectives.map((o, i) => (
               <li key={i} className={o.met ? 'good' : 'bad'}>
-                {o.met ? '✔' : '✘'} {o.text}
+                <i className={`mark ${o.met ? 'mark-ok' : 'mark-no'}`} aria-label={o.met ? 'cumprida' : 'não cumprida'} /> {o.text}
               </li>
             ))}
           </ul>
@@ -193,7 +193,7 @@ export function SeasonSummary({ result: r, state, onNext, onFast, fast }: Props)
           </p>
           {r.coachReport.request && (
             <p className={r.coachReport.met ? 'good' : 'bad'}>
-              {r.coachReport.met ? '✔' : '✘'} Pedido: {r.coachReport.request.text}
+              <i className={`mark ${r.coachReport.met ? 'mark-ok' : 'mark-no'}`} /> Pedido: {r.coachReport.request.text}
             </p>
           )}
           {r.coachReport.left && <p className="bad">{r.coachReport.left}</p>}
@@ -239,7 +239,7 @@ export function SeasonSummary({ result: r, state, onNext, onFast, fast }: Props)
           <ul>
             {myAwards(r.awards).map((w, i) => (
               <li key={i} className="good">
-                🏅 {w.title}
+                {w.title}
                 {w.scope === 'Temporada' ? '' : ` (${w.scope})`}: {w.name}
               </li>
             ))}
@@ -272,7 +272,7 @@ export function SeasonSummary({ result: r, state, onNext, onFast, fast }: Props)
           Abrir a janela de {r.year + 1}
         </button>
         <button type="button" className="btn" onClick={onFast} disabled={fast}>
-          Rápido ⏩
+          Rápido
         </button>
       </div>
     </section>

@@ -69,7 +69,7 @@ export function makeClub(rng: Rng, id: string, national: NationalDiv | null, sta
  * - Séries A, B, C (20 cada) e D (32): alguns clubes são do nosso estado (também jogam o Estadual);
  * - Estadual: 16 clubes do estado (os nacionais do estado + os sem divisão nacional);
  * - Estadual Série B: 16 · Várzea: 19 (+ o clube do jogador);
- * - Outros estados sem divisão nacional: fonte das vagas da Série D e da Copa Nacional.
+ * - Outros estados sem divisão nacional: fonte das vagas da Série D e da Copa do Brasil.
  */
 export function generateWorld(rng: Rng, taken: Set<string>, ids: IdSource): { clubs: Club[]; serial: number } {
   const clubs: Club[] = [];

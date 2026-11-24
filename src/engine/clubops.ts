@@ -173,7 +173,7 @@ export function seasonObjectives(rng: Rng, tier: Tier, expected: number, rivalSa
       break;
     case 1:
       if (expected <= 2) main('titulo', 'ser campeão da Série A', 1);
-      else if (expected <= 8) main('top4', 'vaga na Copa Continental (top 6)', 6);
+      else if (expected <= 8) main('top4', 'vaga na Libertadores (top 6)', 6);
       else if (expected <= 14) main('meio', 'terminar até o 12º lugar', 12);
       else main('nao_cair', 'não cair para a Série B', 16);
       break;

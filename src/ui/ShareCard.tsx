@@ -198,7 +198,7 @@ export function drawCard(canvas: HTMLCanvasElement, state: GameState, url: strin
       ctx.arc(x, y, r.position === 1 ? 14 : 9, 0, Math.PI * 2);
       ctx.fillStyle = color;
       ctx.fill();
-      if (r.cups.some((c) => c.champion)) text(ctx, '🏆', x, y - 22, `30px ${BODY}`, '#fff', 'center');
+      if (r.cups.some((c) => c.champion)) text(ctx, '★', x, y - 22, `30px ${BODY}`, '#ffd23f', 'center');
     });
     text(ctx, String(h[0].year), gx, gy + gh + 44, `600 24px ${BODY}`, '#5d6b7c', 'left');
     text(ctx, String(h[h.length - 1].year), gx + gw, gy + gh + 44, `600 24px ${BODY}`, '#5d6b7c', 'right');

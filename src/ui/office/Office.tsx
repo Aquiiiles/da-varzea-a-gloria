@@ -18,28 +18,28 @@ import { Crest } from '../Crest';
 
 export type TabId = 'painel' | 'elenco' | 'base' | 'mercado' | 'comissao' | 'estadio' | 'financas' | 'diretoria' | 'noticias' | 'trofeus';
 
-const TABS: { id: TabId; label: string; icon: string }[] = [
-  { id: 'painel', label: 'Início', icon: '🏠' },
-  { id: 'elenco', label: 'Elenco', icon: '👕' },
-  { id: 'base', label: 'Base', icon: '🌱' },
-  { id: 'mercado', label: 'Mercado', icon: '🤝' },
-  { id: 'comissao', label: 'Comissão', icon: '📋' },
-  { id: 'estadio', label: 'Estrutura', icon: '🏟️' },
-  { id: 'financas', label: 'Finanças', icon: '💰' },
-  { id: 'noticias', label: 'Notícias', icon: '📰' },
-  { id: 'trofeus', label: 'Troféus', icon: '🏆' },
+const TABS: { id: TabId; label: string }[] = [
+  { id: 'painel', label: 'Início' },
+  { id: 'elenco', label: 'Elenco' },
+  { id: 'base', label: 'Base' },
+  { id: 'mercado', label: 'Mercado' },
+  { id: 'comissao', label: 'Comissão' },
+  { id: 'estadio', label: 'Estrutura' },
+  { id: 'financas', label: 'Finanças' },
+  { id: 'noticias', label: 'Notícias' },
+  { id: 'trofeus', label: 'Troféus' },
 ];
 
 /** Modo técnico: o técnico não mexe em estádio e finanças (é com a diretoria). */
-const COACH_TABS: { id: TabId; label: string; icon: string }[] = [
-  { id: 'painel', label: 'Início', icon: '🏠' },
-  { id: 'elenco', label: 'Elenco', icon: '👕' },
-  { id: 'base', label: 'Base', icon: '🌱' },
-  { id: 'mercado', label: 'Transferências', icon: '🤝' },
-  { id: 'comissao', label: 'Técnico', icon: '📋' },
-  { id: 'diretoria', label: 'Diretoria', icon: '🏛️' },
-  { id: 'noticias', label: 'Notícias', icon: '📰' },
-  { id: 'trofeus', label: 'Troféus', icon: '🏆' },
+const COACH_TABS: { id: TabId; label: string }[] = [
+  { id: 'painel', label: 'Início' },
+  { id: 'elenco', label: 'Elenco' },
+  { id: 'base', label: 'Base' },
+  { id: 'mercado', label: 'Transferências' },
+  { id: 'comissao', label: 'Técnico' },
+  { id: 'diretoria', label: 'Diretoria' },
+  { id: 'noticias', label: 'Notícias' },
+  { id: 'trofeus', label: 'Troféus' },
 ];
 
 export interface TabProps {
@@ -74,9 +74,6 @@ export function Office({ state, dispatch, onFast, onBack }: { state: GameState; 
       <nav className="tabs" aria-label="Escritório do presidente">
         {tabs.map((t) => (
           <button key={t.id} type="button" className={`tab${tab === t.id ? ' is-on' : ''}`} onClick={() => setTab(t.id)} aria-current={tab === t.id ? 'page' : undefined}>
-            <span className="tab-icon" aria-hidden="true">
-              {t.icon}
-            </span>
             <span className="tab-label">{t.label}</span>
             {t.id === 'painel' && eventPending && <span className="dot" aria-label="evento pendente" />}
             {t.id === 'base' && p.youth.length > 0 && <span className="count">{p.youth.length}</span>}
@@ -86,6 +83,13 @@ export function Office({ state, dispatch, onFast, onBack }: { state: GameState; 
           </button>
         ))}
       </nav>
+
+      {onBack && (
+        <p className="season-note">
+          Temporada em andamento: {state.career ? 'escalação e estratégia valem para os próximos jogos; ' : ''}
+          transferências só na janela de julho.
+        </p>
+      )}
 
       <div className="tab-body">
         {tab === 'painel' && <OverviewTab {...props} />}
@@ -112,7 +116,7 @@ export function Office({ state, dispatch, onFast, onBack }: { state: GameState; 
             Assistente decide
           </button>
           <button type="button" className="btn" onClick={onFast} title="O assistente gere e joga até algo decisivo">
-            Rápido ⏩
+            Rápido
           </button>
           <button
             type="button"

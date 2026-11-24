@@ -32,7 +32,7 @@ export function InterviewCard({ state, dispatch }: { state: GameState; dispatch:
         const ans = done.find((d) => d.q === qi);
         return (
           <div key={qi} className="interview-q">
-            <p className="interview-ask">🎙️ {q.text}</p>
+            <p className="interview-ask">{q.text}</p>
             {ans ? (
               <p className="interview-quote">"{ans.quote}"</p>
             ) : (

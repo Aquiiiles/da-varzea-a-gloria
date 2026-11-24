@@ -191,7 +191,12 @@ export function SeasonView({ state, dispatch, onOpenOffice }: { state: GameState
   return (
     <div className="tab-stack season-view">
       <section className="panel">
-        <p className="kicker">Temporada {cal.year}</p>
+        <div className="season-top">
+          <p className="kicker">Temporada {cal.year}</p>
+          <button type="button" className="btn btn-small" onClick={onOpenOffice}>
+            Ver o clube
+          </button>
+        </div>
         <h2 className="headline cal-today">{longDate(cal.year, day)}</h2>
         <div className="meter" aria-label={`${Math.round(progress)}% da temporada`}>
           <span className="meter-fill" style={{ width: `${progress}%` }} />

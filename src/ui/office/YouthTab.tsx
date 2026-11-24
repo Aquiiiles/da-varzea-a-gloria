@@ -129,7 +129,7 @@ function YouthCompetitions({ state }: { state: TabProps['state'] }) {
   return (
     <Section
       title="Campeonatos da base"
-      note="Copa de Juniores (Sub-20) em janeiro, Estadual Sub-17 e, para clubes das Séries A e B, o Brasileiro Sub-20. Quem se destaca ganha potencial e pode pedir para subir: se não subir, pode ir embora."
+      note="Copinha (Sub-20) em janeiro, Estadual Sub-17 e, para clubes das Séries A e B, o Brasileiro Sub-20. Quem se destaca ganha potencial e pode pedir para subir: se não subir, pode ir embora."
     >
       {comps.length === 0 ? (
         <p className="empty">Os resultados aparecem no fim da temporada.</p>

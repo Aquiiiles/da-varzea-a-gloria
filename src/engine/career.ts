@@ -49,7 +49,7 @@ const PITCH: Record<Tier, string[]> = {
   4: ['Passar da fase de grupos da Série D', 'Acesso à Série C'],
   3: ['Fugir do rebaixamento na Série C', 'Brigar pelo acesso à Série B'],
   2: ['Campanha segura na Série B', 'Acesso à Série A'],
-  1: ['Permanecer na Série A', 'Vaga na Copa Continental', 'Título brasileiro'],
+  1: ['Permanecer na Série A', 'Vaga na Libertadores', 'Título brasileiro'],
 };
 
 /**

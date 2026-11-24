@@ -1,10 +1,11 @@
 import {
-  ORIGINS, SQUAD_MAX, SQUAD_MIN, TIERS, YOUTH_AGE_LIMIT, effectsCashCost, marketValue, moodLabel, projectFinance, renewWage, stadiumAllows, type Tier,
+  ORIGINS, SQUAD_MAX, SQUAD_MIN, TIERS, YOUTH_AGE_LIMIT, effectsCashCost, moodLabel, projectFinance, renewWage, stadiumAllows, type Tier,
 } from '../../engine';
 import { money, num } from '../format';
 import type { TabProps } from './Office';
 import { Chips, Section } from './common';
 import { JobOffers } from './CareerTab';
+import { SaleOfferCard } from './OfferCards';
 
 export function OverviewTab({ state, dispatch, goTo }: TabProps) {
   const p = state.player;
@@ -79,11 +80,15 @@ export function OverviewTab({ state, dispatch, goTo }: TabProps) {
           <div className="meter mood-meter">
             <span className="meter-fill" style={{ width: `${p.mood}%`, background: p.mood < 25 ? 'var(--bad)' : p.mood < 45 ? 'var(--warn)' : 'var(--good)' }} />
           </div>
-          <small className="muted">Mexe no público (até ±15%) e no patrocínio. Sobe com vitórias, metas cumpridas, clássico, zebras e ingresso popular; cai com fracassos, ingresso caro e venda de crias da base.</small>
+          <small className="muted">
+            {state.career
+              ? 'Sobe com vitórias, metas cumpridas, clássico e zebras; cai com fracassos e venda de crias da base. Também mexe com o que você fala nas entrevistas.'
+              : 'Mexe no público (até ±15%) e no patrocínio. Sobe com vitórias, metas cumpridas, clássico, zebras e ingresso popular; cai com fracassos, ingresso caro e venda de crias da base.'}
+          </small>
         </div>
         {(p.continental || p.worldCup) && (
           <p className="competitions">
-            Nesta temporada: Copa Nacional{p.continental === 'cc' ? ' · Copa dos Campeões' : p.continental === 'le' ? ' · Liga Europa' : ''}
+            Nesta temporada: Copa do Brasil{p.continental === 'cc' ? ' · Libertadores' : p.continental === 'le' ? ' · Sul-Americana' : ''}
             {p.worldCup ? ' · Mundial de Clubes' : ''}
           </p>
         )}
@@ -91,28 +96,12 @@ export function OverviewTab({ state, dispatch, goTo }: TabProps) {
 
       {o.offers.some(Boolean) && (
         <Section title="Propostas recebidas" note="Clubes interessados nos seus jogadores. Ignorar é recusar; elas expiram no fim da janela.">
-          <div className="opps">
+          <div className="offer-grid">
             {o.offers.map((of, idx) => {
               if (!of) return null;
               const f = p.squad.find((x) => x.id === of.playerId);
               if (!f) return null;
-              const value = marketValue(f);
-              return (
-                <article key={idx} className="opp">
-                  <div>
-                    <strong>
-                      {of.club} quer {f.name} ({f.pos}, {f.ovr})
-                    </strong>
-                    <p>
-                      Oferta de {money(of.fee)} · valor de mercado {money(value)}
-                      {of.fee >= value * 1.2 ? ' · acima do valor!' : of.fee < value * 0.9 ? ' · abaixo do valor' : ''}
-                    </p>
-                  </div>
-                  <button type="button" className="btn btn-small btn-primary" disabled={p.squad.length <= SQUAD_MIN} onClick={() => dispatch({ t: 'offer', idx })}>
-                    Vender
-                  </button>
-                </article>
-              );
+              return <SaleOfferCard key={idx} state={state} offer={of} f={f} disabled={p.squad.length <= SQUAD_MIN} onSell={() => dispatch({ t: 'offer', idx })} />;
             })}
           </div>
         </Section>
@@ -143,7 +132,7 @@ export function OverviewTab({ state, dispatch, goTo }: TabProps) {
       </Section>}
 
       {alerts.length > 0 && (
-        <Section title="Atenção, presidente">
+        <Section title={state.career ? 'Atenção, professor' : 'Atenção, presidente'}>
           <ul className="alerts">
             {alerts.map((a, i) => (
               <li key={i}>

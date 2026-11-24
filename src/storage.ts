@@ -5,6 +5,7 @@
  */
 import { computeScore, encodeRun, levelFor, parseNamePack, runStats, TIERS, type GameState, type NamePack } from './engine';
 import { dailyLabel } from './ui/daily';
+import { REAL_PACK } from './data/realclubs';
 
 const CAREERS_KEY = 'dvg:careers:v3';
 const HALL_KEY = 'dvg:hall:v3';
@@ -62,7 +63,7 @@ export function careerId(state: GameState): string {
 function saveName(state: GameState): string {
   const c = state.career;
   if (!c) return state.player.name;
-  return c.unemployed || c.stints.length === 0 ? `📋 ${c.name}` : `📋 ${c.name} (${state.player.name})`;
+  return c.unemployed || c.stints.length === 0 ? `Técnico ${c.name}` : `Técnico ${c.name} (${state.player.name})`;
 }
 
 export function listCareers(): CareerSave[] {
@@ -119,22 +120,30 @@ export function deleteCareer(id: string): void {
 
 const PACK_KEY = 'dvg:namepack:v1';
 
-/** Pacote de nomes importado pelo jogador (fica só neste navegador). */
+const FICTIONAL = 'ficticios';
+
+/**
+ * Pacote de nomes em uso: os clubes reais (padrão), nomes fictícios (null) ou um pacote importado.
+ * Fica só neste navegador.
+ */
 export function loadNamePack(): NamePack | null {
   try {
     const raw = localStorage.getItem(PACK_KEY);
-    if (!raw) return null;
+    if (!raw) return REAL_PACK;
+    if (raw === FICTIONAL) return null;
     const pack = parseNamePack(JSON.parse(raw));
-    return typeof pack === 'string' ? null : pack;
+    return typeof pack === 'string' ? REAL_PACK : pack;
   } catch {
-    return null;
+    return REAL_PACK;
   }
 }
 
-export function saveNamePack(pack: NamePack | null): boolean {
+/** `'real'` volta ao padrão (clubes reais); null = nomes fictícios; ou um pacote importado. */
+export function saveNamePack(pack: NamePack | null | 'real'): boolean {
   try {
-    if (pack) localStorage.setItem(PACK_KEY, JSON.stringify(pack));
-    else localStorage.removeItem(PACK_KEY);
+    if (pack === 'real') localStorage.removeItem(PACK_KEY);
+    else if (pack === null) localStorage.setItem(PACK_KEY, FICTIONAL);
+    else localStorage.setItem(PACK_KEY, JSON.stringify(pack));
     return true;
   } catch {
     return false;

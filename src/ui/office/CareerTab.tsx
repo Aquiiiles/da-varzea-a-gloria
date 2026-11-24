@@ -8,6 +8,7 @@ import { Stars } from './CoachTab';
 import { LineupEditor } from '../LineupEditor';
 import type { TabProps } from './Office';
 import { Section } from './common';
+import { JobOfferCard } from './OfferCards';
 
 const FORMATIONS: Formation[] = ['4-4-2', '4-3-3', '3-5-2', '4-5-1'];
 const FORMATION_TEXT: Record<Formation, string> = {
@@ -59,22 +60,9 @@ export function JobOffers({ state, dispatch, title }: { state: GameState; dispat
       title={title}
       note={c.unemployed ? 'Escolha onde começar o trabalho. A personalidade da diretoria muda a verba e a paciência.' : 'Aceitar é sair no meio do contrato: custa um pouco de reputação, mas pode ser o salto da carreira.'}
     >
-      <div className="opps">
+      <div className="offer-grid">
         {c.offers.map((of: JobOffer, idx) => (
-          <article key={of.clubId} className="opp job-offer">
-            <div>
-              <strong>{of.club}</strong>
-              <p>
-                {TIERS[of.tier].name} · diretoria {BOARD_INFO[of.personality].label.toLowerCase()} · {of.contract} temporadas
-              </p>
-              <p className="muted">
-                Projeto: {of.pitch}. {BOARD_INFO[of.personality].text}
-              </p>
-            </div>
-            <button type="button" className="btn btn-small btn-primary" onClick={() => dispatch({ t: 'job', idx })}>
-              Aceitar
-            </button>
-          </article>
+          <JobOfferCard key={of.clubId} state={state} offer={of} primary={c.unemployed} onAccept={() => dispatch({ t: 'job', idx })} />
         ))}
       </div>
     </Section>

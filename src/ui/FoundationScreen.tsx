@@ -3,9 +3,9 @@ import { CAREER_END_AGE, CAREER_START_AGE, COACH_STYLES, ORIGINS, START_YEAR, in
 import { Crest } from './Crest';
 import { deleteCareer, listCareers, listHall, loadNamePack, saveNamePack, type CareerSave } from '../storage';
 import { today } from './daily';
+import { REAL_PACK } from '../data/realclubs';
 
 const SWATCHES = ['#c8102e', '#1d428a', '#fdb913', '#00843d', '#ffffff', '#111111', '#6c1d45', '#ef7d00', '#9bcbeb', '#7a263a'];
-const ORIGIN_ICON: Record<Origin, string> = { pub: '🍺', fabrica: '🏭', youtuber: '📱' };
 
 function ColorPicker({ label, value, onChange }: { label: string; value: string; onChange: (c: string) => void }) {
   return (
@@ -109,32 +109,43 @@ function NamePackPanel() {
     }
   };
 
-  const remove = () => {
+  const useFictional = () => {
     saveNamePack(null);
     setPack(null);
-    setMsg({ text: 'Pacote removido: os clubes voltam aos nomes fictícios.', ok: true });
+    setMsg({ text: 'Nomes fictícios: os clubes das Séries A a D ganham nomes inventados.', ok: true });
   };
+  const useReal = () => {
+    saveNamePack('real');
+    setPack(REAL_PACK);
+    setMsg({ text: 'Clubes reais de volta.', ok: true });
+  };
+  const isReal = pack === REAL_PACK || pack?.title === REAL_PACK.title;
 
   return (
     <details className="panel namepack">
       <summary>
         <span className="kicker">Nomes dos clubes</span>
-        <span className="namepack-state">{pack ? `${pack.title} (${packSize(pack)})` : 'Fictícios'}</span>
+        <span className="namepack-state">{pack ? (isReal ? 'Clubes reais' : `${pack.title} (${packSize(pack)})`) : 'Fictícios'}</span>
       </summary>
       <p className="muted">
-        Importe um pacote de nomes (.json) para trocar os nomes dos clubes das Séries A, B, C e D. O pacote fica só neste navegador e não muda
-        os resultados da carreira, só os nomes, siglas e cores.
+        As Séries A, B, C e D usam os clubes reais do Brasil. Dá para trocar por nomes fictícios ou importar um pacote próprio (.json). Só muda nomes,
+        siglas e cores: os resultados da carreira continuam os mesmos.
       </p>
       <div className="namepack-actions">
+        {pack ? (
+          <button type="button" className="btn btn-small" onClick={useFictional}>
+            Usar nomes fictícios
+          </button>
+        ) : null}
+        {!isReal && (
+          <button type="button" className="btn btn-small" onClick={useReal}>
+            Usar clubes reais
+          </button>
+        )}
         <label className="btn btn-small">
           Importar pacote
           <input type="file" accept=".json,application/json" hidden onChange={(e) => { void onFile(e.target.files?.[0]); e.target.value = ''; }} />
         </label>
-        {pack && (
-          <button type="button" className="btn btn-small" onClick={remove}>
-            Usar nomes fictícios
-          </button>
-        )}
       </div>
       {msg && <p className={msg.ok ? 'good' : 'bad'}>{msg.text}</p>}
     </details>
@@ -161,12 +172,10 @@ export function FoundationScreen({ onStart, onResume }: { onStart: (f: Foundatio
       <p className="kicker">Modo de jogo</p>
       <div className="mode-grid">
         <button type="button" className={`origin mode-card${mode === 'tecnico' ? ' is-on' : ''}`} onClick={() => setMode('tecnico')}>
-          <span className="origin-icon">📋</span>
           <strong>Técnico</strong>
           <small>Comece sem nome, aceite propostas, suba de clube em clube e não deixe a diretoria perder a paciência.</small>
         </button>
         <button type="button" className={`origin mode-card${mode === 'presidente' ? ' is-on' : ''}`} onClick={() => setMode('presidente')}>
-          <span className="origin-icon">🏟️</span>
           <strong>Presidente</strong>
           <small>Funde um time na Várzea e leve até a glória: elenco, estádio, finanças e o técnico são seus.</small>
         </button>
@@ -213,7 +222,7 @@ export function FoundationScreen({ onStart, onResume }: { onStart: (f: Foundatio
       <p className="kicker">Fundação</p>
       <h1 className="headline">Todo gigante já foi um time de bairro.</h1>
       <p className="lede">
-        Você é o dono. Funde um time na Várzea e suba pelo Estadual, pelas Séries D, C e B até a Série A, a Copa Continental e o
+        Você é o dono. Funde um time na Várzea e suba pelo Estadual, pelas Séries D, C e B até a Série A, a Libertadores e o
         Mundial em 50 temporadas.
       </p>
 
@@ -241,7 +250,6 @@ export function FoundationScreen({ onStart, onResume }: { onStart: (f: Foundatio
       <div className="origins">
         {(Object.keys(ORIGINS) as Origin[]).map((o) => (
           <button key={o} type="button" className={`origin${o === origin ? ' is-on' : ''}`} onClick={() => setOrigin(o)}>
-            <span className="origin-icon">{ORIGIN_ICON[o]}</span>
             <strong>{ORIGINS[o].label}</strong>
             <small>{ORIGINS[o].blurb}</small>
           </button>

@@ -88,7 +88,7 @@ export const PALETTE = [
 
 /* ------------------------------ estrangeiros ------------------------------ */
 
-/** Clubes sul-americanos fictícios (Copa Continental e Copa Sul). */
+/** Clubes sul-americanos fictícios (Libertadores e Sul-Americana). */
 export const SA_PREFIX = ['Club Atlético', 'Deportivo', 'Club Sportivo', 'Universidad de', 'Club Social y Deportivo', 'Club Nacional de', 'Atlético', 'Unión', 'Racing de'];
 export const SA_CITY = [
   'San Martín del Valle', 'Puerto Esmeralda', 'Villa Serena', 'Ciudad Arena', 'Río Blanco', 'Santa Lucía del Monte', 'Las Piedras Altas',
@@ -107,4 +107,21 @@ export const WORLD_REGIONS = ['Europa', 'América do Norte', 'África', 'Ásia',
 export const SPONSOR_NAMES = [
   'Padaria Pão Quente', 'Auto Peças Trovão', 'Cervejaria Bigode', 'Metalúrgica Aurora',
   'Bet Relâmpago', 'Construtora Pilar', 'Fintech Kripto9', 'Supermercado Bom Preço',
+];
+
+/** Clubes sul-americanos (Libertadores e Sul-Americana), dos mais tradicionais para os menores. */
+export const REAL_SA = [
+  'Boca Juniors', 'River Plate', 'Peñarol', 'Nacional', 'Independiente', 'Racing', 'Estudiantes', 'San Lorenzo', 'Vélez Sarsfield', 'Olimpia',
+  'Cerro Porteño', 'LDU Quito', 'Independiente del Valle', 'Colo-Colo', 'Universidad de Chile', 'Atlético Nacional', 'Millonarios', 'Barcelona SC',
+  'Libertad', 'Talleres', 'Argentinos Juniors', 'Lanús', 'Defensa y Justicia', 'Rosario Central', "Newell's Old Boys", 'Huracán', 'Sporting Cristal',
+  'Universitario', 'Alianza Lima', 'Bolívar', 'The Strongest', 'Emelec', 'Junior', 'América de Cali', 'Deportivo Cali', 'Once Caldas',
+  'Universidad Católica', 'Cobreloa', 'Defensor Sporting', 'Liverpool (URU)', 'Danubio', 'Guaraní', 'Caracas', 'Deportivo Táchira', 'Aucas',
+  'Melgar', 'Always Ready', 'Nacional (PAR)',
+];
+
+/** Clubes de outros continentes (Mundial de Clubes), dos mais fortes para os menores. */
+export const REAL_WORLD = [
+  'Real Madrid', 'Manchester City', 'Bayern de Munique', 'Barcelona', 'Paris Saint-Germain', 'Liverpool', 'Chelsea', 'Inter de Milão',
+  'Juventus', 'Milan', 'Borussia Dortmund', 'Atlético de Madrid', 'Benfica', 'Porto', 'Al-Hilal', 'Al Ahly', 'Monterrey', 'Tigres',
+  'Club América', 'Seattle Sounders', 'Urawa Red Diamonds', 'Al-Ain', 'Espérance', 'Wydad', 'Auckland City', 'Ulsan HD',
 ];

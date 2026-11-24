@@ -50,9 +50,7 @@ export function TrophyRoom({ state }: { state: GameState }) {
         <ul className="achievements">
           {ach.map((x) => (
             <li key={x.id} className={x.unlocked ? 'is-on' : ''}>
-              <span className="ach-icon" aria-hidden="true">
-                {x.unlocked ? '🏅' : '🔒'}
-              </span>
+              <span className={`ach-mark${x.unlocked ? ' is-on' : ''}`} aria-hidden="true" />
               <span>
                 <strong>{x.title}</strong>
                 <small>{x.text}</small>

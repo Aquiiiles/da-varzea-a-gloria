@@ -57,7 +57,7 @@ export const SIZES = {
   estadualA: 16,
   estadualB: 16,
   varzea: 20,
-  /** clubes de outros estados sem divisão nacional (fonte das vagas da Série D e da Copa Nacional) */
+  /** clubes de outros estados sem divisão nacional (fonte das vagas da Série D e da Copa do Brasil) */
   pool: 44,
 };
 

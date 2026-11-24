@@ -6,6 +6,7 @@ import { estadual, pointsLeague, serieC, serieD, PLAYER, type CompEnv, type Comp
 import { SEASON_END, SEASON_START, matchDay, type CalendarKey } from './calendar';
 import { SeasonStats } from './stats';
 import { SquadPlan } from './squadplan';
+import { youthSeason } from './youthcomps';
 import { computeAwards, myAwards, type AwardsInput, type LeagueInfo } from './awards';
 import { continentalCup, foreignClubs, nationalCup, stateCup, worldCup, type CupEnv, type CupResult } from './cups';
 import { nextId } from './effects';
@@ -545,6 +546,41 @@ export function simulateSeason(state: GameState): SeasonResult {
       f.apps += st.apps;
     }
   }
+  // ---------------------- base: Copa de Juniores, Estadual Sub-17, Brasileiro Sub-20 ----------------------
+  const xiNow = bestEleven(p.squad, p.coach.formation).ids;
+  const youthComps = youthSeason({
+    seed, season, year, tier, national: p.national, academy: p.facilities.academy,
+    youth: p.youth,
+    prospects: p.squad.filter((f) => f.age <= 20 && !xiNow.has(f.id)),
+    clubs: state.clubs,
+    clubName: p.name,
+  });
+  for (const yc of youthComps) {
+    if (yc.won) {
+      headlines.push(`BASE: ${p.name} é campeão da ${yc.name}!`);
+      p.hype = clamp(p.hype + 3, 0, 100);
+    }
+    // destaques: artilheiro do time (3+ gols) e, se campeão, o melhor do time
+    const stars = yc.scorers.filter((x) => x.goals >= 3).slice(0, 1).map((x) => ({ id: x.id, why: `Artilheiro da ${yc.name} ${year} (${x.goals} gols)` }));
+    if (yc.won) {
+      const best = p.youth.filter((y) => !stars.some((s) => s.id === y.id)).sort((a, b) => b.ovr - a.ovr)[0];
+      if (best) stars.push({ id: best.id, why: `Destaque do título da ${yc.name} ${year}` });
+    }
+    for (const st of stars) {
+      const y = p.youth.find((x) => x.id === st.id);
+      if (!y) continue;
+      y.highlight = st.why;
+      y.pot = Math.min(99, y.pot + 1);
+      y.potHi = Math.min(99, y.potHi + 1);
+      y.potLo = Math.min(y.potHi, y.potLo + 1);
+      headlines.push(`BASE: ${y.name} ${st.why.charAt(0).toLowerCase()}${st.why.slice(1)}`);
+      if (y.age >= 17 && y.askUp === undefined) {
+        y.askUp = season;
+        headlines.push(`${y.name} quer subir para o profissional: se não subir, pode procurar outro clube`);
+      }
+    }
+  }
+
   // ---------------------- prêmios ----------------------
   const worldAwardNews: string[] = [];
   const leagueInfo = (key: string, compId: CompId, name: string, t: Tier, ids: string[], out: LeagueOutcome): LeagueInfo => ({
@@ -647,6 +683,7 @@ export function simulateSeason(state: GameState): SeasonResult {
   newsInput.transfers = evolveAiClubs(deriveRng(seed, season, 'ai-evolve'), state.clubs, ids);
   result.worldNews = [...buildWorldNews(deriveRng(seed, season, 'news'), newsInput), ...worldAwardNews];
   result.awards = awards;
+  result.youth = youthComps;
   if (bankrupt) state.over = 'falencia';
   return result;
 }
@@ -963,6 +1000,11 @@ function evolveClub(state: GameState, result: SeasonResult): void {
   // base
   const youthStay: Footballer[] = [];
   for (const y of p.youth) {
+    // pediu para subir na temporada passada e não subiu: metade das vezes vai embora
+    if (y.askUp !== undefined && y.askUp < state.season && rng.chance(0.5)) {
+      deps.push(`${y.name} cansou de esperar uma chance no profissional e deixa a base`);
+      continue;
+    }
     develop(rng, y, { ct: p.facilities.ct, fitness: p.staff.fitness, inEleven: false, youth: true, academy: p.facilities.academy });
     if (y.age > YOUTH_AGE_LIMIT) deps.push(`${y.name} deixa a base sem ser aproveitado`);
     else youthStay.push(y);

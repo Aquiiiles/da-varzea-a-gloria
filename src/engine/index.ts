@@ -28,3 +28,4 @@ export { COACH_LEVELS } from './score';
 export { injuredAt, fatigueAt } from './calendarView';
 export { julyWindow } from './calendar';
 export { FATIGUE_FREE, FATIGUE_REST } from './squadplan';
+export { currentInterview, answered, interviewEffects, type Interview, type InterviewQuestion, type InterviewAnswer } from './interview';

@@ -36,7 +36,13 @@ export function YouthTab({ state, dispatch, goTo }: TabProps) {
                 key={y.id}
                 f={y}
                 tier={p.tier}
-                meta={y.age >= YOUTH_AGE_LIMIT ? <span className="bad">última temporada na base</span> : `bolsa ${monthly(y.wage)}`}
+                meta={
+                  <>
+                    {y.age >= YOUTH_AGE_LIMIT ? <span className="bad">última temporada na base</span> : `bolsa ${monthly(y.wage)}`}
+                    {y.askUp !== undefined && <span className="bad"> · quer subir para o profissional</span>}
+                    {y.highlight && <span className="youth-badge">★ {y.highlight}</span>}
+                  </>
+                }
                 open={open === y.id}
                 onToggle={() => setOpen(open === y.id ? null : y.id)}
               >
@@ -59,6 +65,8 @@ export function YouthTab({ state, dispatch, goTo }: TabProps) {
           </ul>
         )}
       </Section>
+
+      <YouthCompetitions state={state} />
 
       {p.onLoan.length > 0 && (
         <Section title={`Emprestados (${p.onLoan.length}/${MAX_LOANS})`} note="Voltam no fim da temporada, com mais rodagem. O clube que pegou emprestado paga o salário.">
@@ -109,5 +117,39 @@ export function YouthTab({ state, dispatch, goTo }: TabProps) {
         )}
       </Section>
     </div>
+  );
+}
+
+/** Campeonatos da base da última temporada (simulados; o técnico só acompanha). */
+function YouthCompetitions({ state }: { state: TabProps['state'] }) {
+  const last = state.history[state.history.length - 1];
+  const comps = last?.youth ?? [];
+  return (
+    <Section
+      title="Campeonatos da base"
+      note="Copa de Juniores (Sub-20) em janeiro, Estadual Sub-17 e, para clubes das Séries A e B, o Brasileiro Sub-20. Quem se destaca ganha potencial e pode pedir para subir: se não subir, pode ir embora."
+    >
+      {comps.length === 0 ? (
+        <p className="empty">Os resultados aparecem no fim da temporada.</p>
+      ) : (
+        <ul className="youth-comps">
+          {comps.map((c) => (
+            <li key={c.key}>
+              <div className="yc-head">
+                <strong>
+                  {c.name} {last!.year}
+                </strong>
+                <span className={c.won ? 'good' : 'muted'}>{c.finish}</span>
+              </div>
+              <small className="muted">
+                {c.won ? '' : `Campeão: ${c.champion} · `}
+                {c.games.length} jogos · {c.games.filter((g) => g.gf > g.ga || (g.pens && g.pens[0] > g.pens[1])).length} vitórias
+                {c.scorers.length > 0 ? ` · artilheiro: ${c.scorers[0].name} (${c.scorers[0].goals})` : ''}
+              </small>
+            </li>
+          ))}
+        </ul>
+      )}
+    </Section>
   );
 }

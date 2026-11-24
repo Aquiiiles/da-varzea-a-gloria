@@ -39,6 +39,8 @@ A cada temporada você abre o **Escritório do Presidente** (abas em grade, nada
 
 Durante a temporada há **cansaço** (quem joga muito rende menos) e **lesões** (departamento médico com data de volta). No modo técnico você escolhe a **escalação** (ou deixa no automático, com rodízio) a qualquer momento, e em julho abre a **janela do meio do ano** para contratar e vender. Cada decisão vale só para os jogos seguintes.
 
+Depois de jogos marcantes (goleada, clássico, zebra, eliminação, título, sequência boa ou ruim) aparece a **entrevista pós-jogo**, e antes de jogo decisivo, a **coletiva**: 1 ou 2 perguntas, respostas humildes, confiantes ou polêmicas que mexem na torcida, na diretoria, na reputação e no vestiário (dá para pular). A **base** disputa a Copa de Juniores (Sub-20), o Estadual Sub-17 e, nas Séries A e B, o Brasileiro Sub-20: quem se destaca ganha potencial e pode pedir para subir.
+
 Depois de jogar a temporada, você acompanha o **calendário**: avança por **próximo jogo**, **semana**, **mês** ou **até o fim**, com tabela parcial, últimos resultados e próximos jogos. Os jogos ao vivo aparecem na data em que acontecem.
 
 Todo jogo de todos os clubes gera **autores dos gols, assistências e notas**. No fim da temporada há a **cerimônia de prêmios**: de cada liga (craque, artilheiro, seleção, técnico e revelação) e gerais (**Bola de Ouro**, **Chuteira de Ouro**, time da temporada, técnico da temporada e revelação do ano). Os prêmios do seu clube vão para a sala de troféus.

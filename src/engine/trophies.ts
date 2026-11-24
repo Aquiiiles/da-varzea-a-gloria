@@ -29,6 +29,8 @@ export function trophies(state: GameState): Trophy[] {
       add(`liga-${c.id}`, title, c.tier === 1 ? 3 : c.tier <= 3 || c.id === 'estadual_a' ? 2 : 1, r.year, c.tier);
     }
     for (const c of r.cups) if (c.champion) add(c.id, c.name, CUP_SIZE[c.id], r.year);
+    // títulos da base: taças pequenas, no fim da estante
+    for (const y of r.youth ?? []) if (y.won) add(`base-${y.key}`, `${y.name} (base)`, 1, r.year, 7);
   }
   // ordena: copas internacionais, depois ligas da mais alta para a mais baixa
   const rank = (t: Trophy) => CUP_RANK[t.id] ?? 10 + (t.tier ?? 9) * 2 + (t.id.startsWith('playoff') ? 1 : 0);

@@ -1,6 +1,7 @@
 import {
+  coachRanking,
   BOARD_INFO, CAREER_END_AGE, COACH_STYLES, START_YEAR, TIERS, coachEdge, payroll, projectFinance, starsFor, tierForReputation,
-  type Formation, type GameState, type JobOffer,
+  type GameState, type JobOffer,
 } from '../../engine';
 import type { Dispatch } from '../App';
 import { money, num } from '../format';
@@ -9,14 +10,6 @@ import { LineupEditor } from '../LineupEditor';
 import type { TabProps } from './Office';
 import { Section } from './common';
 import { JobOfferCard } from './OfferCards';
-
-const FORMATIONS: Formation[] = ['4-4-2', '4-3-3', '3-5-2', '4-5-1'];
-const FORMATION_TEXT: Record<Formation, string> = {
-  '4-4-2': '1 GOL · 4 DEF · 4 MEI · 2 ATA',
-  '4-3-3': '1 GOL · 4 DEF · 3 MEI · 3 ATA',
-  '3-5-2': '1 GOL · 3 DEF · 5 MEI · 2 ATA',
-  '4-5-1': '1 GOL · 4 DEF · 5 MEI · 1 ATA',
-};
 
 function confidenceText(c: number): string {
   if (c >= 80) return 'Prestigiado';
@@ -113,25 +106,11 @@ export function CareerTab({ state, dispatch }: TabProps) {
         <p className="muted">Clubes que costumam te procurar: {TIERS[tierForReputation(c.reputation)].name} e vizinhos.</p>
       </Section>
 
-      <Section title="Esquema tático" note="O esquema define quem joga. Você é o técnico: troque quando quiser.">
-        <div className="seg formation-seg">
-          {FORMATIONS.map((f) => (
-            <button
-              key={f}
-              type="button"
-              className={`seg-btn${p.coach.formation === f ? ' is-on' : ''}`}
-              onClick={() => p.coach.formation !== f && dispatch({ t: 'formation', f })}
-            >
-              <strong>{f}</strong>
-              <small>{FORMATION_TEXT[f]}</small>
-            </button>
-          ))}
-        </div>
-      </Section>
-
-      <Section title="Escalação" note="Marque os 11 titulares ou deixe no automático. Lesionados ficam de fora; com o rodízio, quem está muito cansado descansa.">
+      <Section title="Escalação, esquema e estratégia" note="Lesionados ficam de fora; com o rodízio, quem está muito cansado descansa.">
         <LineupEditor key={JSON.stringify(p.lineup ?? null) + p.coach.formation} state={state} dispatch={dispatch} />
       </Section>
+
+      <CoachRankingSection state={state} />
 
       <Section title="Carreira">
         <ul className="career-stints">
@@ -200,5 +179,39 @@ export function BoardTab({ state }: TabProps) {
         </dl>
       </Section>
     </div>
+  );
+}
+
+/** Ranking de técnicos: sua posição, o top 10 e quem está perto de você. */
+function CoachRankingSection({ state }: { state: GameState }) {
+  const rows = coachRanking(state);
+  const me = rows.find((r) => r.me)!;
+  const near = rows.filter((r) => Math.abs(r.pos - me.pos) <= 2 && r.pos > 10);
+  const top = rows.slice(0, 10);
+  const Row = ({ r }: { r: (typeof rows)[number] }) => (
+    <li className={r.me ? 'is-me' : ''}>
+      <span className="rk-pos">{r.pos}º</span>
+      <span className="rk-name">
+        {r.name}
+        <small>{r.club}</small>
+      </span>
+      <b>{r.points}</b>
+    </li>
+  );
+  return (
+    <Section title="Ranking de técnicos" note="Pontos das últimas 5 temporadas: nível da liga, posição final, acessos e títulos.">
+      <p className="rk-me">
+        Você é o <b>{me.pos}º</b> de {rows.length} técnicos{me.points > 0 ? ` · ${me.points} pontos` : ''}
+      </p>
+      <ol className="ranking">
+        {top.map((r) => (
+          <Row key={r.pos} r={r} />
+        ))}
+        {near.length > 0 && <li className="rk-gap">…</li>}
+        {near.map((r) => (
+          <Row key={r.pos} r={r} />
+        ))}
+      </ol>
+    </Section>
   );
 }

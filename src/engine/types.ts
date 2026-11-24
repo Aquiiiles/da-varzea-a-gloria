@@ -253,7 +253,7 @@ export interface LiveEvent {
 export interface LiveMoment {
   /** dia do calendário (o jogo é mostrado quando a temporada chega nele) */
   day?: number;
-  kind: 'playoff' | 'ultima_rodada' | 'zebra' | 'final_copa' | 'final_cc' | 'final_le' | 'mundial' | 'classico' | 'final_estadual' | 'final_estado';
+  kind: 'playoff' | 'ultima_rodada' | 'zebra' | 'final_copa' | 'final_cc' | 'final_le' | 'mundial' | 'classico' | 'final_estadual' | 'final_estado' | 'jogo';
   title: string;
   stake: string;
   homeName: string;
@@ -664,6 +664,8 @@ export interface GameState {
   career?: CoachCareer;
   /** temporada em andamento (entre "jogar" e o fim do calendário) */
   live?: LiveSeason | null;
+  /** ranking de técnicos: pontos das últimas temporadas por clube (técnico da IA) e "me" (o jogador, modo técnico) */
+  coachPoints?: Record<string, number[]>;
 }
 
 /** Um nome numa premiação (jogador ou técnico). */

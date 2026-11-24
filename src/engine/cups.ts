@@ -155,9 +155,12 @@ export interface ForeignClub {
 }
 
 /** Adversários estrangeiros: clubes reais sorteados; os mais tradicionais ficam com as maiores forças. */
-export function foreignClubs(rng: Rng, count: number, mean: number, spread: number, prefix: string, southAmerica: boolean): ForeignClub[] {
-  const list = southAmerica ? REAL_SA : REAL_WORLD;
-  const picked = rng.shuffle(list).slice(0, count).sort((a, b) => list.indexOf(a) - list.indexOf(b));
+export function foreignClubs(rng: Rng, count: number, mean: number, spread: number, prefix: string, southAmerica: boolean, exclude: readonly string[] = []): ForeignClub[] {
+  const all = southAmerica ? REAL_SA : REAL_WORLD;
+  const free = all.filter((n) => !exclude.includes(n));
+  // se a lista acabar, completa com os já usados (nunca falta adversário)
+  const list = free.length >= count ? free : [...free, ...all.filter((n) => exclude.includes(n))];
+  const picked = rng.shuffle(list.slice()).slice(0, count).sort((a, b) => all.indexOf(a) - all.indexOf(b));
   const strengths = picked.map(() => Math.round((mean + rng.normal(spread)) * 10) / 10).sort((a, b) => b - a);
   return picked.map((name, i) => ({ id: `${prefix}${i}`, name, strength: strengths[i] }));
 }

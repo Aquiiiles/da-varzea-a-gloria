@@ -3,19 +3,23 @@ import type { LiveMoment } from '../engine';
 
 /** Duração da transmissão (ms) para 90 minutos; prorrogação estende proporcionalmente. */
 const MS_PER_MINUTE = 85;
+/** narração rápida (jogo comum): ~4 segundos */
+const MS_PER_MINUTE_QUICK = 45;
 
 interface Props {
   moment: LiveMoment;
   index: number;
   total: number;
   onDone: () => void;
+  /** narração rápida de um jogo comum (ao avançar jogo a jogo) */
+  quick?: boolean;
 }
 
 /**
  * Transmissão "ao vivo": relógio acelerado, lances aparecendo e placar atualizando.
  * O resultado já existe no motor; aqui só revelamos aos poucos, sem spoiler.
  */
-export function LiveMatch({ moment: m, index, total, onDone }: Props) {
+export function LiveMatch({ moment: m, index, total, onDone, quick }: Props) {
   const end = m.events[m.events.length - 1]?.minute ?? 90;
   const [minute, setMinute] = useState(0);
   const [finished, setFinished] = useState(false);
@@ -49,7 +53,7 @@ export function LiveMatch({ moment: m, index, total, onDone }: Props) {
         }
         return x + 1;
       });
-    }, MS_PER_MINUTE);
+    }, quick ? MS_PER_MINUTE_QUICK : MS_PER_MINUTE);
     return () => clearInterval(t);
   }, [end, finished, reduced, m]);
 
@@ -73,9 +77,11 @@ export function LiveMatch({ moment: m, index, total, onDone }: Props) {
     <section className={`panel live${flash ? ' is-goal' : ''}`} aria-live="polite">
       <div className="live-top">
         <span className="brand-live">AO VIVO</span>
-        <span className="live-count">
-          Jogo {index + 1} de {total}
-        </span>
+        {!quick && (
+          <span className="live-count">
+            Jogo {index + 1} de {total}
+          </span>
+        )}
       </div>
       <p className="kicker">{m.title}</p>
       <p className="live-stake">{m.stake}</p>
@@ -112,7 +118,7 @@ export function LiveMatch({ moment: m, index, total, onDone }: Props) {
         )}
         {finished && (
           <button type="button" className="btn btn-primary" onClick={onDone}>
-            {index + 1 < total ? 'Próximo jogo ▶' : 'Ver resumo da temporada'}
+            {quick ? 'Continuar' : index + 1 < total ? 'Próximo jogo' : 'Ver resumo da temporada'}
           </button>
         )}
       </div>

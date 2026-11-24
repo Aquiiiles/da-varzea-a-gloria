@@ -175,7 +175,21 @@ function SquadStatus({ state, day }: { state: GameState; day: number }) {
   );
 }
 
-export function SeasonView({ state, dispatch, onOpenOffice }: { state: GameState; dispatch: Dispatch; onOpenOffice: () => void }) {
+export function SeasonView({
+  state,
+  dispatch,
+  onOpenOffice,
+  onNextMatch,
+  narration,
+  onToggleNarration,
+}: {
+  state: GameState;
+  dispatch: Dispatch;
+  onOpenOffice: () => void;
+  onNextMatch: () => void;
+  narration: boolean;
+  onToggleNarration: () => void;
+}) {
   const cal = state.calendar!;
   const day = state.reveal ?? cal.end;
   const played = playedMatches(cal, day);
@@ -201,6 +215,10 @@ export function SeasonView({ state, dispatch, onOpenOffice }: { state: GameState
         <div className="meter" aria-label={`${Math.round(progress)}% da temporada`}>
           <span className="meter-fill" style={{ width: `${progress}%` }} />
         </div>
+        <label className="narr-toggle">
+          <input type="checkbox" checked={narration} onChange={onToggleNarration} />
+          Narrar cada jogo ao avançar jogo a jogo
+        </label>
         {form.length > 0 && (
           <p className="cal-form">
             Últimos jogos:{' '}
@@ -256,7 +274,7 @@ export function SeasonView({ state, dispatch, onOpenOffice }: { state: GameState
           <button type="button" className="link" onClick={() => setShowLineup(!showLineup)}>
             {showLineup ? 'Fechar escalação' : `Escalação (${state.player.lineup?.ids ? 'escolhida por você' : 'automática'})`}
           </button>
-          {showLineup && <LineupEditor key={`${day}-${JSON.stringify(state.player.lineup)}`} state={state} dispatch={dispatch} />}
+          {showLineup && <LineupEditor key={`${day}-${JSON.stringify(state.player.lineup)}-${state.player.coach.formation}`} state={state} dispatch={dispatch} />}
         </section>
       )}
 
@@ -282,7 +300,7 @@ export function SeasonView({ state, dispatch, onOpenOffice }: { state: GameState
 
       <div className="playbar cal-bar">
         {ADVANCE.map((a) => (
-          <button key={a.to} type="button" className={`btn${a.to === 0 ? ' btn-primary' : ''}`} onClick={() => dispatch({ t: 'advance', to: a.to })}>
+          <button key={a.to} type="button" className={`btn${a.to === 0 ? ' btn-primary' : ''}`} onClick={() => (a.to === 0 ? onNextMatch() : dispatch({ t: 'advance', to: a.to }))}>
             {a.label}
           </button>
         ))}

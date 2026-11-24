@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import {
-  BOARD_INFO, CAREER_END_AGE, MAX_SEASONS, START_YEAR, TIERS, payroll, projectFinance, stadiumAllows, teamStrength, type GameState, type Tier,
+  BOARD_INFO, CAREER_END_AGE, coachRanking, MAX_SEASONS, START_YEAR, TIERS, payroll, projectFinance, stadiumAllows, teamStrength, type GameState, type Tier,
 } from '../../engine';
 import { BoardTab, CareerTab, Unemployed } from './CareerTab';
 import type { Dispatch } from '../App';
@@ -195,7 +195,7 @@ function CoachStatusBar({ state }: { state: GameState }) {
         <Stat label="Confiança" value={`${c.board.confidence}`} hint={`diretoria ${BOARD_INFO[c.board.personality].label.toLowerCase()}`} tone={c.board.confidence <= 35 ? 'bad' : c.board.confidence >= 70 ? 'good' : undefined} />
         <Stat label="Verba" value={money(c.board.budget)} hint="para contratações" />
         <Stat label="Folha" value={money(pay)} hint={`teto ${money(c.board.wageCap)}`} tone={pay > c.board.wageCap ? 'bad' : undefined} />
-        <Stat label="Reputação" value={`${c.reputation}`} hint={`contrato: ${c.contract} temp.`} />
+        <Stat label="Reputação" value={`${c.reputation}`} hint={`ranking ${coachRanking(state).find((r) => r.me)!.pos}º · contrato ${c.contract} temp.`} />
       </dl>
     </section>
   );

@@ -1,11 +1,12 @@
 import { useState } from 'react';
 import {
-  FATIGUE_FREE, FATIGUE_REST, PLAYER_ID, TIERS, dayToDate, fatigueAt, injuredAt, julyWindow, outcomeOf, partialTable, playedMatches, stageStarted,
+  FATIGUE_FREE, FATIGUE_REST, PLAYER_ID, offerOpen, TIERS, dayToDate, fatigueAt, injuredAt, julyWindow, outcomeOf, partialTable, playedMatches, stageStarted,
   upcomingMatches, weekdayOf, type AdvanceTo, type CalendarMatch, type GameState, type SeasonCalendar,
 } from '../engine';
 import type { Dispatch } from './App';
 import { LineupEditor } from './LineupEditor';
 import { InterviewCard } from './InterviewCard';
+import { money } from './format';
 
 const WEEKDAY = ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado'];
 const MONTH = ['janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho', 'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro'];
@@ -201,6 +202,7 @@ export function SeasonView({
   const [showLineup, setShowLineup] = useState(false);
   const [open, close] = julyWindow(cal.year);
   const windowOpen = day >= open && day <= close;
+  const lastMinute = state.office.offers.filter((of): of is NonNullable<typeof of> => !!of && !!of.july && offerOpen(state, of));
 
   return (
     <div className="tab-stack season-view">
@@ -235,6 +237,12 @@ export function SeasonView({
         <section className="panel window-banner">
           <p className="kicker">Janela do meio do ano · até {shortDate(cal.year, close)}</p>
           <p className="lede">Dá para contratar, vender e emprestar. Quem chegar joga a partir do próximo jogo.</p>
+          {state.office.market.some((l) => l?.july) && <p className="muted">Chegaram jogadores livres no mercado: só disponíveis agora em julho.</p>}
+          {lastMinute.length > 0 && (
+            <p className="window-alert">
+              Última hora: {lastMinute.map((of) => `${of.club} quer ${state.player.squad.find((f) => f.id === of.playerId)?.name ?? 'um jogador'} por ${money(of.fee)}`).join('; ')}. Responda até {shortDate(cal.year, close)}.
+            </p>
+          )}
           <button type="button" className="btn btn-primary" onClick={onOpenOffice}>
             Abrir transferências
           </button>

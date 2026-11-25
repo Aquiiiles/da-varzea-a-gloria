@@ -1,4 +1,5 @@
 import { BUSINESSES } from '../data/club';
+import { agentFee, listingOpen, offerOpen } from './market';
 import { FACILITY_COST, MAX_LOANS, STAFF_WAGE, TIERS, YOUTH_MAX } from '../data/pyramid';
 import { coachAccepts, coachSeverance } from './clubops';
 import { scaled } from './effects';
@@ -63,9 +64,9 @@ export function runAssistant(state: GameState, apply: Apply, areas?: DelegateAre
   if (on.has('mercado')) {
     // propostas: vende reserva bem pago ou quando a oferta é irrecusável
     o.offers.forEach((of, idx) => {
-      if (!of) return;
+      if (!of || !offerOpen(state, of)) return;
       const f = p.squad.find((x) => x.id === of.playerId);
-      if (!f) return;
+      if (!f || f.loan) return;
       const value = marketValue(f);
       if ((!xi.has(f.id) && of.fee >= value) || of.fee >= value * 1.6) tryDo({ t: 'offer', idx });
     });
@@ -111,9 +112,9 @@ export function runAssistant(state: GameState, apply: Apply, areas?: DelegateAre
       let best = -1;
       let bestScore = 0;
       o.market.forEach((l, idx) => {
-        if (!l) return;
+        if (!l || !listingOpen(state, l)) return;
         const gain = squadStrength([...p.squad, l.player]) - base;
-        if (gain < 0.2 || l.fee + l.player.wage > spare()) return;
+        if (gain < 0.2 || l.fee + agentFee(l.fee, l.player.wage) + l.player.wage > spare()) return;
         const score = gain / (l.fee + l.player.wage * 2 + 1);
         if (score > bestScore) {
           bestScore = score;

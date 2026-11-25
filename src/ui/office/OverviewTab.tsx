@@ -1,4 +1,5 @@
 import {
+  offerOpen,
   ORIGINS, SQUAD_MAX, SQUAD_MIN, TIERS, YOUTH_AGE_LIMIT, effectsCashCost, moodLabel, projectFinance, renewWage, stadiumAllows, type Tier,
 } from '../../engine';
 import { money, num } from '../format';
@@ -101,11 +102,11 @@ export function OverviewTab({ state, dispatch, goTo }: TabProps) {
         )}
       </Section>
 
-      {o.offers.some(Boolean) && (
+      {o.offers.some((x) => x && offerOpen(state, x)) && (
         <Section title="Propostas recebidas" note="Clubes interessados nos seus jogadores. Aceite, negocie um valor maior ou recuse.">
           <div className="offer-grid">
             {o.offers.map((of, idx) => {
-              if (!of) return null;
+              if (!of || !offerOpen(state, of)) return null;
               const f = p.squad.find((x) => x.id === of.playerId);
               if (!f) return null;
               return <SaleOfferCard key={`${idx}-${of.fee}`} state={state} offer={of} f={f} idx={idx} dispatch={dispatch} disabled={p.squad.length <= SQUAD_MIN} />;

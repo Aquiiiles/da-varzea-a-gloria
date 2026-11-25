@@ -7,7 +7,7 @@ import { nextId } from './effects';
 import { projectFinance } from './office';
 import { deriveRng, type Rng } from './rng';
 import { clamp } from './util';
-import type {
+import type { Footballer,
   BoardPersonality, Club, CoachCareer, CoachStyle, GameState, JobOffer, PlayerClub, SeasonResult, Tier,
 } from './types';
 
@@ -92,7 +92,16 @@ const STAFF_BY_TIER: Record<Tier, number> = { 1: 3, 2: 2, 3: 2, 4: 1, 5: 1, 6: 0
 const BUSINESS_BY_TIER: Record<Tier, number> = { 1: 2, 2: 2, 3: 1, 4: 1, 5: 0, 6: 0, 7: 0 };
 
 /** O clube que o técnico deixa volta a ser da IA, com o id do clube que ele assume. */
-function toAiClub(p: PlayerClub, id: string): Club {
+function returnLoan(world: Club[], f: Footballer): boolean {
+  const owner = world.find((c) => c.id === f.loan!.clubId);
+  if (!owner) return false;
+  const back: Footballer = { ...f, wage: f.loan!.wage };
+  delete back.loan;
+  owner.squad.push(back);
+  return true;
+}
+
+function toAiClub(p: PlayerClub, id: string, world: Club[]): Club {
   return {
     id,
     name: p.name,
@@ -103,7 +112,10 @@ function toAiClub(p: PlayerClub, id: string): Club {
     national: p.national,
     stateDiv: p.stateDiv,
     prestige: p.prestige,
-    squad: [...p.squad, ...p.onLoan].map((f) => ({ ...f, intent: undefined, askWage: undefined, leaving: undefined, loanFromYouth: undefined })),
+    // quem veio emprestado volta para o dono (com o salário de lá)
+    squad: [...p.squad, ...p.onLoan]
+      .filter((f) => !f.loan || !returnLoan(world, f))
+      .map((f) => ({ ...f, intent: undefined, askWage: undefined, leaving: undefined, loanFromYouth: undefined, recovering: undefined })),
   };
 }
 
@@ -181,7 +193,7 @@ export function takeOver(state: GameState, offer: JobOffer): void {
   const sameComp = state.clubs.filter((x) => x.id !== target.id && (target.national !== null ? x.national === target.national : x.stateDiv === target.stateDiv));
   const rival = sameComp.sort((a, b) => b.strength - a.strength || (a.id < b.id ? -1 : 1))[0] ?? state.clubs.find((x) => x.id !== target.id)!;
   const rivalId = rival.id === target.id ? old.rivalId : rival.id;
-  state.clubs[idx] = toAiClub(old, target.id);
+  state.clubs[idx] = toAiClub(old, target.id, state.clubs);
   // se o rival escolhido era o próprio clube antigo (mesmo id do alvo), ele agora é o clube que saiu
   c.contract = offer.contract;
   c.board = {

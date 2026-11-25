@@ -30,6 +30,17 @@ export function clubAsking(state: GameState, club: Club, f: Footballer): number 
   return Math.max(1, Math.round(marketValue(f) * importance * direction * greed));
 }
 
+/** O melhor do elenco é inegociável: só sai pela multa rescisória. */
+export function untouchable(club: Club, f: Footballer): boolean {
+  const best = club.squad.slice().sort((a, b) => b.ovr - a.ovr || a.id - b.id)[0];
+  return best?.id === f.id;
+}
+
+/** Multa rescisória: pagando isso, o clube não pode recusar (só falta o jogador topar). */
+export function releaseClause(state: GameState, club: Club, f: Footballer): number {
+  return Math.round(clubAsking(state, club, f) * 1.3);
+}
+
 /** Salário anual que o jogador quer para se mudar. */
 export function playerAsking(state: GameState, club: Club, f: Footballer): number {
   const drop = Math.max(0, state.player.tier - club.tier); // quantos níveis ele desce
@@ -57,7 +68,15 @@ export function evaluateBid(state: GameState, club: Club, f: Footballer, fee: nu
   const ask = clubAsking(state, club, f);
   const want = playerAsking(state, club, f);
   const last = rounds >= MAX_ROUNDS;
-  if (fee < ask) {
+  const clause = releaseClause(state, club, f);
+  const paysClause = fee >= clause;
+  if (!paysClause && untouchable(club, f)) {
+    return {
+      status: last ? 'encerrada' : 'recusada',
+      message: `${club.name}: ${f.name} é inegociável. Só sai se pagarem a multa rescisória de R$ ${clause.toLocaleString('pt-BR')} mil.`,
+    };
+  }
+  if (!paysClause && fee < ask) {
     if (fee >= ask * 0.8 && !last) return { status: 'contra_clube', message: `${club.name} pede R$ ${ask} mil para liberar ${f.name}.`, askFee: ask };
     return {
       status: last ? 'encerrada' : 'recusada',

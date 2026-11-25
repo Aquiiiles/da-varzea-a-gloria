@@ -1,3 +1,4 @@
+import { agentFee } from '../../src/engine/market';
 import { apply, canApply, newGame, replay } from '../../src/engine/game';
 import { decodeAction, encodeAction, decodeRun, encodeRun } from '../../src/engine/codec';
 import { simulateSeason } from '../../src/engine/season';
@@ -13,10 +14,10 @@ function setup(mutate: (s: GameState) => void = () => {}): GameState {
   return s;
 }
 
-/** Um clube do mesmo nível do jogador e seu melhor jogador. */
+/** Um clube do mesmo nível do jogador e o 2º melhor jogador dele (o melhor é inegociável). */
 function target(s: GameState): { club: Club; id: number } {
   const club = s.clubs.find((c) => c.stateDiv === 'V')!;
-  const f = club.squad.slice().sort((a, b) => b.ovr - a.ovr)[0];
+  const f = club.squad.slice().sort((a, b) => b.ovr - a.ovr || a.id - b.id)[1];
   return { club, id: f.id };
 }
 
@@ -57,7 +58,7 @@ describe('negociação', () => {
     expect(after.office.negotiations[0].status).toBe('aceita');
     expect(after.player.squad.some((x) => x.id === id)).toBe(true);
     expect(after.clubs.find((c) => c.id === club.id)!.squad.some((x) => x.id === id)).toBe(false);
-    expect(after.player.cash).toBe(1e6 - fee);
+    expect(after.player.cash).toBe(1e6 - fee - agentFee(fee, wage));
     expect(after.player.squad.find((x) => x.id === id)!.contract).toBe(3);
   });
 

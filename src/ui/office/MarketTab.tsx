@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useMemo } from 'react';
-import { SQUAD_MAX, TIERS, negotiationFor, squadStrength, type Club, type Footballer, type ListingProfile, type Position, type Tier } from '../../engine';
+import { SQUAD_MAX, TIERS, agentFee, listingOpen, negotiationFor, squadStrength, type Club, type Footballer, type ListingProfile, type Position, type Tier } from '../../engine';
 import { NegotiationPanel } from './Negotiation';
 import { money, monthly, spendable } from '../format';
 import { marketValue } from '../../engine';
@@ -237,7 +237,10 @@ function WindowMarket({ state, dispatch }: TabProps) {
               );
             }
             const gain = squadStrength([...p.squad, l.player]) - base;
-            const afford = spendable(state) >= l.fee;
+            const agent = agentFee(l.fee, l.player.wage);
+            const afford = spendable(state) >= l.fee + agent;
+            const avail = listingOpen(state, l);
+            const tag = l.kind === 'emprestimo' ? 'Empréstimo' : l.kind === 'estrangeiro' ? 'Estrangeiro' : l.july ? (avail ? 'Chegou em julho' : 'Chega em julho') : null;
             return (
               <PlayerLine
                 key={l.player.id}
@@ -245,7 +248,7 @@ function WindowMarket({ state, dispatch }: TabProps) {
                 tier={p.tier}
                 meta={
                   <>
-                    {PROFILE_LABEL[l.profile]} · {l.from} · força {gain > 0.05 ? <span className="good">+{gain.toFixed(1)}</span> : <span className="muted">+0</span>}
+                    {tag && <span className={`tag-offer${l.kind === 'estrangeiro' ? ' tag-star' : ''}`}>{tag}</span>} {PROFILE_LABEL[l.profile]} · {l.from} · força {gain > 0.05 ? <span className="good">+{gain.toFixed(1)}</span> : <span className="muted">+0</span>}
                   </>
                 }
                 aside={
@@ -257,13 +260,24 @@ function WindowMarket({ state, dispatch }: TabProps) {
                 open={open === l.player.id}
                 onToggle={() => setOpen(open === l.player.id ? null : l.player.id)}
               >
+                {l.kind === 'emprestimo' && (
+                  <p className="muted">
+                    Emprestado pelo {l.from} até o fim da temporada. O {l.from} paga metade do salário ({monthly(l.player.loan?.wage ?? l.player.wage)} no total); ele não pode ser vendido e volta para lá no fim do ano.
+                  </p>
+                )}
+                {l.kind === 'estrangeiro' && <p className="muted">Craque vindo do {l.from}: chega pronto, mas cobra caro e ganha bem.</p>}
+                {l.july && !avail && <p className="muted">Só chega na janela do meio do ano (1º a 31 de julho). Volte durante a temporada.</p>}
+                <p className="muted">
+                  Comissão do empresário: <b>{money(agent)}</b> {l.fee > 0 ? '(6% da taxa)' : '(30% do salário anual, porque vem sem taxa)'}.
+                </p>
                 <button
                   type="button"
                   className="btn btn-small btn-primary"
-                  disabled={!afford || full}
+                  disabled={!afford || full || !avail}
                   onClick={() => dispatch({ t: 'buy', idx }) && setOpen(null)}
                 >
-                  Contratar ({l.fee === 0 ? 'sem taxa' : money(l.fee)} + {monthly(l.player.wage)}, {l.player.contract} ano{l.player.contract > 1 ? 's' : ''})
+                  {l.kind === 'emprestimo' ? 'Pegar emprestado' : 'Contratar'} ({l.fee === 0 ? 'sem taxa' : money(l.fee)} + {money(agent)} de comissão + {monthly(l.player.wage)}
+                  {l.kind === 'emprestimo' ? ', até o fim da temporada' : `, ${l.player.contract} ano${l.player.contract > 1 ? 's' : ''}`})
                 </button>
                 {!afford && <small className="bad">Caixa insuficiente.</small>}
                 {full && <small className="bad">Elenco cheio.</small>}

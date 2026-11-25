@@ -682,3 +682,6 @@ h3 { font: 700 14px/1.2 var(--font-display); text-transform: uppercase; letter-s
 .extra-good .kicker { color: var(--good); }
 .extra-bad { border-color: var(--bad); background: linear-gradient(180deg, #ff5c5c18, var(--panel) 60%); }
 .extra-bad .kicker { color: var(--bad); }
+.nego-clause { display: flex; flex-direction: column; gap: 4px; margin-top: 10px; padding-top: 10px; border-top: 1px dashed var(--line); }
+.tag-star { background: var(--accent); color: #111; }
+.window-alert { margin: 8px 0 0; padding: 8px 10px; border-left: 3px solid var(--warn); background: #f5a62318; font-weight: 600; }

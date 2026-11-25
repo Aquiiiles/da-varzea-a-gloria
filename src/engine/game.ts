@@ -6,7 +6,8 @@ import { applyEffects, nextId } from './effects';
 import { bestEleven, foundingSquad, incomingOffers, marketListings, marketWage, round1, tryoutCandidates, tryoutCost, youthIntake } from './footballers';
 import { deriveRng } from './rng';
 import { PLAYER_ID, decideIntents, simulateSeason, teamStrength } from './season';
-import { MAX_ROUNDS, evaluateBid, negotiationFor } from './negotiation';
+import { MAX_ROUNDS, evaluateBid, negotiationFor, releaseClause } from './negotiation';
+import { agentFee, deadlineDays, deadlineOffers, foreignListings, julyListings, listingOpen, loanListings, offerOpen } from './market';
 import { replacementFor } from './aisquad';
 import type { Action, AdvanceTo, Club, DelegateArea, Footballer, Foundation, GameEvent, GameState, Opportunity, Origin, PlayerClub, SeasonCalendar, SeasonResult, Tier } from './types';
 import { runAssistant } from './assistant';
@@ -180,8 +181,17 @@ function startSeason(state: GameState, afterJob = false): void {
   const buyers = state.clubs.filter((c) => c.tier <= p.tier && c.tier >= p.tier - 2).map((c) => ({ name: c.name, tier: c.tier }));
   decideIntents(state);
   const offers = incomingOffers(deriveRng(state.seed, s, 'offers'), p.squad, p.tier, buyers);
+  // mercado mais vivo: craques estrangeiros (A/B), empréstimos de clubes maiores, chegadas de julho
+  const mrng = deriveRng(state.seed, s, 'market-extra');
+  office.market.push(...foreignListings(mrng, p.tier, p.staff.scout, ids, s, usedNames));
+  office.market.push(...loanListings(state, mrng));
+  // julho só importa para quem joga série nacional (estaduais e várzea acabam no começo do ano)
+  if (p.national !== null) office.market.push(...julyListings(mrng, p.tier, p.staff.scout, ids, s, usedNames));
   office.offers = offers;
+  // proposta de última hora: só chega no fim da janela de julho
+  if (p.national !== null) offers.push(...deadlineOffers(mrng, p.squad, p.tier, buyers, new Set(offers.map((x) => x.playerId))));
   for (const of of offers) {
+    if (of.july) continue;
     const f = p.squad.find((x) => x.id === of.playerId)!;
     state.news.push(`${of.club} faz proposta de R$ ${of.fee} mil por ${f.name}`);
   }
@@ -297,7 +307,8 @@ export function applyMut(state: GameState, a: Action): void {
   if (a.t === 'advance') {
     // a temporada já foi simulada (prévia); avançar mostra mais dias e, no fim, fecha a temporada de verdade
     if (state.phase !== 'season' || state.reveal == null || !state.calendar) fail('não há temporada em andamento');
-    const target = advanceTarget(state.calendar, state.reveal, a.to);
+    const pending = o.offers.some((x) => x?.july);
+    const target = advanceTarget(state.calendar, state.reveal, a.to, pending ? deadlineDays(state.calendar.year)[0] : undefined);
     if (target === null) finishSeason(state);
     else state.reveal = target;
     return;
@@ -349,20 +360,30 @@ export function applyMut(state: GameState, a: Action): void {
     case 'buy': {
       const l = o.market[a.idx];
       if (!l) fail('jogador indisponível');
+      if (!listingOpen(state, l)) fail('esse jogador só chega na janela de julho');
       if (p.squad.length >= SQUAD_MAX) fail('elenco cheio');
-      if (p.cash < l.fee) fail('caixa insuficiente');
+      const agent = agentFee(l.fee, l.player.wage);
+      if (p.cash < l.fee + agent) fail('caixa insuficiente (taxa + comissão do empresário)');
       check(wageCheck(state, l.player.wage));
-      check(spendBudget(state, l.fee));
-      p.cash -= l.fee;
-      p.squad.push({ ...l.player, joined: state.season });
+      let owner: Club | undefined;
+      if (l.kind === 'emprestimo') {
+        owner = state.clubs.find((c) => c.id === l.clubId);
+        if (!owner || !owner.squad.some((x) => x.id === l.player.id)) fail('o clube já não tem esse jogador');
+      }
+      check(spendBudget(state, l.fee + agent));
+      p.cash -= l.fee + agent;
+      if (owner) owner.squad = owner.squad.filter((x) => x.id !== l.player.id);
+      p.squad.push({ ...l.player, joined: state.season, ...(owner ? {} : { apps: 0, goals: 0 }) });
       o.market[a.idx] = null;
       o.signings++;
-      state.news.push(`${p.name} contrata ${l.player.name} (${l.player.pos}, ${l.player.ovr})${l.fee > 0 ? ` por R$ ${l.fee} mil` : ' sem custo de transferência'}`);
+      const how = l.kind === 'emprestimo' ? ` emprestado pelo ${l.from} até o fim da temporada` : l.fee > 0 ? ` por R$ ${l.fee} mil` : ' sem custo de transferência';
+      state.news.push(`${p.name} contrata ${l.player.name} (${l.player.pos}, ${l.player.ovr})${how}`);
       return;
     }
     case 'sell': {
       const f = p.squad.find((x) => x.id === a.id);
       if (!f) fail('jogador não encontrado');
+      if (f.loan) fail(`${f.name} está emprestado pelo ${f.loan.club}`);
       if (p.squad.length <= SQUAD_MIN) fail(`o elenco precisa de pelo menos ${SQUAD_MIN} jogadores`);
       const fee = sellPrice(state, a.id);
       p.cash += fee;
@@ -380,6 +401,7 @@ export function applyMut(state: GameState, a: Action): void {
     case 'release': {
       const f = p.squad.find((x) => x.id === a.id);
       if (!f) fail('jogador não encontrado');
+      if (f.loan) fail(`${f.name} está emprestado pelo ${f.loan.club}`);
       if (p.squad.length <= SQUAD_MIN) fail(`o elenco precisa de pelo menos ${SQUAD_MIN} jogadores`);
       const cost = releaseCost(state, a.id);
       if (p.cash < cost) fail('caixa insuficiente para a multa');
@@ -392,6 +414,7 @@ export function applyMut(state: GameState, a: Action): void {
     case 'renew': {
       const f = p.squad.find((x) => x.id === a.id);
       if (!f) fail('jogador não encontrado');
+      if (f.loan) fail(`${f.name} está emprestado pelo ${f.loan.club}`);
       if (f.contract !== 1) fail('só dá para renovar no último ano de contrato');
       const offer = renewalOffer(f);
       if (!offer) fail(`${f.name} já decidiu se aposentar`);
@@ -412,11 +435,13 @@ export function applyMut(state: GameState, a: Action): void {
       if (!Number.isInteger(a.fee) || a.fee < 0 || !(a.wage > 0) || Math.round(a.wage * 10) !== a.wage * 10 || !Number.isInteger(a.years) || a.years < 1 || a.years > 5) {
         fail('proposta inválida');
       }
-      if (p.cash < a.fee) fail('caixa insuficiente para pagar a taxa');
-      if (career && a.fee > career.board.budget) fail(`a diretoria não libera: a verba da janela é de R$ ${career.board.budget} mil`);
+      const agent = agentFee(a.fee, a.wage);
+      if (p.cash < a.fee + agent) fail('caixa insuficiente para pagar a taxa e a comissão do empresário');
+      if (career && a.fee + agent > career.board.budget) fail(`a diretoria não libera: a verba da janela é de R$ ${career.board.budget} mil`);
       check(wageCheck(state, a.wage));
+      const clause = a.fee >= releaseClause(state, club, f);
       let n = negotiationFor(state, club.id, f.id);
-      if (n && (n.status === 'aceita' || n.status === 'encerrada' || n.rounds >= MAX_ROUNDS)) fail('negociação encerrada nesta janela');
+      if (n && (n.status === 'aceita' || (!clause && (n.status === 'encerrada' || n.rounds >= MAX_ROUNDS)))) fail('negociação encerrada nesta janela');
       if (!n) {
         n = { clubId: club.id, playerId: f.id, rounds: 0, status: 'recusada', fee: 0, wage: 0, years: 1, message: '' };
         o.negotiations.push(n);
@@ -431,13 +456,13 @@ export function applyMut(state: GameState, a: Action): void {
       n.askFee = out.askFee;
       n.askWage = out.askWage;
       if (out.status === 'aceita') {
-        check(spendBudget(state, a.fee));
-        p.cash -= a.fee;
+        check(spendBudget(state, a.fee + agent));
+        p.cash -= a.fee + agent;
         club.squad = club.squad.filter((x) => x.id !== f.id);
         club.squad.push(replacementFor(actionRng(), club, { next: () => nextId(state), names: usedPlayerNames(state), season: state.season }));
         p.squad.push({ ...f, wage: round1(a.wage), contract: a.years, joined: state.season, goals: 0, apps: 0, homegrown: false });
         o.signings++;
-        state.news.push(`${p.name} contrata ${f.name} (${f.pos}, ${f.ovr}) do ${club.name} por R$ ${a.fee} mil`);
+        state.news.push(`${p.name} ${clause ? 'paga a multa rescisória e ' : ''}contrata ${f.name} (${f.pos}, ${f.ovr}) do ${club.name} por R$ ${a.fee} mil`);
       }
       return;
     }
@@ -448,13 +473,13 @@ export function applyMut(state: GameState, a: Action): void {
       return;
     }
     case 'offer': {
-      if (!o.offers[a.idx]) fail('proposta indisponível');
+      if (!o.offers[a.idx] || !offerOpen(state, o.offers[a.idx]!)) fail('proposta indisponível');
       sellToOffer(state, a.idx, o.offers[a.idx]!.fee);
       return;
     }
     case 'counter': {
       const of = o.offers[a.idx];
-      if (!of) fail('proposta indisponível');
+      if (!of || !offerOpen(state, of)) fail('proposta indisponível');
       if (!Number.isInteger(a.fee) || a.fee <= of.fee) fail('peça mais do que a oferta atual');
       const max = of.max ?? of.fee;
       if (a.fee <= max) {
@@ -509,7 +534,7 @@ export function applyMut(state: GameState, a: Action): void {
     }
     case 'reject': {
       const of = o.offers[a.idx];
-      if (!of) fail('proposta indisponível');
+      if (!of || !offerOpen(state, of)) fail('proposta indisponível');
       const f = p.squad.find((x) => x.id === of.playerId);
       o.offers[a.idx] = null;
       state.news.push(`${p.name} recusa a proposta do ${of.club} por ${f?.name ?? 'um jogador'}`);
@@ -521,6 +546,7 @@ export function applyMut(state: GameState, a: Action): void {
       const inSquad = p.squad.find((x) => x.id === a.id);
       const f = inYouth ?? inSquad;
       if (!f) fail('jogador não encontrado');
+      if (f.loan) fail(`${f.name} está emprestado pelo ${f.loan.club}`);
       if (f.age > LOAN_AGE_LIMIT) fail(`só jogadores até ${LOAN_AGE_LIMIT} anos podem ser emprestados`);
       if (inSquad && p.squad.length <= SQUAD_MIN) fail(`o elenco precisa de pelo menos ${SQUAD_MIN} jogadores`);
       p.youth = p.youth.filter((x) => x.id !== a.id);
@@ -710,6 +736,7 @@ function sellToOffer(state: GameState, idx: number, fee: number): void {
   const of = o.offers[idx]!;
   const f = p.squad.find((x) => x.id === of.playerId);
   if (!f) fail('o jogador já não está no clube');
+  if (f.loan) fail(`${f.name} está emprestado pelo ${f.loan.club}`);
   if (p.squad.length <= SQUAD_MIN) fail(`o elenco precisa de pelo menos ${SQUAD_MIN} jogadores`);
   p.cash += fee;
   refundBudget(state, fee);
@@ -890,7 +917,7 @@ function check(msg: string | null): void {
 }
 
 /** Até que dia mostrar a temporada; null = acabou (vai para o resumo). */
-export function advanceTarget(cal: SeasonCalendar, reveal: number, to: AdvanceTo): number | null {
+export function advanceTarget(cal: SeasonCalendar, reveal: number, to: AdvanceTo, deadline?: number): number | null {
   let target: number;
   if (to === 0) {
     const next = cal.matches.find((m) => m.day > reveal);
@@ -908,6 +935,8 @@ export function advanceTarget(cal: SeasonCalendar, reveal: number, to: AdvanceTo
   // a janela do meio do ano não passa batido: avançar por jogo, semana ou mês para no dia em que ela abre
   const [open] = julyWindow(cal.year);
   if (to !== 3 && reveal < open && target > open) target = open;
+  // proposta de última hora pendente: para também no começo da reta final da janela
+  else if (to !== 3 && deadline !== undefined && reveal < deadline && target > deadline) target = deadline;
   return target >= cal.end ? null : target;
 }
 

@@ -127,3 +127,15 @@ export const REAL_WORLD = [
   'Juventus', 'Milan', 'Borussia Dortmund', 'Atlético de Madrid', 'Benfica', 'Porto', 'Al-Hilal', 'Al Ahly', 'Monterrey', 'Tigres',
   'Club América', 'Seattle Sounders', 'Urawa Red Diamonds', 'Al-Ain', 'Espérance', 'Wydad', 'Auckland City', 'Ulsan HD',
 ];
+
+/** Nomes de jogadores estrangeiros (sul-americanos) para o mercado. */
+export const FOREIGN_FIRST = [
+  'Matías', 'Facundo', 'Nicolás', 'Joaquín', 'Agustín', 'Santiago', 'Diego', 'Gonzalo', 'Sebastián', 'Franco', 'Lautaro', 'Juan Manuel',
+  'Andrés', 'Rodrigo', 'Federico', 'Emiliano', 'Ezequiel', 'Maximiliano', 'Germán', 'Nahuel', 'Brayan', 'Yeferson', 'Jhon', 'Cristian',
+  'Luciano', 'Tomás', 'Ignacio', 'Valentín', 'Kevin', 'Alexis',
+];
+export const FOREIGN_LAST = [
+  'González', 'Rodríguez', 'Fernández', 'Martínez', 'Gómez', 'Sánchez', 'Romero', 'Álvarez', 'Torres', 'Ramírez', 'Acosta', 'Benítez',
+  'Medina', 'Herrera', 'Castro', 'Rojas', 'Vargas', 'Mendoza', 'Ortiz', 'Cardozo', 'Villalba', 'Cabrera', 'Aquino', 'Paredes', 'Sosa',
+  'Quintero', 'Valencia', 'Arrieta', 'Bustos', 'Echeverría',
+];

@@ -271,8 +271,41 @@ export function refundBudget(state: GameState, fee: number): void {
  * Fim da temporada do técnico: confiança da diretoria, reputação, idade e contrato.
  * Modo leve: demitido, sempre aparecem propostas (talvez de um clube menor).
  */
+/** Soma os jogos da temporada nos números da carreira (só os que o técnico dirigiu). */
+function recordSeason(state: GameState, r: SeasonResult): void {
+  const c = state.career!;
+  const cal = state.calendar;
+  const rec = (c.record ??= { games: 0, w: 0, d: 0, l: 0, gf: 0, ga: 0, bestWin: null, bestUnbeaten: 0, unbeaten: 0, titles: [] });
+  const stint = c.stints[c.stints.length - 1];
+  const club = state.player.name;
+  if (cal) {
+    const until = c.firedDay ?? cal.end;
+    for (const m of cal.matches) {
+      if (m.day > until) continue;
+      rec.games++;
+      rec.gf += m.gf;
+      rec.ga += m.ga;
+      const res = m.gf > m.ga || m.advanced === true && m.gf === m.ga ? 'w' : m.gf < m.ga || (m.advanced === false && m.gf === m.ga) ? 'l' : 'd';
+      rec[res]++;
+      if (stint) stint[res] = (stint[res] ?? 0) + 1;
+      if (res === 'l') rec.unbeaten = 0;
+      else rec.unbeaten++;
+      rec.bestUnbeaten = Math.max(rec.bestUnbeaten, rec.unbeaten);
+      const diff = m.gf - m.ga;
+      if (diff > 0 && (!rec.bestWin || diff > rec.bestWin.gf - rec.bestWin.ga || (diff === rec.bestWin.gf - rec.bestWin.ga && m.gf > rec.bestWin.gf))) {
+        rec.bestWin = { gf: m.gf, ga: m.ga, opp: m.opponent, club, year: r.year };
+      }
+    }
+  }
+  if (c.firedDay === undefined) {
+    for (const comp of r.comps) if (comp.won) rec.titles.push({ name: comp.name, club, year: r.year });
+    for (const cup of r.cups) if (cup.champion) rec.titles.push({ name: cup.name, club, year: r.year });
+  }
+}
+
 export function settleCareer(state: GameState, r: SeasonResult): string[] {
   const c = state.career!;
+  recordSeason(state, r);
   const info = BOARD_INFO[c.board.personality];
   const news: string[] = [];
   let conf = 0;

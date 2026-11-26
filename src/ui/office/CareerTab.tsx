@@ -107,6 +107,7 @@ export function CareerTab({ state }: TabProps) {
         <p className="muted">Clubes que costumam te procurar: {TIERS[tierForReputation(c.reputation)].name} e vizinhos.</p>
       </Section>
 
+      <CareerRecordSection state={state} />
       <CoachRankingSection state={state} />
       <CoachMovesSection state={state} />
 
@@ -247,6 +248,44 @@ function CoachMovesSection({ state }: { state: GameState }) {
         ))}
       </ul>
       {free.length > 0 && <p className="muted">Sem clube agora: {free.slice(-8).reverse().join(', ')}{free.length > 8 ? ` e mais ${free.length - 8}` : ''}.</p>}
+    </Section>
+  );
+}
+
+/** Números e recordes do técnico, e a campanha em cada clube. */
+function CareerRecordSection({ state }: { state: GameState }) {
+  const c = state.career!;
+  const rec = c.record;
+  if (!rec || rec.games === 0) return null;
+  const pct = (w: number, d: number, l: number) => (w + d + l > 0 ? Math.round(((w * 3 + d) / ((w + d + l) * 3)) * 100) : 0);
+  return (
+    <Section title="Números e recordes" note={`${rec.games} jogos · ${rec.w}V ${rec.d}E ${rec.l}D · ${rec.gf} gols marcados · aproveitamento ${pct(rec.w, rec.d, rec.l)}%`}>
+      <dl className="cs-numbers">
+        <div><dt>Títulos</dt><dd>{rec.titles.length}</dd></div>
+        <div><dt>Invencibilidade</dt><dd>{rec.bestUnbeaten} jogos</dd></div>
+        {rec.bestWin && (
+          <div>
+            <dt>Maior vitória</dt>
+            <dd>{rec.bestWin.gf} x {rec.bestWin.ga} <small>no {rec.bestWin.opp}</small></dd>
+          </div>
+        )}
+      </dl>
+      {rec.titles.length > 0 && <p className="muted">{rec.titles.map((t) => `${t.name} ${t.year} (${t.club})`).join(' · ')}</p>}
+      <table className="table leaders">
+        <thead>
+          <tr><th>Clube</th><th>Período</th><th>V-E-D</th><th>%</th></tr>
+        </thead>
+        <tbody>
+          {c.stints.map((s, i) => (
+            <tr key={i}>
+              <td>{s.club}</td>
+              <td>{START_YEAR + s.from - 1}{s.to === null ? '–' : s.to !== s.from ? `–${START_YEAR + s.to - 1}` : ''}</td>
+              <td>{s.w ?? 0}-{s.d ?? 0}-{s.l ?? 0}</td>
+              <td>{pct(s.w ?? 0, s.d ?? 0, s.l ?? 0)}%</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </Section>
   );
 }

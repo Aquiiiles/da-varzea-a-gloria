@@ -595,6 +595,10 @@ export interface CareerStint {
   tier: Tier;
   /** por que saiu */
   exit?: 'demitido' | 'proposta' | 'contrato';
+  /** campanha no clube (vitórias, empates, derrotas) */
+  w?: number;
+  d?: number;
+  l?: number;
 }
 
 /** Carreira do técnico (modo técnico). */
@@ -620,6 +624,24 @@ export interface CoachCareer {
   midOffer?: { offer: JobOffer; until: number; answered?: boolean } | null;
   /** pré-contrato assinado: assume esse clube na próxima temporada */
   agreed?: JobOffer | null;
+  /** números e recordes da carreira */
+  record?: CoachRecord;
+}
+
+/** Números da carreira do técnico (todas as competições). */
+export interface CoachRecord {
+  games: number;
+  w: number;
+  d: number;
+  l: number;
+  gf: number;
+  ga: number;
+  /** maior vitória */
+  bestWin: { gf: number; ga: number; opp: string; club: string; year: number } | null;
+  /** maior sequência invicta e a sequência atual */
+  bestUnbeaten: number;
+  unbeaten: number;
+  titles: { name: string; club: string; year: number }[];
 }
 
 /** Ultimato: vencer `needWins` dos próximos `games` jogos, contando a partir do jogo `from` (índice no calendário). */

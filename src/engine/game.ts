@@ -18,12 +18,13 @@ export { ActionError };
 import { effectsCashCost, loanFor, releaseCost, renewalOffer, seatsFor, sellPrice } from './office';
 import { applyNamePack, type NamePack } from './namepack';
 import { injuredAt } from './calendarView';
+import { answerMidOffer, boardWatch, midSeasonOffer } from './boardwatch';
 import { dayToDate, julyWindow } from './calendar';
 import { answered, currentInterview, interviewEffects } from './interview';
 import { CAREER_END_AGE, CAREER_START_AGE, boardMeeting, careerWindow, refundBudget, settleCareer, spendBudget, takeOver, wageCheck } from './career';
 import { ARENA } from './finance';
 import { rollExtraordinary } from './extraordinary';
-import { varzeaClubName } from './names';
+import { personName, varzeaClubName } from './names';
 import { PALETTE } from '../data/names';
 
 interface OriginPreset {
@@ -77,6 +78,16 @@ export function newGame(seed: number, foundation: Foundation, opts: GameOptions 
   const { clubs, serial } = generateWorld(rng, taken, { next: () => pid++, names: playerNames, season: 1 });
   // pacote: nomes dos clubes e, quando houver, técnicos e elencos reais (sorteio próprio, ids na sequência)
   if (opts.pack) applyNamePack(clubs, opts.pack, taken, { rng: deriveRng(seedU, 'pacote'), nextId: () => pid++, year: START_YEAR, names: playerNames });
+  // técnicos dos clubes da IA: nomes únicos (os do pacote já vêm definidos)
+  {
+    const crng = deriveRng(seedU, 'tecnicos');
+    const coaches = new Set<string>([f.name, ...clubs.map((c) => c.coachName).filter((n): n is string => !!n)]);
+    for (const c of clubs) {
+      if (c.coachName) continue;
+      c.coachName = personName(crng, coaches);
+      coaches.add(c.coachName);
+    }
+  }
   const preset = ORIGINS[f.origin];
   const rival = rng.pick(clubs.filter((c) => c.stateDiv === 'V'));
   const squad = foundingSquad(deriveRng(seedU, 'squad'), preset.squadMean, 1, playerNames);
@@ -311,6 +322,8 @@ export function applyMut(state: GameState, a: Action): void {
     if (state.phase !== 'season' || state.reveal == null || !state.calendar) fail('não há temporada em andamento');
     const pending = o.offers.some((x) => x?.july);
     const target = advanceTarget(state.calendar, state.reveal, a.to, pending ? deadlineDays(state.calendar.year)[0] : undefined);
+    // a diretoria acompanha os jogos mostrados (ultimato, demissão, proposta de outro clube)
+    if (watchSeason(state, state.reveal, target ?? state.calendar.end)) return;
     if (target === null) finishSeason(state);
     else state.reveal = target;
     return;
@@ -318,7 +331,8 @@ export function applyMut(state: GameState, a: Action): void {
   if (state.phase === 'over') fail('a run acabou');
   if (a.t === 'next') {
     if (state.phase === 'season') {
-      finishSeason(state);
+      const fired = !!state.calendar && state.reveal != null && watchSeason(state, state.reveal, state.calendar.end);
+      if (!fired) finishSeason(state);
       if ((state.phase as GameState['phase']) === 'over') return;
     }
     if (state.phase !== 'summary') fail('não há resumo aberto');
@@ -819,6 +833,13 @@ function midSeason(state: GameState, a: Action): void {
     state.news.push(`${who}${it.kind === 'coletiva' ? ' na coletiva' : ''}: "${ans.text}"`);
     return;
   }
+  if (a.t === 'precontract') {
+    const c = state.career;
+    if (!c?.midOffer || c.midOffer.answered) fail('não há proposta para responder');
+    if (day > c.midOffer.until) fail('a proposta expirou');
+    answerMidOffer(state, a.accept);
+    return;
+  }
   if (a.t === 'halftime') {
     if (!state.career) fail('o intervalo é com o técnico');
     if (a.day !== day || !cal.matches.some((m) => m.day === day)) fail('só no intervalo do jogo de hoje');
@@ -869,6 +890,20 @@ function midSeason(state: GameState, a: Action): void {
   preview(state);
 }
 
+/**
+ * Modo técnico: a diretoria olha os jogos de (from, to]. Se demitir, a temporada acaba ali para o técnico
+ * (o resto é com o interino) e já vai para o balanço. Devolve true se demitiu.
+ */
+function watchSeason(state: GameState, from: number, to: number): boolean {
+  if (!state.career) return false;
+  midSeasonOffer(state, from, to);
+  const fired = boardWatch(state, from, to);
+  if (fired === null) return false;
+  state.reveal = fired;
+  finishSeason(state);
+  return true;
+}
+
 /** Fecha a temporada de verdade (mesmas decisões da prévia): finanças, evolução, carreira, histórico. */
 function finishSeason(state: GameState): void {
   const liveBefore = state.live;
@@ -878,10 +913,23 @@ function finishSeason(state: GameState): void {
       const cached = lastPreview && lastPreview.key === previewKey(state) ? lastPreview : null;
       lastPreview = null;
       if (cached) {
-        // mesma simulação da prévia: adota o estado já simulado (só as ações e o dia mostrado são deste estado)
+        // mesma simulação da prévia: adota o estado já simulado (só as ações, as notícias e o que a diretoria
+        // decidiu durante a temporada são deste estado)
         const actions = state.actions;
+        const news = state.news;
+        const c0 = state.career;
         Object.assign(state, cached.clone);
         state.actions = actions;
+        state.news = news;
+        if (c0 && state.career) {
+          const c = state.career;
+          c.ultimatum = c0.ultimatum;
+          c.calmFrom = c0.calmFrom;
+          c.firedDay = c0.firedDay;
+          c.midOffer = c0.midOffer;
+          c.agreed = c0.agreed;
+          c.board.confidence = c0.board.confidence;
+        }
         result = cached.result;
       } else {
         result = simulateSeason(state);

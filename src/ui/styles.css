@@ -770,3 +770,6 @@ h3 { font: 700 14px/1.2 var(--font-display); text-transform: uppercase; letter-s
 /* intervalo */
 .halftime { border: 2px solid var(--accent); display: flex; flex-direction: column; gap: 10px; }
 .feed.is-hidden { display: none; }
+.ultimatum { border: 2px solid var(--live); background: linear-gradient(180deg, #e6394622, var(--panel) 70%); }
+.ch-ult { border-color: var(--live); animation: pulse 1.6s infinite; }
+.moves { margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 4px; font-size: 14px; }

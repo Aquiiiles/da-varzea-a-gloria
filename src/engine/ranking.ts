@@ -38,19 +38,38 @@ export function seasonCoachPoints(leagues: LeagueInfo[], cups: AwardsInput['cupC
   return pts;
 }
 
-/** Guarda os pontos da temporada (só as últimas 5 temporadas contam). */
+/** Chave do técnico no ranking: o nome (os pontos acompanham o técnico quando ele troca de clube). */
+export function coachKey(name: string): string {
+  return `t:${name}`;
+}
+
+/** Nome do técnico atual de um clube da IA. */
+export function coachOfClub(state: GameState, clubId: string): string {
+  const c = state.clubs.find((x) => x.id === clubId);
+  return aiCoachName(state.seed, clubId, c);
+}
+
+/** Guarda os pontos da temporada (só as últimas 5 temporadas contam), por técnico. */
 export function recordCoachPoints(state: GameState, season: Map<string, number>): void {
   const all = (state.coachPoints ??= {});
-  const ids = new Set([...Object.keys(all), ...season.keys()]);
-  for (const id of ids) {
-    if (id === ME && !state.career) continue;
-    const list = all[id] ?? [];
-    list.push(Math.round(season.get(id) ?? 0));
-    all[id] = list.slice(-RANKING_SEASONS);
+  // saves antigos: pontos por clube viram pontos do técnico atual do clube
+  for (const id of Object.keys(all)) {
+    if (id === ME || id.startsWith('t:')) continue;
+    const key = coachKey(coachOfClub(state, id));
+    all[key] = all[key] ?? all[id];
+    delete all[id];
   }
-  // clubes que sumiram do mundo (várzea) saem do ranking
-  const alive = new Set([ME, ...state.clubs.map((c) => c.id)]);
-  for (const id of Object.keys(all)) if (!alive.has(id)) delete all[id];
+  const byCoach = new Map<string, number>();
+  for (const [id, v] of season) byCoach.set(id === ME ? ME : coachKey(coachOfClub(state, id)), v);
+  const keys = new Set([...Object.keys(all), ...byCoach.keys()]);
+  for (const key of keys) {
+    if (key === ME && !state.career) continue;
+    const list = all[key] ?? [];
+    list.push(Math.round(byCoach.get(key) ?? 0));
+    all[key] = list.slice(-RANKING_SEASONS);
+  }
+  // quem zerou nas últimas temporadas sai do ranking
+  for (const key of Object.keys(all)) if (key !== ME && all[key].every((v) => v === 0)) delete all[key];
 }
 
 export interface RankingEntry {
@@ -66,7 +85,17 @@ export function coachRanking(state: GameState): RankingEntry[] {
   const all = state.coachPoints ?? {};
   const sum = (id: string) => (all[id] ?? []).reduce((s, v) => s + v, 0);
   // empate (como no começo da carreira): vale o tamanho do clube
-  const rows: (Omit<RankingEntry, 'pos'> & { weight: number })[] = state.clubs.map((c) => ({ name: aiCoachName(state.seed, c.id, c), club: c.name, points: sum(c.id), me: false, weight: c.strength }));
+  const rows: (Omit<RankingEntry, 'pos'> & { weight: number })[] = state.clubs.map((c) => {
+    const name = aiCoachName(state.seed, c.id, c);
+    return { name, club: c.name, points: sum(coachKey(name)) || sum(c.id), me: false, weight: c.strength };
+  });
+  // técnicos sem clube que ainda têm pontos
+  const employed = new Set(rows.map((r) => r.name));
+  for (const key of Object.keys(all)) {
+    if (!key.startsWith('t:')) continue;
+    const name = key.slice(2);
+    if (!employed.has(name)) rows.push({ name, club: 'sem clube', points: sum(key), me: false, weight: 0 });
+  }
   if (state.career) {
     rows.push({ name: state.career.name, club: state.career.unemployed ? 'sem clube' : state.player.name, points: sum(ME), me: true, weight: state.career.unemployed ? 0 : state.player.strength });
   }

@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import {
-  START_YEAR, STYLE_TACTIC, TACTICS, hangingAt, injuredAt, suspendedOn, julyWindow, nextMatchAfter, offerOpen, opponentInfo, outcomeOf, playedMatches, teamStrength, weekdayOf,
+  START_YEAR, STYLE_TACTIC, TACTICS, hangingAt, ultimatumStatus, injuredAt, suspendedOn, julyWindow, nextMatchAfter, offerOpen, opponentInfo, outcomeOf, playedMatches, teamStrength, weekdayOf,
   type GameState, type Tactic,
 } from '../../engine';
 import type { Dispatch } from '../App';
@@ -10,6 +10,7 @@ import { InterviewCard } from '../InterviewCard';
 import { OverviewTab } from '../office/OverviewTab';
 import type { TabId } from '../office/Office';
 import { MatchRow, SquadStatus, shortDate } from '../SeasonView';
+import { JobOfferCard } from '../office/OfferCards';
 
 const WEEKDAY = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
 
@@ -82,8 +83,41 @@ function Matchday({ state, dispatch, goTo, onPlayRound }: Props) {
   // a janela de julho para antes do próximo jogo
   const stopsAtWindow = !!next && day < open && next.day > open;
 
+  const ult = ultimatumStatus(state);
+  const mid = state.career!.midOffer;
+  const showMid = !!mid && !mid.answered && day <= mid.until;
+
   return (
     <div className="tab-stack">
+      {ult && (
+        <section className="panel ultimatum">
+          <p className="kicker kicker-alert">Ultimato da diretoria</p>
+          <p className="lede">
+            {ult.need > 0 ? (
+              <>
+                Precisa de <b>{ult.need === 1 ? 'uma vitória' : `${ult.need} vitórias`}</b> nos próximos <b>{ult.left}</b> {ult.left === 1 ? 'jogo' : 'jogos'}. Sem isso, você é demitido.
+              </>
+            ) : (
+              'Ultimato cumprido.'
+            )}
+          </p>
+        </section>
+      )}
+
+      {showMid && (
+        <section className="panel">
+          <p className="kicker">Sondagem para o ano que vem</p>
+          <p className="muted">
+            Um clube maior quer você na próxima temporada. Aceitando, você termina este ano aqui e assume lá depois. Se vazar, a diretoria atual não vai gostar. Responda até {shortDate(cal.year, mid!.until)}.
+          </p>
+          <JobOfferCard state={state} offer={mid!.offer} primary onAccept={() => dispatch({ t: 'precontract', accept: true })} />
+          <button type="button" className="btn btn-danger" onClick={() => dispatch({ t: 'precontract', accept: false })}>
+            Recusar e ficar
+          </button>
+        </section>
+      )}
+      {mid?.answered && state.career!.agreed && <p className="window-alert">Pré-contrato assinado com o {state.career!.agreed.club}: você assume lá na próxima temporada.</p>}
+
       {next && opp ? (
         <section className="panel prematch">
           <p className="kicker">

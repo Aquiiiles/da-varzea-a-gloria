@@ -108,6 +108,7 @@ export function CareerTab({ state }: TabProps) {
       </Section>
 
       <CoachRankingSection state={state} />
+      <CoachMovesSection state={state} />
 
       <Section title="Carreira">
         <ul className="career-stints">
@@ -227,6 +228,25 @@ function CoachRankingSection({ state }: { state: GameState }) {
           <Row key={r.pos} r={r} />
         ))}
       </ol>
+    </Section>
+  );
+}
+
+/** Dança dos técnicos: quem caiu e quem assumiu nas últimas temporadas. */
+function CoachMovesSection({ state }: { state: GameState }) {
+  const moves = state.coachMoves ?? [];
+  if (moves.length === 0) return null;
+  const last = moves[moves.length - 1].season;
+  const recent = moves.filter((m) => m.season === last);
+  const free = state.freeCoaches ?? [];
+  return (
+    <Section title="Dança dos técnicos" note={`Mudanças no fim da temporada ${START_YEAR + last - 1}. Técnicos demitidos ficam livres e podem voltar em outro clube.`}>
+      <ul className="moves">
+        {recent.map((m, i) => (
+          <li key={i}>{m.text}</li>
+        ))}
+      </ul>
+      {free.length > 0 && <p className="muted">Sem clube agora: {free.slice(-8).reverse().join(', ')}{free.length > 8 ? ` e mais ${free.length - 8}` : ''}.</p>}
     </Section>
   );
 }

@@ -7,6 +7,8 @@ import { nextId } from './effects';
 import { projectFinance } from './office';
 import { deriveRng, type Rng } from './rng';
 import { clamp } from './util';
+import { aiCoachName } from './stats';
+import { personName } from './names';
 import type { Footballer,
   BoardPersonality, Club, CoachCareer, CoachStyle, GameState, JobOffer, PlayerClub, SeasonResult, Tier,
 } from './types';
@@ -194,6 +196,11 @@ export function takeOver(state: GameState, offer: JobOffer): void {
   const rival = sameComp.sort((a, b) => b.strength - a.strength || (a.id < b.id ? -1 : 1))[0] ?? state.clubs.find((x) => x.id !== target.id)!;
   const rivalId = rival.id === target.id ? old.rivalId : rival.id;
   state.clubs[idx] = toAiClub(old, target.id, state.clubs);
+  // dança dos técnicos: o técnico do clube novo fica livre; o clube que o jogador deixou contrata alguém
+  const free = (state.freeCoaches ??= []);
+  free.push(aiCoachName(state.seed, target.id, target));
+  const taken = new Set<string>([...state.clubs.map((x) => x.coachName ?? ''), ...free, c.name]);
+  state.clubs[idx].coachName = free.length > 1 ? free.splice(0, 1)[0] : personName(deriveRng(state.seed, state.season, 'tecnico-novo', target.id), taken);
   // se o rival escolhido era o próprio clube antigo (mesmo id do alvo), ele agora é o clube que saiu
   c.contract = offer.contract;
   c.board = {
@@ -302,7 +309,17 @@ export function settleCareer(state: GameState, r: SeasonResult): string[] {
       stint.exit = exit;
     }
   };
-  if (c.board.confidence <= 15) {
+  if (c.firedDay !== undefined) {
+    // demitido no meio da temporada (ultimato)
+    rep -= 8;
+    leave('demitido');
+    news.push(`DEMITIDO no meio da temporada: ${c.name} não cumpriu o ultimato do ${club}; o interino terminou o ano`);
+  } else if (c.agreed) {
+    // pré-contrato: sai para o clube que acertou no meio do ano
+    leave('contrato');
+    if (stint) stint.exit = 'proposta';
+    news.push(`${c.name} deixa o ${club} e vai para o ${c.agreed.club}`);
+  } else if (c.board.confidence <= 15) {
     rep -= 8;
     leave('demitido');
     news.push(`DEMITIDO: a diretoria do ${club} perde a paciência com ${c.name}`);
@@ -320,13 +337,22 @@ export function settleCareer(state: GameState, r: SeasonResult): string[] {
   // ganhos ficam mais difíceis perto do topo (100 é para lendas); perdas valem cheio
   const gain = rep > 0 ? rep * Math.max(0.15, 1 - c.reputation / 110) : rep;
   c.reputation = clamp(Math.round(c.reputation + gain), 0, 100);
+  // o que era só desta temporada
+  c.ultimatum = null;
+  c.calmFrom = undefined;
+  c.firedDay = undefined;
+  c.midOffer = null;
   return news;
 }
 
 /** Nova janela no modo técnico: propostas, verba e técnico atualizado. */
 export function careerWindow(state: GameState, withOffers: boolean): void {
   const c = state.career!;
-  if (withOffers) c.offers = jobOffers(state, deriveRng(state.seed, state.season, 'jobs'), c.unemployed);
+  if (c.agreed) {
+    // pré-contrato assinado no meio do ano: a única proposta é a combinada
+    c.offers = [c.agreed];
+    c.agreed = null;
+  } else if (withOffers) c.offers = jobOffers(state, deriveRng(state.seed, state.season, 'jobs'), c.unemployed);
   const p = state.player;
   p.coach = careerCoach(c, p.coach.style, p.coach.formation, p.tier);
   setBoardBudget(state);

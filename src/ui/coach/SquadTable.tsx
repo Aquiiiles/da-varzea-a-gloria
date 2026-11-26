@@ -1,6 +1,6 @@
 import { Fragment, useState } from 'react';
 import {
-  FATIGUE_FREE, FATIGUE_REST, TALK_COOLDOWN, MORALE_HIGH, MORALE_LOW, MORALE_START, SQUAD_MAX, statusAt, bestEleven, fatigueAt, injuredAt, marketValue, offerOpen, payroll, suspendedOn,
+  FATIGUE_FREE, FATIGUE_REST, TALK_COOLDOWN, MORALE_HIGH, MORALE_LOW, MORALE_START, SQUAD_MAX, statusAt, bestEleven, personalityOf, PERSONALITY_INFO, fatigueAt, injuredAt, marketValue, offerOpen, payroll, suspendedOn,
   type Footballer, type GameState, type Position,
 } from '../../engine';
 import type { Dispatch } from '../App';
@@ -140,6 +140,9 @@ export function SquadTable({ state, dispatch }: { state: GameState; dispatch: Di
                 {open === f.id && (
                   <tr className="sq-detail">
                     <td colSpan={8}>
+                      <p className="pl-jeito">
+                        <b>{PERSONALITY_INFO[personalityOf(f)].label}</b> <span className="muted">{PERSONALITY_INFO[personalityOf(f)].effect}</span>
+                      </p>
                       <p className="muted">
                         Moral <b className={moraleOf(f) < MORALE_LOW ? 'bad' : moraleOf(f) > MORALE_HIGH ? 'good' : ''}>{Math.round(moraleOf(f))}</b> · POT {potLabel(f)} · {monthly(f.wage)} · valor {money(marketValue(f))} · {f.contract} ano{f.contract > 1 ? 's' : ''} de contrato · {f.apps} jogos
                         {f.intent ? <> · <span className={INTENT_LABEL[f.intent].tone}>{INTENT_LABEL[f.intent].text}</span></> : null}

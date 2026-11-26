@@ -261,7 +261,7 @@ export interface Objective {
 /** Lance de um jogo ao vivo. */
 export interface LiveEvent {
   minute: number;
-  kind: 'gol' | 'chance' | 'defesa' | 'cartao' | 'apito' | 'penaltis' | 'lesao';
+  kind: 'gol' | 'chance' | 'defesa' | 'cartao' | 'apito' | 'penaltis' | 'lesao' | 'troca';
   /** true = lance do clube do jogador */
   mine: boolean;
   /** expulsão ou lesão do seu time (o jogo para para você mexer) */
@@ -441,6 +441,7 @@ export type Action =
   | { t: 'play' } // simula a temporada
   | { t: 'advance'; to: AdvanceTo } // mostra a temporada até o próximo jogo, semana, mês ou fim
   | { t: 'job'; idx: number } // técnico: aceita uma proposta de emprego
+  | { t: 'jobwage'; idx: number } // técnico: pede salário maior numa proposta (uma tentativa)
   | { t: 'lineup'; ids: number[] | null; rotate: boolean } // técnico: escalação (null = os melhores)
   | { t: 'watch'; id: number } // lista de observação: marcar ou desmarcar um jogador de outro clube
   | { t: 'training'; focus: TrainingFocus } // foco do treino (modo técnico)
@@ -475,6 +476,8 @@ export interface MatchResult {
   half?: [number, number];
   /** gols por bloco de 5 minutos [mandante, visitante] (jogos do técnico) */
   blocks?: [number, number][];
+  /** média de gols (por 90 min) de cada lado em cada bloco: o "volume" de jogo */
+  rates?: [number, number][];
 }
 
 export interface TableRow {
@@ -608,6 +611,10 @@ export interface JobOffer {
   contract: number;
   /** o que a diretoria espera */
   pitch: string;
+  /** salário do técnico (R$ mil por temporada) */
+  wage?: number;
+  /** já negociou o salário desta proposta */
+  negotiated?: 'ok' | 'fail';
 }
 
 export interface CareerStint {
@@ -650,6 +657,10 @@ export interface CoachCareer {
   agreed?: JobOffer | null;
   /** números e recordes da carreira */
   record?: CoachRecord;
+  /** salário atual (R$ mil por temporada) */
+  wage?: number;
+  /** tudo o que já ganhou na carreira (R$ mil) */
+  earnings?: number;
 }
 
 /** Números da carreira do técnico (todas as competições). */
@@ -870,6 +881,8 @@ export interface CalendarMatch {
   half?: [number, number];
   /** gols por bloco de 5 minutos [a favor, contra] */
   blocks?: [number, number][];
+  /** média de gols por bloco [a favor, contra] */
+  rates?: [number, number][];
 }
 
 export interface SeasonCalendar {

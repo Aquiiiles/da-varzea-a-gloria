@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { MAX_STOPS, MAX_SUBS, PLAYER_ID, subbedOut, isDecisive, rivalName, STYLE_TACTIC, injuredAt, suspendedOn, tableAfter, type GameState, type RoundGame, type RoundView, type Tactic } from '../../engine';
+import { MAX_STOPS, MAX_SUBS, PLAYER_ID, subbedOut, isDecisive, rivalName, STYLE_TACTIC, injuredAt, suspendedOn, tableAfter, type GameState, type LiveEvent, type RoundGame, type RoundView, type Tactic } from '../../engine';
 import type { Dispatch } from '../App';
 import { LineupEditor } from '../LineupEditor';
 import { StandingsTable } from './TableTab';
+import { LiveStats, changeEffect, changeText } from './LiveStats';
 
 /** ms por minuto de jogo em cada velocidade */
 const SPEEDS = [{ label: '1x', ms: 110 }, { label: '2x', ms: 55 }, { label: '4x', ms: 25 }];
@@ -94,6 +95,14 @@ export function RoundLive({ state, round, dispatch, onDone }: { state: GameState
   const endingCount = m.result.pens ? 2 : 1;
   const shown = m.events.filter((e, i) => (i >= m.events.length - endingCount ? finished : e.minute <= minute));
   const score = shown.at(-1)?.score ?? [0, 0];
+  // suas mexidas entram na narração, com o efeito no jogo
+  const feed: LiveEvent[] = [...shown];
+  for (const c of round.changes) {
+    if (c.minute > minute && !finished) continue;
+    const at = feed.findIndex((e) => e.minute > c.minute || (e.minute === c.minute && e.kind === 'apito' && c.minute !== 45));
+    const ev: LiveEvent = { minute: c.minute, kind: 'troca', mine: true, text: `${changeText(c)} ${changeEffect(round.stats, c.minute)}`.trim(), score: [0, 0] };
+    feed.splice(at < 0 ? feed.length : at, 0, ev);
+  }
   const lastGoal = [...shown].reverse().find((e) => e.kind === 'gol');
   const flash = !!lastGoal && minute - lastGoal.minute <= 3 && !finished;
 
@@ -158,7 +167,7 @@ export function RoundLive({ state, round, dispatch, onDone }: { state: GameState
         </div>
         {flash && <div className="goal-flash">{lastGoal!.mine ? 'GOOOOL!' : 'Gol deles...'}</div>}
         <ol className={`feed feed-short${atHalftime ? ' is-hidden' : ''}`} ref={feedRef}>
-          {[...shown].reverse().map((e, i) => (
+          {[...feed].reverse().map((e, i) => (
             <li key={`${e.minute}-${i}-${e.kind}`} className={`ev ev-${e.kind}${e.mine ? ' ev-mine' : ''}`}>
               <span className="ev-min">{e.minute}'</span>
               <span>{e.text}</span>
@@ -167,6 +176,17 @@ export function RoundLive({ state, round, dispatch, onDone }: { state: GameState
         </ol>
         {finished && verdict && <p className={`live-verdict v-${verdict}`}>{verdict === 'win' ? 'VITÓRIA!' : verdict === 'loss' ? 'Derrota.' : 'Empate.'}</p>}
       </section>
+
+      {round.stats && (
+        <LiveStats
+          stats={round.stats}
+          minute={minute}
+          finished={finished}
+          myName={m.playerHome ? m.homeName : m.awayName}
+          oppName={m.playerHome ? m.awayName : m.homeName}
+          changes={round.changes}
+        />
+      )}
 
       {stop && <HalftimePanel state={state} day={round.day} minute={changeAt(stop.minute)} reason={stop.reason} dispatch={dispatch} onClose={() => setStop(null)} />}
 

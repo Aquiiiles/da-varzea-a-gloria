@@ -1,5 +1,5 @@
 import { personName } from './footballers';
-import { createRng, deriveRng, type Rng } from './rng';
+import { createRng, deriveRng, hashSeed, type Rng } from './rng';
 import type { CalendarMatch, Footballer, GameState, LiveEvent, LiveMoment, MatchResult } from './types';
 
 const GOAL = [
@@ -141,8 +141,10 @@ function narrateBlocks(
       events.push({ minute: rng.int(from, to), kind: 'gol', mine, text: fill(rng.pick(GOAL), mine ? pick(rng, squad, 'o camisa 9') : pick(rng, oppSquad, oppFallback), '') });
     }
     // lances de efeito e cartões do adversário
+    const rt = r.rates?.[b];
+    const homeShare = rt && rt[0] + rt[1] > 0 ? rt[0] / (rt[0] + rt[1]) : 0.5;
     if (rng.chance(0.28)) {
-      const mine = rng.chance(0.5);
+      const mine = rng.chance(playerHome ? homeShare : 1 - homeShare);
       const team = mine === playerHome ? homeName : awayName;
       const other = mine === playerHome ? awayName : homeName;
       const kind = rng.pick(['chance', 'chance', 'defesa'] as const);
@@ -237,6 +239,7 @@ export function quickMoment(state: GameState, m: CalendarMatch): LiveMoment {
   if (m.advanced !== null) r.winner = m.advanced ? 'player' : opp;
   if (m.half) r.half = m.home ? m.half : [m.half[1], m.half[0]];
   if (m.blocks) r.blocks = m.home ? m.blocks : m.blocks.map(([x, y]) => [y, x] as [number, number]);
+  if (m.rates) r.rates = m.home ? m.rates : m.rates.map(([x, y]) => [y, x] as [number, number]);
   const club = state.clubs.find((c) => c.name === m.opponent);
   const name = (id: string) => (id === 'player' ? p.name : m.opponent);
   const cards: Incident[] = [
@@ -246,4 +249,44 @@ export function quickMoment(state: GameState, m: CalendarMatch): LiveMoment {
   const mo = moment(deriveRng(state.seed, state.season, 'narra', m.day), 'jogo', `${m.comp} · ${m.round}`, m.home ? 'Em casa.' : 'Fora de casa.', r, 'player', name, p.squad, () => club?.squad ?? [], cards);
   mo.day = m.day;
   return mo;
+}
+
+/** Números de um bloco de 5 minutos, do ponto de vista do jogador. */
+export interface BlockStat {
+  /** posse de bola do seu time (%) */
+  poss: number;
+  /** finalizações [suas, deles] */
+  shots: [number, number];
+  /** chutes no gol [seus, deles] */
+  onTarget: [number, number];
+  /** pressão: sua fatia do volume de jogo (0 a 1), só pela força em campo */
+  press: number;
+  /** domínio no bloco (0 a 1): a pressão misturada com as finalizações que saíram */
+  flow: number;
+}
+
+/**
+ * Estatísticas por bloco, derivadas das médias de gol que o motor usou (e dos gols que saíram).
+ * Cada bloco tem o próprio sorteio: mexer aos 60' não muda o que já aconteceu antes.
+ */
+export function blockStats(r: MatchResult, playerHome: boolean, seed: number): BlockStat[] | null {
+  if (!r.blocks || !r.rates) return null;
+  return r.rates.map((rt, b) => {
+    const rng = createRng(hashSeed(seed, 'stats', b));
+    const [gm, go] = playerHome ? r.blocks![b] : [r.blocks![b][1], r.blocks![b][0]];
+    const [m, o] = playerHome ? rt : [rt[1], rt[0]];
+    const press = m + o > 0 ? m / (m + o) : 0.5;
+    const poss = Math.max(30, Math.min(70, Math.round(50 + (press - 0.5) * 55 + rng.int(-3, 3))));
+    const extra = (rate: number) => rng.poisson((rate * 8) / 18);
+    const sm = gm + extra(m);
+    const so = go + extra(o);
+    const target = (goals: number, shots: number) => {
+      let t = goals;
+      for (let i = goals; i < shots; i++) if (rng.chance(0.3)) t++;
+      return t;
+    };
+    const shotShare = sm + so > 0 ? sm / (sm + so) : press;
+    const flow = Math.round((press * 0.5 + shotShare * 0.5) * 1000) / 1000;
+    return { poss, shots: [sm, so], onTarget: [target(gm, sm), target(go, so)], press, flow };
+  });
 }

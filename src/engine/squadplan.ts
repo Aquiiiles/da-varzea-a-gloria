@@ -1,3 +1,4 @@
+import { benchFactor, cardFactor, personalityOf } from './personality';
 import { bestEleven, lineupStrength, round1 } from './footballers';
 import { deriveRng } from './rng';
 import { clamp } from './util';
@@ -233,12 +234,13 @@ export class SquadPlan {
       const aggressive = this.lineupAt(day).tactic === 'pressao' ? 1.3 : 1;
       for (const f of plan.xi) {
         const minute = deriveRng(this.opts.seed, this.opts.season, 'minuto', day, f.id).int(5, 88);
-        if (crng.chance(RED_CHANCE * aggressive)) {
+        const temper = this.opts.coach ? cardFactor(personalityOf(f)) : 1;
+        if (crng.chance(RED_CHANCE * aggressive * temper)) {
           this.cards.push({ day, id: f.id, name: f.name, kind: 'vermelho', minute });
           pending.push({ id: f.id, name: f.name, why: 'vermelho' });
           continue;
         }
-        if (crng.chance(YELLOW_CHANCE * aggressive)) {
+        if (crng.chance(YELLOW_CHANCE * aggressive * temper)) {
           this.cards.push({ day, id: f.id, name: f.name, kind: 'amarelo', minute });
           const n = (yellows.get(f.id) ?? 0) + 1;
           if (n >= YELLOWS_FOR_SUSPENSION) {
@@ -283,7 +285,7 @@ export class SquadPlan {
         if (t.kind === 'elogiar') this.morale.set(f.id, clamp(m0 + (t.ok ? 8 : 2), 0, 100));
         else if (t.kind === 'cobrar') {
           if (t.ok) this.form.set(f.id, Math.min(FORM_MAX, (this.form.get(f.id) ?? 0) + 1.5));
-          else this.morale.set(f.id, clamp(m0 - 10, 0, 100));
+          else this.morale.set(f.id, clamp(m0 - (personalityOf(f) === 'temperamental' ? 16 : 10), 0, 100));
         } else {
           this.morale.set(f.id, clamp(m0 + 12, 0, 100));
           this.promises.push({ id: f.id, name: f.name, day: t.day, left: 3 });
@@ -296,7 +298,7 @@ export class SquadPlan {
         this.form.set(f.id, Math.max(-FORM_MAX, Math.min(FORM_MAX, Math.round(next * 10) / 10)));
         const m = this.moraleOf(f);
         // quem joga anima; quem esperava jogar e fica no banco se chateia; tudo volta devagar para o normal
-        const dm = inXI.has(f.id) ? 1.5 : expects.has(f.id) ? -1.8 : -0.5;
+        const dm = inXI.has(f.id) ? 1.5 : (expects.has(f.id) ? -1.8 : -0.5) * benchFactor(personalityOf(f));
         this.morale.set(f.id, clamp(Math.round((m + dm + (MORALE_START - m) * 0.06) * 10) / 10, 0, 100));
       }
       // promessa de vaga: tem que jogar em até 3 jogos
@@ -309,7 +311,10 @@ export class SquadPlan {
         pr.left--;
         if (pr.left === 0) {
           const f = roster.find((x) => x.id === pr.id);
-          if (f) this.morale.set(f.id, clamp(this.moraleOf(f) - 25, 0, 100));
+          if (f) {
+            const jeito = personalityOf(f);
+            this.morale.set(f.id, clamp(this.moraleOf(f) - (jeito === 'temperamental' || jeito === 'ambicioso' ? 35 : jeito === 'leal' ? 15 : 25), 0, 100));
+          }
           this.broken.push({ day, id: pr.id, name: pr.name });
         }
       }

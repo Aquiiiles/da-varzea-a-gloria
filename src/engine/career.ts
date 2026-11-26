@@ -82,6 +82,7 @@ export function jobOffers(state: GameState, rng: Rng, unemployed: boolean): JobO
       personality: rng.pick(PERSONALITIES),
       contract: rng.int(2, 3),
       pitch: rng.pick(PITCH[cl.tier]),
+      wage: offerWage(state, cl.id, cl.tier),
     });
   }
   return out.sort((a, b) => a.tier - b.tier);
@@ -169,6 +170,47 @@ function toPlayerClub(c: Club, coach: PlayerClub['coach'], rivalId: string): Pla
   };
 }
 
+/** Salário de mercado de um técnico com essa reputação num clube desse nível (R$ mil por temporada). */
+export function coachMarketWage(reputation: number, tier: Tier): number {
+  return Math.round(Math.max(COACH_WAGE[starsFor(reputation)], TIERS[tier].moneyScale * 4));
+}
+
+/** Salário de uma proposta (sorteio próprio por clube, não mexe nas outras propostas). */
+export function offerWage(state: GameState, clubId: string, tier: Tier): number {
+  const r = deriveRng(state.seed, state.season, 'salario-tecnico', clubId);
+  return Math.round(coachMarketWage(state.career!.reputation, tier) * (0.9 + r.next() * 0.3));
+}
+
+/** Chance de a diretoria aceitar 25% a mais: reputação alta para o nível do clube ajuda. */
+export function wageRaiseChance(state: GameState, offer: JobOffer): number {
+  const c = state.career!;
+  const expected = REP_FOR_TIER[offer.tier];
+  const base = c.unemployed ? 0.3 : 0.45;
+  return clamp(base + (c.reputation - expected) / 50, 0.1, 0.85);
+}
+const REP_FOR_TIER: Record<Tier, number> = { 1: 75, 2: 60, 3: 48, 4: 38, 5: 28, 6: 18, 7: 8 };
+
+/** Pede 25% a mais. Deu certo: o salário sobe. Não deu: fica como está (empregado, a diretoria pode desistir). */
+export function negotiateJob(state: GameState, idx: number): string {
+  const c = state.career!;
+  const offer = c.offers[idx];
+  if (!offer) throw new Error('proposta indisponível');
+  if (offer.negotiated) throw new Error('já negociou essa proposta');
+  offer.wage ??= offerWage(state, offer.clubId, offer.tier);
+  const rng = deriveRng(state.seed, state.season, 'negocia-tecnico', offer.clubId);
+  if (rng.chance(wageRaiseChance(state, offer))) {
+    offer.wage = Math.round(offer.wage * 1.25);
+    offer.negotiated = 'ok';
+    return `${offer.club} aceita pagar mais a ${c.name}`;
+  }
+  offer.negotiated = 'fail';
+  if (!c.unemployed && rng.chance(0.35)) {
+    c.offers.splice(idx, 1);
+    return `${offer.club} não gosta do pedido de ${c.name} e retira a proposta`;
+  }
+  return `${offer.club} não aumenta a proposta para ${c.name}`;
+}
+
 /** Técnico (objeto do motor) a partir da carreira. */
 export function careerCoach(c: CoachCareer, style: CoachStyle, formation: PlayerClub['coach']['formation'], tier: Tier): PlayerClub['coach'] {
   const rating = starsFor(c.reputation);
@@ -176,7 +218,7 @@ export function careerCoach(c: CoachCareer, style: CoachStyle, formation: Player
     name: c.name,
     style,
     rating,
-    wage: Math.round(Math.max(COACH_WAGE[rating], TIERS[tier].moneyScale * 4)),
+    wage: c.wage ?? coachMarketWage(c.reputation, tier),
     age: c.age,
     formation,
     contract: c.contract,
@@ -203,6 +245,7 @@ export function takeOver(state: GameState, offer: JobOffer): void {
   state.clubs[idx].coachName = free.length > 1 ? free.splice(0, 1)[0] : personName(deriveRng(state.seed, state.season, 'tecnico-novo', target.id), taken);
   // se o rival escolhido era o próprio clube antigo (mesmo id do alvo), ele agora é o clube que saiu
   c.contract = offer.contract;
+  c.wage = offer.wage ?? offerWage(state, offer.clubId, offer.tier);
   c.board = {
     personality: offer.personality,
     confidence: BOARD_INFO[offer.personality].confidence,
@@ -332,6 +375,8 @@ export function settleCareer(state: GameState, r: SeasonResult): string[] {
   for (const it of mine) rep += it.id === 'tecnico_ano' ? 10 : 4;
   c.age++;
   c.contract--;
+  // salário da temporada vai para o bolso (demitido recebe o ano: é a multa)
+  c.earnings = (c.earnings ?? 0) + (c.wage ?? state.player.coach.wage);
 
   const club = state.player.name;
   const stint = c.stints[c.stints.length - 1];
@@ -359,7 +404,9 @@ export function settleCareer(state: GameState, r: SeasonResult): string[] {
   } else if (c.contract <= 0) {
     if (c.board.confidence >= 45) {
       c.contract = 2;
-      news.push(`${club} renova com ${c.name} por mais 2 temporadas`);
+      // renovação com aumento: 10% e o mercado pela reputação nova
+      c.wage = Math.max(Math.round((c.wage ?? state.player.coach.wage) * 1.1), coachMarketWage(c.reputation, state.player.tier));
+      news.push(`${club} renova com ${c.name} por mais 2 temporadas; salário de R$ ${Math.round((c.wage * 1000) / 12).toLocaleString('pt-BR')} por mês`);
     } else {
       leave('contrato');
       news.push(`Fim de contrato: ${club} não renova com ${c.name}`);

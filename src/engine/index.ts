@@ -33,3 +33,4 @@ export { currentInterview, answered, interviewEffects, type Interview, type Inte
 export { coachRanking, type RankingEntry } from './ranking';
 export { quickMoment } from './live';
 export { MEETING_LABEL } from './career';
+export { roundOn, tableAfter, opponentInfo, myPosition, nextMatchAfter, type RoundView, type RoundGame, type TableMove, type OpponentInfo } from './round';

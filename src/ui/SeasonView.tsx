@@ -16,7 +16,7 @@ export function shortDate(year: number, day: number): string {
   return `${String(d).padStart(2, '0')}/${String(m).padStart(2, '0')}`;
 }
 
-function longDate(year: number, day: number): string {
+export function longDate(year: number, day: number): string {
   const { d, m } = dayToDate(year, day);
   return `${WEEKDAY[weekdayOf(year, day)]}, ${d} de ${MONTH[m - 1]}`;
 }
@@ -32,7 +32,8 @@ export function calendarTicker(state: GameState): string[] {
   const cal = state.calendar;
   if (!cal || state.reveal == null) return [];
   const name = state.player.name;
-  return playedMatches(cal, state.reveal)
+  // o jogo do dia ainda pode estar sendo transmitido: o letreiro só conta até a véspera
+  return playedMatches(cal, state.reveal - 1)
     .slice(-8)
     .reverse()
     .map((m) => {
@@ -42,7 +43,7 @@ export function calendarTicker(state: GameState): string[] {
     });
 }
 
-function MatchRow({ m, year, played }: { m: CalendarMatch; year: number; played: boolean }) {
+export function MatchRow({ m, year, played }: { m: CalendarMatch; year: number; played: boolean }) {
   const r = played ? outcomeOf(m) : null;
   return (
     <li className={`cal-match${r ? ` res-${r}` : ''}`}>
@@ -62,7 +63,7 @@ function MatchRow({ m, year, played }: { m: CalendarMatch; year: number; played:
   );
 }
 
-function Tables({ cal, day, clubName }: { cal: SeasonCalendar; day: number; clubName: string }) {
+export function Tables({ cal, day, clubName }: { cal: SeasonCalendar; day: number; clubName: string }) {
   const started = cal.stages.filter((s) => stageStarted(s, day));
   const list = started.length > 0 ? started : cal.stages.slice(0, 1);
   const [pick, setPick] = useState<number | null>(null);
@@ -124,7 +125,7 @@ const ADVANCE: { to: AdvanceTo; label: string }[] = [
 
 /** Temporada em andamento: o motor já simulou tudo; aqui o presidente acompanha jogo a jogo, semana, mês ou até o fim. */
 /** Departamento médico e cansaço do elenco no dia de hoje. */
-function SquadStatus({ state, day }: { state: GameState; day: number }) {
+export function SquadStatus({ state, day }: { state: GameState; day: number }) {
   const live = state.live;
   if (!live) return null;
   const cal = state.calendar!;

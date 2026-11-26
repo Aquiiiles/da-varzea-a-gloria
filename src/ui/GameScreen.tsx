@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react';
-import { quickMoment, type GameState, type LiveMoment, type SeasonResult } from '../engine';
+import { quickMoment, roundOn, type GameState, type LiveMoment, type SeasonResult } from '../engine';
+import { CoachShell } from './coach/CoachShell';
+import { RoundLive } from './coach/RoundLive';
 import type { Dispatch } from './App';
 import { Office } from './office/Office';
 import { ResultScreen } from './ResultScreen';
@@ -91,6 +93,29 @@ export function GameScreen({ state, dispatch, onRestart, fromLink }: Props) {
     return () => clearTimeout(t);
   }, [fastFrom, state, last, dispatch]);
 
+  // modo técnico: rodada a rodada, com a barra inferior
+  const coachMode = !!state.career && !state.career.unemployed;
+  const playRound = () => {
+    const cal = state.calendar;
+    const day = state.reveal;
+    const next = cal && day != null ? cal.matches.find((m) => m.day > day) : undefined;
+    if (dispatch({ t: 'advance', to: 0 }) && next) setNarrateDay(next.day);
+  };
+  if (coachMode && running && !fast) {
+    if (narrateDay !== null && narrateDay <= state.reveal!) {
+      const round = roundOn(state, narrateDay);
+      if (round) {
+        const done = () => {
+          const special = state.live!.moments.find((x) => x.day === narrateDay);
+          if (special) setSeen(new Set([...seen, keyOf(state.season, special)]));
+          setNarrateDay(null);
+        };
+        return <RoundLive key={`rodada-${narrateDay}`} state={state} round={round} onDone={done} />;
+      }
+    }
+    return <CoachShell state={state} dispatch={dispatch} onPlayRound={playRound} onFast={() => setFast(true)} />;
+  }
+
   // jogo ao vivo: o próximo (por data) que a temporada já alcançou e ainda não foi assistido
   if (!fast && (running || state.phase === 'summary' || state.phase === 'over')) {
     const season = running ? state.season : last?.season ?? 0;
@@ -154,5 +179,6 @@ export function GameScreen({ state, dispatch, onRestart, fromLink }: Props) {
     );
   }
 
+  if (coachMode) return <CoachShell state={state} dispatch={dispatch} onPlayRound={playRound} onFast={() => setFast(true)} />;
   return <Office state={state} dispatch={dispatch} onFast={() => setFast(true)} />;
 }

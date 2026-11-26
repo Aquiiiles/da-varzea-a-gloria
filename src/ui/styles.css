@@ -1018,3 +1018,20 @@ details.panel.more summary { font: 700 12px/1.2 var(--font-display); letter-spac
 .offer-cta small { font-weight: 400; opacity: 0.8; }
 .offer-note.bad { color: var(--bad); }
 .offer-note.good { color: var(--good); }
+.pc-nota { position: absolute; top: -7px; right: -5px; min-width: 26px; padding: 1px 4px; border-radius: 6px; background: var(--panel-2); border: 1px solid var(--line); font: 700 11px var(--font-display); font-style: normal; color: var(--text); }
+.pc-nota.good { background: #123d25; color: #b8f5cf; border-color: #1f6b3a; }
+.pc-nota.bad { background: #3a1216; color: #ffc2c2; border-color: #6b1f26; }
+.notas { display: grid; gap: 6px; }
+.notas ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
+.notas li { display: grid; grid-template-columns: 34px 1fr auto auto; gap: 8px; align-items: center; font-size: 14px; }
+.notas li .n-pos { font: 700 11px var(--font-display); color: var(--muted); }
+.notas li .n-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.notas li .n-off { color: var(--muted); }
+.notas li b { font: 700 15px var(--font-display); min-width: 32px; text-align: right; }
+.notas li b.good { color: var(--good); }
+.notas li b.bad { color: var(--bad); }
+.n-fol { font-size: 11px; color: var(--muted); }
+.n-fol.bad { color: var(--bad); }
+.mvp { margin: 6px 0 0; text-align: center; font-weight: 700; }
+.pc-cap { position: absolute; top: -7px; left: -5px; width: 18px; height: 18px; border-radius: 50%; background: var(--accent); color: #111; font: 700 11px/18px var(--font-display); font-style: normal; text-align: center; }
+.roles { margin-top: 12px; }

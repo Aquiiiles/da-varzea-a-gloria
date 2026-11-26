@@ -33,10 +33,14 @@ export interface BlockState {
   mult: GoalMult;
 }
 
-/** Quem joga em blocos (o simulador da temporada liga durante a simulação; null = um bloco só). */
-let blockHook: ((home: string, away: string) => ((block: number) => BlockState) | null) | null = null;
+/** Plano de um jogo em blocos: o estado de cada bloco (com o placar até ali) e o bônus nos pênaltis [mandante, visitante]. */
+export type BlockFn = ((block: number, score: [number, number]) => BlockState) & { pens?: [number, number] };
+type BlockHook = (home: string, away: string) => BlockFn | null;
 
-export function withBlocks<T>(hook: (home: string, away: string) => ((block: number) => BlockState) | null, fn: () => T): T {
+/** Quem joga em blocos (o simulador da temporada liga durante a simulação; null = um bloco só). */
+let blockHook: BlockHook | null = null;
+
+export function withBlocks<T>(hook: BlockHook, fn: () => T): T {
   const prev = blockHook;
   blockHook = hook;
   try {
@@ -47,7 +51,7 @@ export function withBlocks<T>(hook: (home: string, away: string) => ((block: num
 }
 
 /** Tempo normal: um bloco (padrão) ou 18 blocos de 5 minutos. Devolve também as médias do fim (para a prorrogação). */
-function regulation(rng: Rng, home: string, away: string, hs: number, as: number, homeAdv: number, mult: GoalMult): { r: MatchResult; lh: number; la: number } {
+function regulation(rng: Rng, home: string, away: string, hs: number, as: number, homeAdv: number, mult: GoalMult): { r: MatchResult; lh: number; la: number; pens?: [number, number] } {
   const [lh0, la0] = goalRates(hs, as, homeAdv);
   const lh = lh0 * mult[0];
   const la = la0 * mult[1];
@@ -60,7 +64,7 @@ function regulation(rng: Rng, home: string, away: string, hs: number, as: number
   let endH = lh;
   let endA = la;
   for (let b = 0; b < BLOCKS; b++) {
-    const st = plan(b);
+    const st = plan(b, [hg, ag]);
     const [x, y] = goalRates(hs + st.delta[0], as + st.delta[1], homeAdv);
     endH = x * st.mult[0];
     endA = y * st.mult[1];
@@ -76,7 +80,7 @@ function regulation(rng: Rng, home: string, away: string, hs: number, as: number
     half[0] += blocks[b][0];
     half[1] += blocks[b][1];
   }
-  return { r: { home, away, hg, ag, half, blocks, rates }, lh: endH, la: endA };
+  return { r: { home, away, hg, ag, half, blocks, rates }, lh: endH, la: endA, pens: plan.pens };
 }
 
 export function playMatch(
@@ -104,7 +108,7 @@ export function playKnockout(
   homeAdv = BASE_HOME_ADVANTAGE,
   mult: GoalMult = [1, 1],
 ): MatchResult {
-  const { r, lh, la } = regulation(rng, home, away, hs, as, homeAdv, mult);
+  const { r, lh, la, pens: edge } = regulation(rng, home, away, hs, as, homeAdv, mult);
   if (r.hg === r.ag) {
     r.extraTime = true;
     r.reg = [r.hg, r.ag];
@@ -117,8 +121,8 @@ export function playKnockout(
     let ph = 0;
     let pa = 0;
     for (let i = 0; i < 5; i++) {
-      if (rng.chance(0.75 + (pHome - 0.5) / 2)) ph++;
-      if (rng.chance(0.75 - (pHome - 0.5) / 2)) pa++;
+      if (rng.chance(0.75 + (pHome - 0.5) / 2 + (edge?.[0] ?? 0))) ph++;
+      if (rng.chance(0.75 - (pHome - 0.5) / 2 + (edge?.[1] ?? 0))) pa++;
     }
     while (ph === pa) {
       if (rng.chance(0.75)) ph++;

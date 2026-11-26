@@ -1,6 +1,6 @@
 import { useRef, useState, type PointerEvent as ReactPointerEvent } from 'react';
 import {
-  FATIGUE_FREE, FATIGUE_REST, FORMATIONS, statusAt, STYLE_TACTIC, TACTICS, bestEleven, fatigueAt, injuredAt, lineupStrength, positionPenalty, squadStrength, suspendedOn,
+  FATIGUE_FREE, FATIGUE_REST, FORMATIONS, TIRED_AT, statusAt, STYLE_TACTIC, TACTICS, bestEleven, fatigueAt, injuredAt, lineupStrength, positionPenalty, squadStrength, suspendedOn,
   type Footballer, type Formation, type GameState, type Position, type Tactic,
 } from '../engine';
 import type { Dispatch } from './App';
@@ -31,6 +31,9 @@ function arrange(squad: readonly Footballer[], ids: number[], formation: Formati
   return out;
 }
 
+const notaTone = (r: number) => (r >= 7.5 ? 'good' : r < 5.8 ? 'bad' : '');
+const staminaColor = (v: number) => (v >= TIRED_AT ? 'var(--good)' : v >= 55 ? 'var(--warn)' : 'var(--bad)');
+
 type Spot = { kind: 'slot'; i: number } | { kind: 'bench'; id: number };
 const same = (a: Spot | null, b: Spot | null) => !!a && !!b && (a.kind === 'slot' && b.kind === 'slot' ? a.i === b.i : a.kind === 'bench' && b.kind === 'bench' && a.id === b.id);
 
@@ -50,6 +53,10 @@ export interface HalftimeMode {
   size?: number;
   /** por que cada um de `out` não pode entrar (saiu, expulso, lesionado, suspenso) */
   reasons?: Map<number, string>;
+  /** fôlego de cada um no minuto (0 a 100) */
+  stamina?: Map<number, number>;
+  /** nota no jogo até aqui */
+  ratings?: Map<number, number>;
   onConfirm: (ids: number[] | null, tactic: Tactic) => void;
 }
 
@@ -142,6 +149,7 @@ export function LineupEditor({ state, dispatch, halftime, bare }: { state: GameS
     setSelected(null);
   };
 
+  const captainId = p.roles?.captain ?? null;
   const Card = ({ f, spot, slot }: { f: Footballer; spot: Spot; slot?: Position }) => {
     const tired = fatigue[f.id] ?? 0;
     const susp = suspended.has(f.id);
@@ -163,12 +171,21 @@ export function LineupEditor({ state, dispatch, halftime, bare }: { state: GameS
           {penalty > 0 && <em className="pc-pen">-{penalty}</em>}
         </span>
         <span className="pc-name">{f.name.split(' ').slice(-1)[0]}</span>
+        {captainId === f.id && <i className="pc-cap" title="Capitão">C</i>}
         <b className="pc-ovr">
           {f.ovr}
           {Math.abs(form[f.id] ?? 0) >= 0.5 && <i className={`pc-form ${(form[f.id] ?? 0) > 0 ? 'good' : 'bad'}`}>{(form[f.id] ?? 0) > 0 ? '▲' : '▼'}</i>}
         </b>
+        {halftime?.ratings?.has(f.id) && <i className={`pc-nota ${notaTone(halftime.ratings.get(f.id)!)}`}>{halftime.ratings.get(f.id)!.toFixed(1)}</i>}
         {out ? (
           <i className="pc-flag">{halftime?.reasons?.get(f.id) ?? (susp ? 'suspenso' : 'lesionado')}</i>
+        ) : halftime?.stamina?.has(f.id) ? (
+          <span className="pc-fat" title={`fôlego ${halftime.stamina.get(f.id)}`}>
+            <span className="pc-track">
+              <i style={{ width: `${Math.max(4, halftime.stamina.get(f.id)!)}%`, background: staminaColor(halftime.stamina.get(f.id)!) }} />
+            </span>
+            <small>{halftime.stamina.get(f.id)}</small>
+          </span>
         ) : (
           <span className="pc-fat" title={`cansaço ${tired}`}>
             <span className="pc-track">

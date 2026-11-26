@@ -1,3 +1,4 @@
+import { matchStamina } from './stamina';
 import { personName } from './footballers';
 import { createRng, deriveRng, hashSeed, type Rng } from './rng';
 import type { CalendarMatch, Footballer, GameState, LiveEvent, LiveMoment, MatchResult } from './types';
@@ -39,8 +40,9 @@ export function narrate(
   squad: readonly Footballer[],
   oppSquad: readonly Footballer[] = [],
   cards?: Incident[],
+  fieldAt?: (block: number) => Footballer[],
 ): LiveEvent[] {
-  if (r.blocks) return narrateBlocks(rng0, r, playerHome, homeName, awayName, squad, oppSquad, cards ?? []);
+  if (r.blocks) return narrateBlocks(rng0, r, playerHome, homeName, awayName, squad, oppSquad, cards ?? [], fieldAt);
   const rng = rng0;
   const events: Omit<LiveEvent, 'score'>[] = [];
   const reg = r.reg ?? [r.hg, r.ag];
@@ -123,6 +125,7 @@ function narrateBlocks(
   squad: readonly Footballer[],
   oppSquad: readonly Footballer[],
   incidents: Incident[],
+  fieldAt?: (block: number) => Footballer[],
 ): LiveEvent[] {
   const base = rng0.int(1, 2 ** 30);
   const etSeed = rng0.int(1, 2 ** 30);
@@ -138,7 +141,14 @@ function narrateBlocks(
     const sides = rng.shuffle([...Array(h).fill('h'), ...Array(a).fill('a')] as ('h' | 'a')[]);
     for (const side of sides) {
       const mine = (side === 'h') === playerHome;
-      events.push({ minute: rng.int(from, to), kind: 'gol', mine, text: fill(rng.pick(GOAL), mine ? pick(rng, squad, 'o camisa 9') : pick(rng, oppSquad, oppFallback), '') });
+      const minute = rng.int(from, to);
+      if (mine) {
+        // o autor sai de quem estava em campo no bloco
+        const field = fieldAt?.(b) ?? [];
+        const list = field.length > 0 ? field : squad;
+        const who = list.length > 0 ? rng.weighted(list, (f) => SCORE_WEIGHT[f.pos] * Math.pow(1.06, f.ovr - 50)) : null;
+        events.push({ minute, kind: 'gol', mine, text: fill(rng.pick(GOAL), who?.name ?? 'o camisa 9', ''), ...(who && field.length > 0 ? { who: who.id } : {}) });
+      } else events.push({ minute, kind: 'gol', mine, text: fill(rng.pick(GOAL), pick(rng, oppSquad, oppFallback), '') });
     }
     // lances de efeito e cartões do adversário
     const rt = r.rates?.[b];
@@ -216,12 +226,13 @@ export function moment(
   squad: readonly Footballer[],
   oppSquad: (id: string) => readonly Footballer[] = () => [],
   cards?: Incident[],
+  fieldAt?: (block: number) => Footballer[],
 ): LiveMoment {
   const playerHome = r.home === playerId;
   const homeName = name(r.home);
   const awayName = name(r.away);
   const opp = playerHome ? r.away : r.home;
-  return { kind, title, stake, homeName, awayName, playerHome, result: r, events: narrate(rng, r, playerHome, homeName, awayName, squad, oppSquad(opp), cards) };
+  return { kind, title, stake, homeName, awayName, playerHome, result: r, events: narrate(rng, r, playerHome, homeName, awayName, squad, oppSquad(opp), cards, fieldAt) };
 }
 
 /**
@@ -246,7 +257,10 @@ export function quickMoment(state: GameState, m: CalendarMatch): LiveMoment {
     ...(state.live?.cards ?? []).filter((c) => c.day === m.day),
     ...(state.live?.injuries ?? []).filter((i) => i.from === m.day).map((i) => ({ name: i.name, kind: 'lesao' as const, minute: i.minute })),
   ];
-  const mo = moment(deriveRng(state.seed, state.season, 'narra', m.day), 'jogo', `${m.comp} · ${m.round}`, m.home ? 'Em casa.' : 'Fora de casa.', r, 'player', name, p.squad, () => club?.squad ?? [], cards);
+  const tl = matchStamina(state, m.day);
+  const byId = new Map(p.squad.map((f) => [f.id, f]));
+  const fieldAt = tl ? (b: number) => [...(tl[b]?.keys() ?? [])].map((id) => byId.get(id)).filter((f): f is Footballer => !!f) : undefined;
+  const mo = moment(deriveRng(state.seed, state.season, 'narra', m.day), 'jogo', `${m.comp} · ${m.round}`, m.home ? 'Em casa.' : 'Fora de casa.', r, 'player', name, p.squad, () => club?.squad ?? [], cards, fieldAt);
   mo.day = m.day;
   return mo;
 }

@@ -1,7 +1,8 @@
 import { partialTable, outcomeOf } from './calendarView';
 import { TACTICS } from '../data/club';
+import { matchStamina } from './stamina';
 import { blockStats, quickMoment, type BlockStat } from './live';
-import { deriveRng, hashSeed } from './rng';
+import { createRng, deriveRng, hashSeed } from './rng';
 import { PLAYER_ID } from './season';
 import type { CalendarMatch, CalendarStage, Club, Footballer, GameState, LiveMoment, TableRow } from './types';
 
@@ -194,3 +195,59 @@ export function nextMatchAfter(state: GameState, day: number): CalendarMatch | n
 }
 
 export { outcomeOf };
+
+
+export interface LiveRating {
+  id: number;
+  name: string;
+  pos: Footballer['pos'];
+  /** nota de 3 a 10 */
+  rating: number;
+  goals: number;
+  /** minutos em campo até agora */
+  minutes: number;
+  /** em campo neste minuto */
+  onField: boolean;
+}
+
+/**
+ * Nota de cada jogador seu até o minuto: domínio do time enquanto ele esteve em campo, gols, gols sofridos
+ * (pesa mais para goleiro e defesa), cartões, fôlego e um pouco de acaso (fixo por jogador e jogo).
+ */
+export function liveRatings(state: GameState, round: RoundView, minute: number): LiveRating[] {
+  const tl = matchStamina(state, round.day);
+  const stats = round.stats;
+  if (!tl || !stats) return [];
+  const live = state.live!;
+  const squad = new Map(state.player.squad.map((f) => [f.id, f]));
+  const lastBlock = Math.min(17, Math.floor((minute - 1) / 5));
+  const played = new Map<number, number[]>();
+  for (let b = 0; b <= lastBlock; b++) for (const id of tl[b].keys()) (played.get(id) ?? played.set(id, []).get(id)!).push(b);
+  const ids = [...played.keys()].filter((id) => squad.has(id));
+  if (ids.length === 0) return [];
+  const avg = ids.reduce((x, id) => x + squad.get(id)!.ovr, 0) / ids.length;
+  const goals = round.moment.events.filter((e) => e.kind === 'gol' && e.minute <= Math.min(minute, 90));
+  const blockOf = (min: number) => Math.min(17, Math.max(0, Math.floor((min - 1) / 5)));
+  const cards = (live.cards ?? []).filter((c) => c.day === round.day && (c.minute ?? 60) <= minute);
+  const now = tl[Math.min(18, Math.floor(minute / 5))];
+  const out: LiveRating[] = ids.map((id) => {
+    const f = squad.get(id)!;
+    const blocks = played.get(id)!;
+    const on = new Set(blocks);
+    const flow = blocks.reduce((x, b) => x + stats[b].flow, 0) / blocks.length;
+    const mine = goals.filter((g) => g.mine && on.has(blockOf(g.minute))).length;
+    const against = goals.filter((g) => !g.mine && on.has(blockOf(g.minute))).length;
+    const scored = goals.filter((g) => g.who === id).length;
+    const saves = f.pos === 'GOL' ? blocks.reduce((x, b) => x + Math.max(0, stats[b].onTarget[1] - round.moment.events.filter((g) => g.kind === 'gol' && !g.mine && blockOf(g.minute) === b).length), 0) : 0;
+    const conc = f.pos === 'GOL' || f.pos === 'DEF' ? 0.35 : f.pos === 'MEI' ? 0.15 : 0.05;
+    const yel = cards.filter((c) => c.id === id && c.kind === 'amarelo').length;
+    const red = cards.some((c) => c.id === id && c.kind === 'vermelho');
+    const stam = tl[blocks[blocks.length - 1]].get(id) ?? 100;
+    const noise = (createRng(hashSeed(state.seed, state.season, 'nota', round.day, id)).next() - 0.5) * 0.8;
+    let r = 6 + (f.ovr - avg) * 0.04 + (flow - 0.5) * 3 + scored * 1 + mine * 0.15 - against * conc + saves * 0.12 - yel * 0.3 - (red ? 1.5 : 0) - (stam < 50 ? 0.3 : 0) + noise;
+    r = 6 + (r - 6) * Math.min(1, blocks.length / 6);
+    r = Math.max(3, Math.min(10, Math.round(r * 10) / 10));
+    return { id, name: f.name, pos: f.pos, rating: r, goals: scored, minutes: Math.min(minute, blocks.length * 5), onField: !!now?.has(id) };
+  });
+  return out.sort((a, b) => b.rating - a.rating || b.goals - a.goals);
+}

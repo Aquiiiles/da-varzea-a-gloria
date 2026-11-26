@@ -1,3 +1,4 @@
+import type { Roles } from './roles';
 /** Tipos centrais do motor. Tudo serializável (sem funções), para rodar igual no cliente e no servidor. */
 
 export type Origin = 'pub' | 'fabrica' | 'youtuber';
@@ -268,6 +269,8 @@ export interface LiveEvent {
   alert?: boolean;
   text: string;
   score: [number, number];
+  /** autor do gol (seu time, jogos do técnico) */
+  who?: number;
 }
 
 export interface LiveMoment {
@@ -347,6 +350,8 @@ export interface PlayerClub extends Club {
   tactic?: Tactic;
   /** foco do treino (modo técnico; ausente = equilibrado) */
   training?: TrainingFocus;
+  /** capitão e cobradores (modo técnico; ausente = o auxiliar escolhe) */
+  roles?: Roles;
 }
 
 /** Foco do treino semanal (modo técnico). */
@@ -445,6 +450,7 @@ export type Action =
   | { t: 'lineup'; ids: number[] | null; rotate: boolean } // técnico: escalação (null = os melhores)
   | { t: 'watch'; id: number } // lista de observação: marcar ou desmarcar um jogador de outro clube
   | { t: 'training'; focus: TrainingFocus } // foco do treino (modo técnico)
+  | { t: 'roles'; roles: Roles } // capitão e cobradores (modo técnico)
   | { t: 'talk'; id: number; kind: TalkKind } // conversa com um jogador (modo técnico)
   | { t: 'precontract'; accept: boolean } // proposta no meio da temporada (pré-contrato)
   | { t: 'halftime'; day: number; minute?: number; ids: number[] | null; tactic?: Tactic } // durante o jogo: substituições e estratégia a partir do minuto
@@ -735,6 +741,8 @@ export interface LineupEntry {
   tactic?: Tactic;
   /** foco do treino valendo a partir deste dia */
   training?: TrainingFocus;
+  /** capitão e cobradores escolhidos */
+  roles?: Roles;
 }
 
 /** Mudança no elenco durante a temporada (janela do meio do ano). */
@@ -883,6 +891,8 @@ export interface CalendarMatch {
   blocks?: [number, number][];
   /** média de gols por bloco [a favor, contra] */
   rates?: [number, number][];
+  /** cansaço de cada jogador antes do jogo (modo técnico; para o fôlego ao vivo) */
+  pre?: Record<number, number>;
 }
 
 export interface SeasonCalendar {
@@ -896,3 +906,5 @@ export interface SeasonCalendar {
   matches: CalendarMatch[];
   clubNames: Record<string, string>;
 }
+
+export type { Roles } from './roles';

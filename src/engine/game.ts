@@ -1,3 +1,4 @@
+import type { Roles } from './roles';
 import { personalityOf, scoldThreshold } from './personality';
 import { EVENTS, EVENT_CHANCE } from '../data/events';
 import { OPPORTUNITIES } from '../data/opportunities';
@@ -386,6 +387,11 @@ function applyAction(state: GameState, a: Action): void {
     case 'watch':
       toggleWatch(state, a.id);
       return;
+    case 'roles': {
+      if (!career) fail('as funções são com o técnico');
+      setRoles(p, a.roles);
+      return;
+    }
     case 'training': {
       if (!career) fail('o treino é com o técnico');
       p.training = a.focus;
@@ -769,7 +775,7 @@ function applyAction(state: GameState, a: Action): void {
       state.live = {
         startSquad: structuredClone(p.squad),
         changes: [],
-        lineups: [{ day: -1, ids: p.lineup?.ids ?? null, rotate: p.lineup?.rotate ?? true, formation: p.coach.formation, tactic: p.tactic, training: p.training }],
+        lineups: [{ day: -1, ids: p.lineup?.ids ?? null, rotate: p.lineup?.rotate ?? true, formation: p.coach.formation, tactic: p.tactic, training: p.training, ...(p.roles ? { roles: { ...p.roles } } : {}) }],
         moments: [],
         injuries: [],
         fatigue: [],
@@ -1004,9 +1010,10 @@ function midSeason(state: GameState, a: Action): void {
     preview(state);
     return;
   }
-  if (a.t === 'lineup' || a.t === 'formation' || a.t === 'tactic' || a.t === 'training') {
+  if (a.t === 'lineup' || a.t === 'formation' || a.t === 'tactic' || a.t === 'training' || a.t === 'roles') {
     if (!state.career) fail('a escalação é com o técnico');
     if (a.t === 'lineup') setLineup(p, a);
+    else if (a.t === 'roles') setRoles(p, a.roles);
     else if (a.t === 'training') {
       if ((p.training ?? 'equilibrado') === a.focus) fail('já é o treino atual');
       p.training = a.focus;
@@ -1017,7 +1024,7 @@ function midSeason(state: GameState, a: Action): void {
       if (p.coach.formation === a.f) fail('já é o esquema atual');
       p.coach.formation = a.f;
     }
-    live.lineups.push({ day, ids: p.lineup?.ids ?? null, rotate: p.lineup?.rotate ?? true, formation: p.coach.formation, tactic: p.tactic, training: p.training });
+    live.lineups.push({ day, ids: p.lineup?.ids ?? null, rotate: p.lineup?.rotate ?? true, formation: p.coach.formation, tactic: p.tactic, training: p.training, ...(p.roles ? { roles: { ...p.roles } } : {}) });
     preview(state);
     return;
   }
@@ -1174,3 +1181,9 @@ export function replay(seed: number, foundation: Foundation, actions: readonly A
   return state;
 }
 
+
+/** Capitão e cobradores: só jogadores do elenco. */
+function setRoles(p: GameState['player'], r: Roles): void {
+  for (const id of [r.captain, r.pens, r.fk]) if (id != null && !p.squad.some((f) => f.id === id)) fail('jogador não está no elenco');
+  p.roles = { captain: r.captain ?? null, pens: r.pens ?? null, fk: r.fk ?? null };
+}

@@ -209,6 +209,11 @@ export function simulateSeason(state: GameState): SeasonResult {
     (id) => (id === PLAYER ? p.coach.formation : '4-4-2'),
     (day) => plan.at(day).xi,
   );
+  // artilharia das ligas do jogador durante a temporada
+  const NAT_KEY = { 1: 'serie-a', 2: 'serie-b', 3: 'serie-c', 4: 'serie-d' } as const;
+  const STATE_KEY = { A: 'est-a', B: 'est-b', V: 'varzea' } as const;
+  if (p.national) stats.logComps.add(NAT_KEY[p.national]);
+  if (p.stateDiv) stats.logComps.add(STATE_KEY[p.stateDiv]);
   let pass: 1 | 2 = 1;
   const pass1Days: number[] = [];
   const env = (label: CalendarKey, target?: Tier, track?: [CompId, string]): CompEnv & CupEnv => {
@@ -468,6 +473,13 @@ export function simulateSeason(state: GameState): SeasonResult {
     state.live.elevens = [...new Set(state.calendar!.matches.map((m) => m.day))].map((d) => ({ day: d, ids: plan.at(d).xi.map((f) => f.id) }));
     state.live.cards = plan.cards.map((c) => ({ ...c }));
     state.live.status = plan.statusLog;
+    const people: Record<number, [string, string]> = {};
+    for (const [, , id] of stats.log) {
+      if (people[id]) continue;
+      const who = stats.people.get(id);
+      if (who) people[id] = [who.f.name, who.clubId === PLAYER ? p.name : nameOf(who.clubId)];
+    }
+    state.live.stats = { log: stats.log, people };
     state.live.suspensions = plan.suspensions.map((x) => ({ ...x }));
   }
 

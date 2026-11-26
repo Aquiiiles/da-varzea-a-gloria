@@ -697,6 +697,8 @@ export interface LiveSeason {
   elevens: { day: number; ids: number[] }[];
   /** mudanças no intervalo (modo técnico): novo time em campo e/ou estratégia para o 2º tempo */
   halftimes?: HalftimeChange[];
+  /** estatísticas por jogo (artilharia, assistências e notas durante a temporada) */
+  stats?: { log: [number, string, number, number, number, number][]; people: Record<number, [string, string]> };
   /** forma e moral de cada jogador depois de cada jogo (prévia) */
   status?: { day: number; form: Record<number, number>; morale: Record<number, number> }[];
   /** cartões e suspensões do clube (prévia) */

@@ -26,7 +26,7 @@ export { advanceTarget } from './game';
 export { myAwards } from './awards';
 export { BOARD_INFO, CAREER_END_AGE, CAREER_START_AGE, isCoachMode, starsFor, tierForReputation } from './career';
 export { COACH_LEVELS } from './score';
-export { injuredAt, fatigueAt, suspendedOn, hangingAt, statusAt } from './calendarView';
+export { injuredAt, fatigueAt, suspendedOn, hangingAt, statusAt, statsUpTo, COMP_STATS_KEY, type StatLine } from './calendarView';
 export { MORALE_LOW, MORALE_HIGH, MORALE_START } from './squadplan';
 export { MAX_SUBS } from './game';
 export { julyWindow } from './calendar';

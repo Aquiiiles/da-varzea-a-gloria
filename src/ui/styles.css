@@ -814,3 +814,19 @@ h3 { font: 700 14px/1.2 var(--font-display); text-transform: uppercase; letter-s
 .todo-good { border-left-color: var(--good); }
 .form-arrow { font: 700 11px var(--font-display); }
 .pc-form { font-style: normal; font-size: 9px; margin-left: 2px; vertical-align: top; }
+.leaders td:first-child { width: 24px; color: var(--muted); }
+.leaders td:last-child, .leaders th:last-child { text-align: right; }
+.my-stats td:first-child { width: auto; color: var(--text); }
+.my-stats td:nth-child(n + 2), .my-stats th:nth-child(n + 2) { text-align: center; }
+.th-sort { background: none; border: 0; padding: 0; color: var(--muted); font-weight: 600; }
+.th-sort.is-on { color: var(--accent); }
+.cup-path { list-style: none; margin: 0; padding: 0 0 0 14px; border-left: 2px solid var(--line); display: flex; flex-direction: column; gap: 8px; }
+.cp-step { position: relative; display: grid; grid-template-columns: 1fr auto auto; grid-template-areas: 'round score badge' 'opp score badge'; column-gap: 8px; align-items: center; }
+.cp-step::before { content: ''; position: absolute; left: -20px; top: 6px; width: 10px; height: 10px; border-radius: 50%; background: var(--line); }
+.cp-up::before { background: var(--good); }
+.cp-out::before { background: var(--bad); }
+.cp-round { grid-area: round; font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; }
+.cp-opp { grid-area: opp; font-weight: 600; }
+.cp-score { grid-area: score; font: 700 15px var(--font-display); }
+.cp-step .res-badge { grid-area: badge; }
+.cp-status { margin: 10px 0 0; font-weight: 700; }

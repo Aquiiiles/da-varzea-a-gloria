@@ -164,3 +164,18 @@ describe('forma e moral individual (técnico)', () => {
     expect(s.live!.status ?? []).toHaveLength(0);
   });
 });
+
+describe('estatísticas durante a temporada', () => {
+  it('gols do seu time até hoje batem com o placar dos jogos mostrados; nada do futuro', async () => {
+    const { statsUpTo } = await import('../../src/engine/calendarView');
+    let s = season(21);
+    for (let i = 0; i < 8; i++) s = apply(s, { t: 'advance', to: 0 });
+    const day = s.reveal!;
+    const mine = statsUpTo(s.live!, day).filter((l) => l.club === s.player.name);
+    const goals = mine.reduce((sum, l) => sum + l.goals, 0);
+    const scored = s.calendar!.matches.filter((m) => m.day <= day).reduce((sum, m) => sum + m.gf, 0);
+    expect(goals).toBe(scored);
+    expect(s.live!.stats!.log.some(([d]) => d > day)).toBe(true); // o futuro existe na prévia, mas não entra
+    expect(statsUpTo(s.live!, day).every((l) => l.apps > 0)).toBe(true);
+  });
+});

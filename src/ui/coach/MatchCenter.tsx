@@ -1,13 +1,14 @@
 import { useState } from 'react';
 import {
-  START_YEAR, STYLE_TACTIC, TACTICS, hangingAt, ultimatumStatus, injuredAt, suspendedOn, julyWindow, nextMatchAfter, offerOpen, opponentInfo, outcomeOf, playedMatches, teamStrength, weekdayOf,
+  SQUAD_MIN, START_YEAR, STYLE_TACTIC, TACTICS, YOUTH_AGE_LIMIT, hangingAt, moodLabel, payroll, ultimatumStatus, injuredAt, suspendedOn, julyWindow, nextMatchAfter, offerOpen, opponentInfo, outcomeOf, playedMatches, teamStrength, weekdayOf,
   type GameState, type Tactic,
 } from '../../engine';
 import type { Dispatch } from '../App';
 import { Crest } from '../Crest';
 import { money } from '../format';
 import { InterviewCard } from '../InterviewCard';
-import { OverviewTab } from '../office/OverviewTab';
+import { JobOffers } from '../office/CareerTab';
+import { SaleOfferCard } from '../office/OfferCards';
 import type { TabId } from '../office/Office';
 import { MatchRow, SquadStatus, shortDate } from '../SeasonView';
 import { JobOfferCard } from '../office/OfferCards';
@@ -29,10 +30,87 @@ export function MatchCenter(props: Props) {
   return running ? <Matchday {...props} /> : <Preseason {...props} />;
 }
 
-function Preseason({ state, dispatch, goTo, onFast }: Props) {
+/** Pendência da pré-temporada: um cartão curto com o atalho para resolver. */
+function Todo({ title, text, action, onClick, tone }: { title: string; text: string; action: string; onClick: () => void; tone?: 'bad' | 'warn' | 'good' }) {
   return (
-    <>
-      <OverviewTab state={state} dispatch={dispatch} goTo={goTo} />
+    <li className={`todo${tone ? ` todo-${tone}` : ''}`}>
+      <div>
+        <strong>{title}</strong>
+        <small>{text}</small>
+      </div>
+      <button type="button" className="btn btn-small" onClick={onClick}>
+        {action}
+      </button>
+    </li>
+  );
+}
+
+function Preseason({ state, dispatch, goTo, onFast }: Props) {
+  const p = state.player;
+  const o = state.office;
+  const c = state.career!;
+  const offers = o.offers.filter((x) => x && offerOpen(state, x));
+  const leaving = p.squad.filter((f) => f.intent === 'aposenta' || (f.contract === 1 && (f.intent === 'sai' || f.intent === 'clube_maior')));
+  const lastYear = p.squad.filter((f) => f.contract === 1 && !leaving.includes(f));
+  const aging = p.youth.filter((y) => y.age >= YOUTH_AGE_LIMIT);
+  const main = o.objectives.find((x) => x.main);
+  const bonus = o.objectives.filter((x) => !x.main);
+  return (
+    <div className="tab-stack">
+      {o.extraordinary && (
+        <section className={`panel extra ${o.extraordinary.good ? 'extra-good' : 'extra-bad'}`}>
+          <p className="kicker">Plantão extraordinário</p>
+          <h2 className="headline">{o.extraordinary.title}</h2>
+          <p className="lede">{o.extraordinary.text}</p>
+        </section>
+      )}
+
+      <section className="panel goals">
+        <p className="kicker">Temporada {START_YEAR + state.season - 1}</p>
+        {main && <p className="goal-main">{main.text}</p>}
+        {bonus.length > 0 && <p className="muted">{bonus.map((b) => b.text).join(' · ')}</p>}
+        <div className="meter mood-meter" aria-label={`Torcida ${p.mood} de 100`}>
+          <span className="meter-fill" style={{ width: `${p.mood}%`, background: p.mood < 25 ? 'var(--bad)' : p.mood < 45 ? 'var(--warn)' : 'var(--good)' }} />
+        </div>
+        <small className="muted">
+          Torcida {p.mood}/100 · {moodLabel(p.mood)}
+          {p.continental ? ` · ${p.continental === 'cc' ? 'Libertadores' : 'Sul-Americana'}` : ''}
+          {p.worldCup ? ' · Mundial' : ''}
+        </small>
+      </section>
+
+      <section className="panel">
+        <p className="kicker">Antes de começar</p>
+        <ul className="todos">
+          {c.offers.length > 0 && <Todo title={`${c.offers.length} clube${c.offers.length > 1 ? 's querem' : ' quer'} você`} text="Propostas de emprego para esta temporada." action="Ver" onClick={() => document.getElementById('job-offers')?.scrollIntoView({ behavior: 'smooth' })} tone="good" />}
+          {offers.length > 0 && <Todo title={`${offers.length} proposta${offers.length > 1 ? 's' : ''} por jogadores`} text="Aceite, negocie ou recuse abaixo." action="Ver" onClick={() => document.getElementById('sale-offers')?.scrollIntoView({ behavior: 'smooth' })} tone="warn" />}
+          {leaving.length > 0 && <Todo title={`${leaving.length} saída${leaving.length > 1 ? 's' : ''} no fim do ano`} text={leaving.map((f) => f.name.split(' ').slice(-1)[0]).join(', ')} action="Elenco" onClick={() => goTo('elenco')} tone="bad" />}
+          {lastYear.length > 0 && <Todo title={`${lastYear.length} no último ano de contrato`} text="Renovam sozinhos se você não liberar." action="Elenco" onClick={() => goTo('elenco')} />}
+          {aging.length > 0 && <Todo title={`${aging.length} garoto${aging.length > 1 ? 's' : ''} no limite da base`} text="Promova ou eles vão embora." action="Base" onClick={() => goTo('base')} tone="warn" />}
+          {!o.meeting && <Todo title="Reunião com a diretoria" text="Peça verba, um reforço ou estrutura (uma por janela)." action="Diretoria" onClick={() => goTo('diretoria')} />}
+          <Todo title={`Verba: ${money(c.board.budget)}`} text={`Folha ${money(payroll(p))} de ${money(c.board.wageCap)} por ano.`} action="Mercado" onClick={() => goTo('mercado')} />
+          <Todo title={`Escalação ${p.lineup?.ids ? 'escolhida por você' : 'automática'}`} text={`${p.coach.formation} · ${TACTICS[p.tactic ?? STYLE_TACTIC[p.coach.style]].label}`} action="Escalar" onClick={() => goTo('elenco')} />
+        </ul>
+      </section>
+
+      {c.offers.length > 0 && (
+        <div id="job-offers">
+          <JobOffers state={state} dispatch={dispatch} title="Propostas de emprego" />
+        </div>
+      )}
+
+      {offers.length > 0 && (
+        <section className="panel" id="sale-offers">
+          <p className="kicker">Propostas pelos seus jogadores</p>
+          <div className="offer-grid">
+            {o.offers.map((of, idx) => {
+              if (!of || !offerOpen(state, of)) return null;
+              const f = p.squad.find((x) => x.id === of.playerId);
+              return f ? <SaleOfferCard key={`${idx}-${of.fee}`} state={state} offer={of} f={f} idx={idx} dispatch={dispatch} disabled={p.squad.length <= SQUAD_MIN} /> : null;
+            })}
+          </div>
+        </section>
+      )}
       <div className="playbar coach-playbar">
         <button type="button" className="btn" onClick={() => dispatch({ t: 'auto' })} title="O auxiliar faz contratações, renovações e cuida da base">
           Auxiliar decide
@@ -44,7 +122,7 @@ function Preseason({ state, dispatch, goTo, onFast }: Props) {
           Começar {START_YEAR + state.season - 1}
         </button>
       </div>
-    </>
+    </div>
   );
 }
 

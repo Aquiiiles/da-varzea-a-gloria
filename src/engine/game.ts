@@ -804,6 +804,8 @@ function preview(state: GameState): void {
   live.fatigue = clone.live!.fatigue;
   live.elevens = clone.live!.elevens;
   live.cards = clone.live!.cards;
+  live.status = clone.live!.status;
+  live.stats = clone.live!.stats;
   live.suspensions = clone.live!.suspensions;
 }
 

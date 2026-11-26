@@ -84,6 +84,8 @@ export interface Footballer {
   loan?: { clubId: string; club: string; wage: number };
   /** veio do exterior (craque estrangeiro) */
   foreign?: string;
+  /** moral (0–100), guardada de uma temporada para a outra (modo técnico) */
+  morale?: number;
   /** fora a temporada inteira por lesão grave (fica em onLoan, o clube paga o salário, não evolui) */
   recovering?: boolean;
   /** intenção para o fim da temporada (decidida na abertura da janela, visível para o presidente) */
@@ -593,6 +595,10 @@ export interface CareerStint {
   tier: Tier;
   /** por que saiu */
   exit?: 'demitido' | 'proposta' | 'contrato';
+  /** campanha no clube (vitórias, empates, derrotas) */
+  w?: number;
+  d?: number;
+  l?: number;
 }
 
 /** Carreira do técnico (modo técnico). */
@@ -618,6 +624,24 @@ export interface CoachCareer {
   midOffer?: { offer: JobOffer; until: number; answered?: boolean } | null;
   /** pré-contrato assinado: assume esse clube na próxima temporada */
   agreed?: JobOffer | null;
+  /** números e recordes da carreira */
+  record?: CoachRecord;
+}
+
+/** Números da carreira do técnico (todas as competições). */
+export interface CoachRecord {
+  games: number;
+  w: number;
+  d: number;
+  l: number;
+  gf: number;
+  ga: number;
+  /** maior vitória */
+  bestWin: { gf: number; ga: number; opp: string; club: string; year: number } | null;
+  /** maior sequência invicta e a sequência atual */
+  bestUnbeaten: number;
+  unbeaten: number;
+  titles: { name: string; club: string; year: number }[];
 }
 
 /** Ultimato: vencer `needWins` dos próximos `games` jogos, contando a partir do jogo `from` (índice no calendário). */
@@ -695,6 +719,10 @@ export interface LiveSeason {
   elevens: { day: number; ids: number[] }[];
   /** mudanças no intervalo (modo técnico): novo time em campo e/ou estratégia para o 2º tempo */
   halftimes?: HalftimeChange[];
+  /** estatísticas por jogo (artilharia, assistências e notas durante a temporada) */
+  stats?: { log: [number, string, number, number, number, number][]; people: Record<number, [string, string]> };
+  /** forma e moral de cada jogador depois de cada jogo (prévia) */
+  status?: { day: number; form: Record<number, number>; morale: Record<number, number> }[];
   /** cartões e suspensões do clube (prévia) */
   cards?: { day: number; id: number; name: string; kind: 'amarelo' | 'vermelho' }[];
   suspensions?: { day: number; id: number; name: string; why: 'amarelos' | 'vermelho' }[];

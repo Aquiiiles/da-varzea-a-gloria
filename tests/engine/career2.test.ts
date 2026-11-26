@@ -95,3 +95,19 @@ describe('dança dos técnicos', () => {
     expect(rows.filter((r) => r.me)).toHaveLength(1);
   });
 });
+
+describe('números da carreira', () => {
+  it('soma jogos, campanha e títulos de cada temporada', () => {
+    let s = apply(newGame(6, COACH), { t: 'job', idx: 0 });
+    for (let i = 0; i < 2; i++) {
+      if (s.career!.unemployed) s = apply(s, { t: 'job', idx: 0 });
+      s = apply(apply(s, { t: 'play' }), { t: 'next' });
+    }
+    const rec = s.career!.record!;
+    expect(rec.games).toBeGreaterThan(10);
+    expect(rec.w + rec.d + rec.l).toBe(rec.games);
+    expect(rec.bestUnbeaten).toBeGreaterThanOrEqual(rec.unbeaten);
+    const stintGames = s.career!.stints.reduce((sum, st) => sum + (st.w ?? 0) + (st.d ?? 0) + (st.l ?? 0), 0);
+    expect(stintGames).toBe(rec.games);
+  });
+});

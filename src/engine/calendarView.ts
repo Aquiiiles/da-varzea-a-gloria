@@ -79,3 +79,46 @@ export function hangingAt(live: LiveSeason, day: number): { id: number; name: st
   }
   return [...count.entries()].filter(([, v]) => v.n === 2).map(([id, v]) => ({ id, name: v.name }));
 }
+
+/** Forma e moral de cada jogador no dia `day` (depois do último jogo até ali). */
+export function statusAt(live: LiveSeason, day: number): { form: Record<number, number>; morale: Record<number, number> } {
+  let last: NonNullable<LiveSeason['status']>[number] | null = null;
+  for (const s of live.status ?? []) if (s.day <= day) last = s;
+  return last ? { form: last.form, morale: last.morale } : { form: {}, morale: {} };
+}
+
+/** Chave da competição nas estatísticas (a mesma do calendário). */
+export const COMP_STATS_KEY: Record<string, string> = {
+  serie_a: 'serie-a', serie_b: 'serie-b', serie_c: 'serie-c', serie_d: 'serie-d', estadual_a: 'est-a', estadual_b: 'est-b', varzea: 'varzea',
+};
+
+export interface StatLine {
+  id: number;
+  name: string;
+  club: string;
+  apps: number;
+  goals: number;
+  assists: number;
+  /** nota média */
+  rating: number;
+}
+
+/** Estatísticas somadas até o dia `day` (de uma competição ou de todas). */
+export function statsUpTo(live: LiveSeason, day: number, comp?: string): StatLine[] {
+  const s = live.stats;
+  if (!s) return [];
+  const acc = new Map<number, StatLine & { sum: number }>();
+  for (const [d, c, id, g, a, r] of s.log) {
+    if (d > day || (comp && c !== comp)) continue;
+    let x = acc.get(id);
+    if (!x) {
+      const [name, club] = s.people[id] ?? ['?', '?'];
+      acc.set(id, (x = { id, name, club, apps: 0, goals: 0, assists: 0, rating: 0, sum: 0 }));
+    }
+    x.apps++;
+    x.goals += g;
+    x.assists += a;
+    x.sum += r / 10;
+  }
+  return [...acc.values()].map(({ sum, ...x }) => ({ ...x, rating: x.apps > 0 ? Math.round((sum / x.apps) * 10) / 10 : 0 }));
+}

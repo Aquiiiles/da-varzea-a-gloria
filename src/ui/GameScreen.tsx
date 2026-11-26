@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { quickMoment, roundOn, type GameState, type LiveMoment, type SeasonResult } from '../engine';
 import { CoachShell } from './coach/CoachShell';
 import { RoundLive } from './coach/RoundLive';
+import { CoachSummary, SeasonMoment, bigMoment } from './coach/SeasonEnd';
 import type { Dispatch } from './App';
 import { Office } from './office/Office';
 import { ResultScreen } from './ResultScreen';
@@ -69,6 +70,7 @@ export function GameScreen({ state, dispatch, onRestart, fromLink }: Props) {
 
   /** temporada cuja cerimônia de prêmios já foi vista (ao abrir um save já terminado, conta como vista) */
   const [awardsSeen, setAwardsSeen] = useState<number>(() => (state.phase === 'season' ? 0 : state.history.at(-1)?.season ?? 0));
+  const [momentSeen, setMomentSeen] = useState<number>(() => (state.phase === 'season' ? 0 : state.history.at(-1)?.season ?? 0));
 
   // modo rápido: o assistente gere e joga até algo decisivo (novo) acontecer
   useEffect(() => {
@@ -160,12 +162,22 @@ export function GameScreen({ state, dispatch, onRestart, fromLink }: Props) {
     );
   }
 
+  // modo técnico: o grande momento da temporada (título, acesso, queda, demissão) em tela cheia, antes dos prêmios
+  if (state.career && last && momentSeen < last.season && !fast && state.phase === 'summary') {
+    const big = bigMoment(state, last);
+    if (big) return <SeasonMoment state={state} result={last} moment={big} onDone={() => setMomentSeen(last.season)} />;
+  }
+
   // cerimônia de prêmios (uma vez por temporada, antes do balanço; o modo rápido pula)
   if (last?.awards && awardsSeen < last.season && !fast && (state.phase === 'summary' || state.phase === 'over')) {
     return <AwardsCeremony result={last} onDone={() => setAwardsSeen(last.season)} />;
   }
 
   if (state.phase === 'over') return <ResultScreen state={state} onRestart={onRestart} fromLink={fromLink} />;
+
+  if (state.phase === 'summary' && last && state.career && !fast) {
+    return <CoachSummary key={last.season} state={state} result={last} onNext={() => dispatch({ t: 'next' })} />;
+  }
 
   if (state.phase === 'summary' && last) {
     return (

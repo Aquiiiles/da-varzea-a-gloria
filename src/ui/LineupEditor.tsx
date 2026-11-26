@@ -1,6 +1,6 @@
 import { useRef, useState, type PointerEvent as ReactPointerEvent } from 'react';
 import {
-  FATIGUE_FREE, FATIGUE_REST, FORMATIONS, STYLE_TACTIC, TACTICS, bestEleven, fatigueAt, injuredAt, suspendedOn,
+  FATIGUE_FREE, FATIGUE_REST, FORMATIONS, statusAt, STYLE_TACTIC, TACTICS, bestEleven, fatigueAt, injuredAt, suspendedOn,
   type Footballer, type Formation, type GameState, type Position, type Tactic,
 } from '../engine';
 import type { Dispatch } from './App';
@@ -56,6 +56,7 @@ export function LineupEditor({ state, dispatch, halftime }: { state: GameState; 
   const nextDay = state.calendar?.matches.find((m) => m.day > day)?.day;
   const suspended = new Set(!halftime && live && nextDay !== undefined ? suspendedOn(live, nextDay).map((s) => s.id) : []);
   const fatigue = live ? fatigueAt(live, day) : {};
+  const form = live ? statusAt(live, day).form : {};
   const formation = p.coach.formation;
   const slotPos = slotsOf(formation);
   const current = p.lineup?.ids ?? null;
@@ -144,7 +145,10 @@ export function LineupEditor({ state, dispatch, halftime }: { state: GameState; 
       >
         <span className={`pc-pos${offPos ? ' bad' : ''}`}>{f.pos}</span>
         <span className="pc-name">{f.name.split(' ').slice(-1)[0]}</span>
-        <b className="pc-ovr">{f.ovr}</b>
+        <b className="pc-ovr">
+          {f.ovr}
+          {Math.abs(form[f.id] ?? 0) >= 0.5 && <i className={`pc-form ${(form[f.id] ?? 0) > 0 ? 'good' : 'bad'}`}>{(form[f.id] ?? 0) > 0 ? '▲' : '▼'}</i>}
+        </b>
         {out ? <i className="pc-flag">{susp ? 'suspenso' : 'lesionado'}</i> : tired > FATIGUE_FREE ? <i className="pc-tired" style={{ width: `${tired}%`, background: tired >= FATIGUE_REST ? 'var(--bad)' : 'var(--warn)' }} /> : null}
       </button>
     );

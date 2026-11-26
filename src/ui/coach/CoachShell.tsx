@@ -2,9 +2,10 @@ import { useState, type ReactNode } from 'react';
 import { BOARD_INFO, START_YEAR, julyWindow, myPosition, ultimatumStatus, type GameState } from '../../engine';
 import type { Dispatch } from '../App';
 import { Crest } from '../Crest';
+import { Ticker, tickerItems } from '../Ticker';
 import { tierLabel } from '../format';
 import { CoachStatusBar, type TabId, type TabProps } from '../office/Office';
-import { SquadTab } from '../office/SquadTab';
+import { SquadTable } from './SquadTable';
 import { YouthTab } from '../office/YouthTab';
 import { MarketTab } from '../office/MarketTab';
 import { BoardTab, CareerTab } from '../office/CareerTab';
@@ -73,7 +74,7 @@ export function CoachShell({ state, dispatch, onPlayRound, onFast }: Props) {
             value={sub.elenco}
             onChange={(v) => setSub({ ...sub, elenco: v })}
             items={[
-              ['elenco', 'Elenco', <SquadTab key="e" {...props} />],
+              ['elenco', 'Elenco', <SquadTable key="e" state={state} dispatch={dispatch} />],
               ['escalacao', 'Escalação', <section key="l" className="panel"><LineupEditor key={`${state.reveal}-${JSON.stringify(state.player.lineup)}-${state.player.coach.formation}`} state={state} dispatch={dispatch} /></section>],
               ['base', 'Base', <YouthTab key="b" {...props} />],
             ]}
@@ -167,6 +168,7 @@ function CoachHeader({ state }: { state: GameState }) {
           </span>
         )}
       </button>
+      <Ticker items={tickerItems(state)} />
       {open && <CoachStatusBar state={state} />}
     </header>
   );

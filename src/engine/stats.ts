@@ -73,6 +73,13 @@ export class SeasonStats {
   private totalCache: Map<number, PlayerStat> | null = null;
   readonly people = new Map<number, StatPerson>();
   private readonly xi = new Map<string, Eleven>();
+  /**
+   * Registro por jogo (para mostrar estatísticas durante a temporada sem estragar surpresa):
+   * [dia, competição, id do jogador, gols, assistências, nota x10]. Do clube do jogador entra tudo;
+   * dos outros, só quem marcou ou deu assistência nas competições em `logComps`.
+   */
+  readonly log: [number, string, number, number, number, number][] = [];
+  logComps = new Set<string>();
 
   constructor(
     private readonly squadOf: (clubId: string) => readonly Footballer[] | null,
@@ -167,6 +174,10 @@ export class SeasonStats {
         st.goals += goals[i];
         st.assists += assists[i];
         st.rating += r;
+        if (clubId === 'player' || (this.logComps.has(comp) && (goals[i] > 0 || assists[i] > 0))) {
+          if (!this.people.has(f.id)) this.people.set(f.id, { f, clubId });
+          this.log.push([m.day ?? 0, comp, f.id, goals[i], assists[i], Math.round(r * 10)]);
+        }
       }
     }
   }

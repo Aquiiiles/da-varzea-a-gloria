@@ -167,6 +167,7 @@ export function newGame(seed: number, foundation: Foundation, opts: GameOptions 
     };
   }
   startSeason(state);
+  tagNews(state);
   return state;
 }
 
@@ -315,6 +316,20 @@ export function canApply(state: GameState, action: Action): boolean {
 }
 
 export function applyMut(state: GameState, a: Action): void {
+  // saves antigos: as notícias que já existiam ficam sem temporada (0)
+  state.newsSeasons ??= state.news.map(() => 0);
+  applyAction(state, a);
+  tagNews(state);
+}
+
+/** Marca a temporada das notícias novas (o jornal agrupa por temporada). */
+function tagNews(state: GameState): void {
+  const tags = (state.newsSeasons ??= []);
+  if (tags.length > state.news.length) tags.length = state.news.length;
+  for (let i = tags.length; i < state.news.length; i++) tags.push(state.season);
+}
+
+function applyAction(state: GameState, a: Action): void {
   const p = state.player;
   const o = state.office;
   if (a.t === 'advance') {
@@ -338,6 +353,7 @@ export function applyMut(state: GameState, a: Action): void {
     if (state.phase !== 'summary') fail('não há resumo aberto');
     state.reveal = null;
     state.calendar = null;
+    tagNews(state); // o que saiu no fim da temporada é desta temporada
     state.season++;
     state.phase = 'office';
     startSeason(state);

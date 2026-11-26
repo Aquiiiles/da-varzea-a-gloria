@@ -750,6 +750,8 @@ export interface GameState {
   seenOnce: string[];
   history: SeasonResult[];
   news: string[];
+  /** temporada de cada notícia (mesmo índice de `news`) */
+  newsSeasons?: number[];
   over: null | 'falencia' | 'fim';
   serial: number;
   /** calendário da última temporada simulada (só a atual; não vai para o histórico) */

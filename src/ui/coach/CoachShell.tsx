@@ -8,30 +8,35 @@ import { CoachStatusBar, type TabId, type TabProps } from '../office/Office';
 import { SquadTable } from './SquadTable';
 import { YouthTab } from '../office/YouthTab';
 import { MarketTab } from '../office/MarketTab';
-import { BoardTab, CareerTab } from '../office/CareerTab';
-import { NewsTab } from '../office/NewsTab';
+import { BoardTab, CareerRecordSection, CareerTab, CoachMovesSection, CoachRankingSection } from '../office/CareerTab';
 import { TrophyRoom } from '../TrophyRoom';
 import { LineupEditor } from '../LineupEditor';
 import { MatchCenter } from './MatchCenter';
+import { SaveTab } from './SaveTab';
+import { TrainingPicker } from './TrainingPicker';
 import { CareerTimeline } from './CareerTimeline';
 import { TableTab } from './TableTab';
 import { shortDate } from '../SeasonView';
 
-export type CoachTab = 'jogo' | 'elenco' | 'tabela' | 'mercado' | 'carreira';
+export type CoachTab = 'jogar' | 'time' | 'competicoes' | 'mercado' | 'carreira' | 'salvar';
 
 const NAV: { id: CoachTab; label: string }[] = [
-  { id: 'jogo', label: 'Jogo' },
-  { id: 'elenco', label: 'Elenco' },
-  { id: 'tabela', label: 'Tabela' },
+  { id: 'jogar', label: 'Jogar' },
+  { id: 'time', label: 'Time' },
+  { id: 'competicoes', label: 'Competições' },
   { id: 'mercado', label: 'Mercado' },
   { id: 'carreira', label: 'Carreira' },
+  { id: 'salvar', label: 'Salvar' },
 ];
 
-/** Abas antigas do escritório → destino na barra do técnico. */
-const FROM_OFFICE: Record<TabId, CoachTab> = {
-  painel: 'jogo', elenco: 'elenco', base: 'elenco', mercado: 'mercado', comissao: 'carreira',
-  estadio: 'carreira', financas: 'carreira', diretoria: 'carreira', noticias: 'carreira', trofeus: 'carreira',
+/** Abas antigas do escritório → destino na barra do técnico (atalhos de telas compartilhadas com o presidente). */
+const FROM_OFFICE: Record<TabId, [CoachTab, string?]> = {
+  painel: ['jogar'], elenco: ['time', 'elenco'], base: ['time', 'base'], mercado: ['mercado'], comissao: ['carreira', 'voce'],
+  estadio: ['carreira', 'diretoria'], financas: ['carreira', 'diretoria'], diretoria: ['carreira', 'diretoria'], noticias: ['competicoes', 'jornal'], trofeus: ['carreira', 'historico'],
 };
+
+/** Ir para uma aba (e uma sub-aba). */
+export type Go = (tab: CoachTab, sub?: string) => void;
 
 interface Props {
   state: GameState;
@@ -44,52 +49,57 @@ interface Props {
   onMenu?: () => void;
   /** salvar uma cópia do ponto atual */
   onSnapshot?: () => void;
+  /** abrir outro save */
+  onResume?: (query: string, slot: string) => void;
 }
 
 /**
- * Modo técnico: tudo gira em torno da rodada. Barra inferior com Jogo, Elenco, Tabela, Mercado e Carreira;
- * cabeçalho compacto (toque para ver os detalhes).
+ * Modo técnico. Cada aba responde a uma pergunta:
+ * Jogar (o que faço agora), Time (quem joga e como), Competições (como estou), Mercado (quem trago ou vendo),
+ * Carreira (como vai a carreira) e Salvar.
  */
-export function CoachShell({ state, dispatch, onPlayRound, onFast, onMenu, onSnapshot }: Props) {
-  const [tab, setTab] = useState<CoachTab>('jogo');
-  const [sub, setSub] = useState<Record<CoachTab, string>>({ jogo: '', elenco: 'elenco', tabela: '', mercado: '', carreira: 'carreira' });
-  const goTo = (t: TabId) => {
-    const dest = FROM_OFFICE[t];
-    setTab(dest);
-    if (dest === 'elenco') setSub({ ...sub, elenco: t === 'base' ? 'base' : 'elenco' });
-    if (dest === 'carreira') setSub({ ...sub, carreira: t === 'noticias' ? 'noticias' : t === 'trofeus' ? 'trofeus' : t === 'diretoria' ? 'diretoria' : 'carreira' });
+export function CoachShell({ state, dispatch, onPlayRound, onFast, onMenu, onSnapshot, onResume }: Props) {
+  const [tab, setTab] = useState<CoachTab>('jogar');
+  const [sub, setSub] = useState<Record<string, string>>({ time: 'preparar', competicoes: 'tabela', mercado: 'janela', carreira: 'voce' });
+  const go: Go = (t, s) => {
+    setTab(t);
+    if (s) setSub((cur) => ({ ...cur, [t]: s }));
+    window.scrollTo({ top: 0 });
   };
+  const goTo = (t: TabId) => go(...FROM_OFFICE[t]);
   const props: TabProps = { state, dispatch, goTo };
   const running = state.phase === 'season' && !!state.live && state.calendar && state.reveal != null;
-  const badges = {
-    jogo: state.career!.offers.length > 0 || (!!state.career!.midOffer && !state.career!.midOffer.answered) || !!state.career!.ultimatum,
-    elenco: state.office.offers.some(Boolean),
-    mercado: false,
-    tabela: false,
-    carreira: false,
+  const c = state.career!;
+  const badges: Record<CoachTab, boolean> = {
+    jogar: !!c.ultimatum || (!!c.midOffer && !c.midOffer.answered),
+    time: false,
+    competicoes: false,
+    mercado: state.office.offers.some(Boolean),
+    carreira: c.offers.length > 0,
+    salvar: false,
   };
 
   return (
     <div className="coach" style={{ ['--club1' as string]: state.player.colors[0], ['--club2' as string]: state.player.colors[1] }}>
       <CoachHeader state={state} />
       <div className="coach-body">
-        {tab === 'jogo' && <MatchCenter state={state} dispatch={dispatch} goTo={goTo} onPlayRound={onPlayRound} onFast={onFast} />}
-        {tab === 'elenco' && (
+        {tab === 'jogar' && <MatchCenter state={state} dispatch={dispatch} go={go} onPlayRound={onPlayRound} onFast={onFast} />}
+        {tab === 'time' && (
           <SubTabs
-            value={sub.elenco}
-            onChange={(v) => setSub({ ...sub, elenco: v })}
+            value={sub.time}
+            onChange={(v) => setSub({ ...sub, time: v })}
             items={[
+              ['preparar', 'Preparar', <Prepare key="p" state={state} dispatch={dispatch} />],
               ['elenco', 'Elenco', <SquadTable key="e" state={state} dispatch={dispatch} />],
-              ['escalacao', 'Escalação', <section key="l" className="panel"><LineupEditor key={`${state.reveal}-${JSON.stringify(state.player.lineup)}-${state.player.coach.formation}`} state={state} dispatch={dispatch} /></section>],
               ['base', 'Base', <YouthTab key="b" {...props} />],
             ]}
           />
         )}
-        {tab === 'tabela' && <TableTab state={state} />}
+        {tab === 'competicoes' && <TableTab state={state} dispatch={dispatch} view={sub.competicoes} onView={(v) => setSub({ ...sub, competicoes: v })} />}
         {tab === 'mercado' && (
           <div className="tab-stack">
             {running && <WindowNote state={state} />}
-            <MarketTab {...props} />
+            <MarketTab {...props} mode={sub.mercado} onMode={(v) => setSub({ ...sub, mercado: v })} />
           </div>
         )}
         {tab === 'carreira' && (
@@ -97,36 +107,33 @@ export function CoachShell({ state, dispatch, onPlayRound, onFast, onMenu, onSna
             value={sub.carreira}
             onChange={(v) => setSub({ ...sub, carreira: v })}
             items={[
-              ['carreira', 'Técnico', <CareerTab key="c" {...props} />],
-              ['historia', 'Linha do tempo', <CareerTimeline key="h" state={state} />],
+              ['voce', 'Você', <CareerTab key="c" {...props} />],
               ['diretoria', 'Diretoria', <BoardTab key="d" {...props} />],
-              ['noticias', 'Notícias', <NewsTab key="n" {...props} />],
-              ['trofeus', 'Troféus', <TrophyRoom key="t" state={state} />],
+              [
+                'historico',
+                'Histórico',
+                <div key="h" className="tab-stack">
+                  <CareerTimeline state={state} />
+                  <CareerRecordSection state={state} />
+                  <TrophyRoom state={state} />
+                </div>,
+              ],
+              [
+                'ranking',
+                'Ranking',
+                <div key="r" className="tab-stack">
+                  <CoachRankingSection state={state} />
+                  <CoachMovesSection state={state} />
+                </div>,
+              ],
             ]}
           />
         )}
-        {tab === 'carreira' && (onMenu || onSnapshot) && (
-          <section className="panel game-menu">
-            <p className="kicker">Jogo</p>
-            <p className="muted">A carreira é salva sozinha a cada decisão. Uma cópia guarda este ponto à parte, para testar outro caminho.</p>
-            <div className="actions">
-              {onSnapshot && (
-                <button type="button" className="btn" onClick={onSnapshot}>
-                  Salvar uma cópia
-                </button>
-              )}
-              {onMenu && (
-                <button type="button" className="btn" onClick={onMenu}>
-                  Voltar ao menu
-                </button>
-              )}
-            </div>
-          </section>
-        )}
+        {tab === 'salvar' && <SaveTab state={state} onSnapshot={onSnapshot} onMenu={onMenu} onResume={onResume} />}
       </div>
-      <nav className="bottom-nav" aria-label="Navegação do técnico">
+      <nav className="bottom-nav bn-6" aria-label="Navegação do técnico">
         {NAV.map((n) => (
-          <button key={n.id} type="button" className={`bn-item${tab === n.id ? ' is-on' : ''}`} aria-current={tab === n.id ? 'page' : undefined} onClick={() => setTab(n.id)}>
+          <button key={n.id} type="button" className={`bn-item${tab === n.id ? ' is-on' : ''}`} aria-current={tab === n.id ? 'page' : undefined} onClick={() => go(n.id)}>
             <NavIcon id={n.id} />
             <span>{n.label}</span>
             {badges[n.id] && <i className="bn-dot" aria-label="novidade" />}
@@ -134,6 +141,17 @@ export function CoachShell({ state, dispatch, onPlayRound, onFast, onMenu, onSna
         ))}
       </nav>
     </div>
+  );
+}
+
+/** Time > Preparar: estratégia, treino, esquema e escalação no campinho, tudo num lugar. */
+function Prepare({ state, dispatch }: { state: GameState; dispatch: Dispatch }) {
+  const p = state.player;
+  return (
+    <section className="panel">
+      <TrainingPicker value={p.training ?? 'equilibrado'} onPick={(f) => dispatch({ t: 'training', focus: f })} />
+      <LineupEditor key={`${state.reveal}-${JSON.stringify(p.lineup)}-${p.coach.formation}`} state={state} dispatch={dispatch} />
+    </section>
   );
 }
 
@@ -202,14 +220,14 @@ function CoachHeader({ state }: { state: GameState }) {
 function NavIcon({ id }: { id: CoachTab }) {
   const common = { width: 22, height: 22, viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: 2, strokeLinecap: 'round' as const, strokeLinejoin: 'round' as const, 'aria-hidden': true };
   switch (id) {
-    case 'jogo':
+    case 'jogar':
       return (
         <svg {...common}>
           <circle cx="12" cy="12" r="9" />
           <path d="M12 7l4 3-1.5 5h-5L8 10z" />
         </svg>
       );
-    case 'elenco':
+    case 'time':
       return (
         <svg {...common}>
           <circle cx="9" cy="8" r="3" />
@@ -218,7 +236,7 @@ function NavIcon({ id }: { id: CoachTab }) {
           <path d="M16 14c2.8 0 5 2.2 5 5" />
         </svg>
       );
-    case 'tabela':
+    case 'competicoes':
       return (
         <svg {...common}>
           <rect x="3" y="4" width="18" height="16" rx="2" />
@@ -229,6 +247,13 @@ function NavIcon({ id }: { id: CoachTab }) {
       return (
         <svg {...common}>
           <path d="M7 7h11l-3-3M17 17H6l3 3" />
+        </svg>
+      );
+    case 'salvar':
+      return (
+        <svg {...common}>
+          <path d="M5 4h11l3 3v13H5z" />
+          <path d="M8 4v5h7V4M8 20v-6h8v6" />
         </svg>
       );
     default:

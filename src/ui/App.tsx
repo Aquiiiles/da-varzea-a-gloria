@@ -120,7 +120,7 @@ export function App() {
       )}
       <main className="stage">
         {state ? (
-          <GameScreen state={state} dispatch={dispatch} onRestart={restart} onSnapshot={snapshot} fromLink={fromLink} />
+          <GameScreen key={state.seed} state={state} dispatch={dispatch} onRestart={restart} onSnapshot={snapshot} onResume={resume} fromLink={fromLink} />
         ) : (
           <FoundationScreen onStart={start} onResume={resume} />
         )}

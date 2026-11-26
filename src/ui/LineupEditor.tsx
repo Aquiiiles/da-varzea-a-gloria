@@ -188,10 +188,7 @@ export function LineupEditor({ state, dispatch, halftime }: { state: GameState; 
           Arraste quem entra do banco para a vaga de quem sai (ou toque em dois). {htSubs} de {halftime.maxSubs} substituições.
         </p>
       ) : (
-        <p className="muted">
-          Arraste um jogador para a vaga (ou toque em dois para trocar).{live ? ' Vale para os jogos depois de hoje.' : ''}{' '}
-          {current ? 'Escalação escolhida por você.' : 'Agora no automático (os melhores do esquema).'}
-        </p>
+        <p className="muted">Arraste para a vaga ou toque em dois para trocar · {current ? 'escalação sua' : 'automática'}</p>
       )}
 
       <div className="pitch">

@@ -84,14 +84,15 @@ export function Unemployed({ state, dispatch }: { state: GameState; dispatch: Di
 }
 
 /** Aba Técnico (modo técnico): você, seu estilo e o esquema. */
-export function CareerTab({ state }: TabProps) {
+export function CareerTab({ state, dispatch }: TabProps) {
   const c = state.career!;
   const p = state.player;
   const stars = starsFor(c.reputation);
   const edge = coachEdge(stars, p.tier);
   return (
     <div className="tab-stack">
-      <Section title={c.name} note={`${c.age} anos · a carreira vai até os ${CAREER_END_AGE}. Reputação abre portas: ela decide quem te quer e as suas estrelas.`}>
+      {c.offers.length > 0 && <JobOffers state={state} dispatch={dispatch} title="Clubes querem você" />}
+      <Section title={c.name} note={`${c.age} anos · carreira até os ${CAREER_END_AGE} · contrato: ${c.contract} temporada${c.contract > 1 ? 's' : ''}`}>
         <div className="coach-card">
           <div>
             <Stars n={stars} />
@@ -99,7 +100,7 @@ export function CareerTab({ state }: TabProps) {
             <span className="coach-style">{p.coach.formation}</span>
             <p>
               {COACH_STYLES[p.coach.style].effect} Força {edge >= 0 ? '+' : ''}
-              {edge.toFixed(2)} em relação ao técnico típico da {TIERS[p.tier].name}. Contrato: {c.contract} temporada(s).
+              {edge.toFixed(2)} sobre o técnico típico da {TIERS[p.tier].name}.
             </p>
           </div>
         </div>
@@ -107,29 +108,6 @@ export function CareerTab({ state }: TabProps) {
         <p className="muted">Clubes que costumam te procurar: {TIERS[tierForReputation(c.reputation)].name} e vizinhos.</p>
       </Section>
 
-      <CareerRecordSection state={state} />
-      <CoachRankingSection state={state} />
-      <CoachMovesSection state={state} />
-
-      <Section title="Carreira">
-        <ul className="career-stints">
-          {c.stints
-            .slice()
-            .reverse()
-            .map((s, i) => (
-              <li key={i}>
-                <i className="stint-color" style={{ background: s.colors[0] }} />
-                <span>
-                  <strong>{s.club}</strong>
-                  <small>
-                    {START_YEAR + s.from - 1}–{s.to === null ? 'hoje' : START_YEAR + s.to - 1} · {TIERS[s.tier].name}
-                    {s.exit === 'demitido' ? ' · demitido' : s.exit === 'proposta' ? ' · saiu por proposta' : s.exit === 'contrato' ? ' · fim de contrato' : ''}
-                  </small>
-                </span>
-              </li>
-            ))}
-        </ul>
-      </Section>
     </div>
   );
 }
@@ -200,7 +178,7 @@ export function BoardTab({ state, dispatch }: TabProps) {
 }
 
 /** Ranking de técnicos: sua posição, o top 10 e quem está perto de você. */
-function CoachRankingSection({ state }: { state: GameState }) {
+export function CoachRankingSection({ state }: { state: GameState }) {
   const rows = coachRanking(state);
   const me = rows.find((r) => r.me)!;
   const near = rows.filter((r) => Math.abs(r.pos - me.pos) <= 2 && r.pos > 10);
@@ -234,7 +212,7 @@ function CoachRankingSection({ state }: { state: GameState }) {
 }
 
 /** Dança dos técnicos: quem caiu e quem assumiu nas últimas temporadas. */
-function CoachMovesSection({ state }: { state: GameState }) {
+export function CoachMovesSection({ state }: { state: GameState }) {
   const moves = state.coachMoves ?? [];
   if (moves.length === 0) return null;
   const last = moves[moves.length - 1].season;
@@ -253,7 +231,7 @@ function CoachMovesSection({ state }: { state: GameState }) {
 }
 
 /** Números e recordes do técnico, e a campanha em cada clube. */
-function CareerRecordSection({ state }: { state: GameState }) {
+export function CareerRecordSection({ state }: { state: GameState }) {
   const c = state.career!;
   const rec = c.record;
   if (!rec || rec.games === 0) return null;

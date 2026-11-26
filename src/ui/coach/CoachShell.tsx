@@ -249,8 +249,17 @@ function WindowNote({ state }: { state: GameState }) {
   const cal = state.calendar!;
   const day = state.reveal!;
   const [open, close] = julyWindow(cal.year);
-  if (day >= open && day <= close) return <p className="window-alert">Janela aberta até {shortDate(cal.year, close)}: dá para contratar e vender.</p>;
-  return <p className="muted">Janela fechada. {day < open ? `Abre em ${shortDate(cal.year, open)}.` : 'Reabre na próxima temporada.'} Dá para olhar e planejar.</p>;
+  if (day >= open && day <= close)
+    return (
+      <p className="window-note is-open">
+        <i className="dot" /> Janela aberta até {shortDate(cal.year, close)}: dá para contratar e vender
+      </p>
+    );
+  return (
+    <p className="window-note">
+      <i className="dot" /> Janela fechada · {day < open ? `abre em ${shortDate(cal.year, open)}` : 'reabre na próxima temporada'}
+    </p>
+  );
 }
 
 /** Cabeçalho compacto: escudo, clube, série, posição e confiança. Toque para os detalhes. */

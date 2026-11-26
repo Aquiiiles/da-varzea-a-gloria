@@ -1158,3 +1158,37 @@ details.panel.more summary { font: 700 12px/1.2 var(--font-display); letter-spac
 
 /* barra inferior mais limpa */
 .coach-nav, .bottom-nav { backdrop-filter: blur(8px); }
+
+/* --- repaginada: abas --- */
+/* letreiro discreto: escuro, com o rótulo em amarelo */
+.ticker { background: #0d1510; color: var(--text); font-weight: 500; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+.ticker-label { background: transparent; color: var(--accent); }
+.coach-head { border-bottom: 0; }
+
+/* seletores sem texto cortado */
+.plan-selects { grid-template-columns: repeat(auto-fit, minmax(118px, 1fr)); gap: 10px; }
+.plan-selects select { border-radius: 10px; padding: 10px 8px; min-height: 44px; text-overflow: ellipsis; }
+.roles .plan-selects { grid-template-columns: 1fr; gap: 8px; }
+.roles .plan-selects label { flex-direction: row; align-items: center; justify-content: space-between; gap: 12px; }
+.roles .plan-selects select { width: 66%; }
+
+/* filtros em pílulas, leves */
+.filters { gap: 8px; }
+.seg-compact { display: flex; flex-wrap: wrap; gap: 6px; }
+.seg-compact .seg-btn { flex: none; border: 0; border-radius: 999px; padding: 7px 12px; font-size: 13px; background: var(--panel-2); color: var(--muted); box-shadow: none; }
+.seg-compact .seg-btn.is-on { background: var(--text); color: var(--bg); box-shadow: none; }
+
+/* aviso de janela como selo */
+.window-note { display: inline-flex; align-items: center; gap: 8px; margin: 0; padding: 6px 12px; border-radius: 999px; background: var(--panel); color: var(--muted); font-size: 13px; font-weight: 600; align-self: flex-start; }
+.window-note .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); }
+.window-note.is-open { color: var(--good); }
+.window-note.is-open .dot { background: var(--good); box-shadow: 0 0 0 3px #35d07f33; }
+
+/* subabas: mais altas para o dedo */
+.subtab { padding: 9px 16px; font-size: 14px; border: 0; background: var(--panel); }
+
+/* listas: linhas mais respiradas, sem bordas duplas */
+.pl { border-radius: 12px; }
+.coach-card { border: 0; background: var(--panel-2); border-radius: 12px; }
+.stat, .cs-numbers > div { border-radius: 10px; }
+.prepare > .plan-selects label:nth-child(3):last-child { grid-column: 1 / -1; }

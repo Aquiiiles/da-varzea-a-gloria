@@ -1,5 +1,5 @@
 import { useState, type ReactNode } from 'react';
-import { BOARD_INFO, START_YEAR, julyWindow, myPosition, ultimatumStatus, type GameState } from '../../engine';
+import { BOARD_INFO, START_YEAR, STYLE_TACTIC, TACTICS, TRAINING, julyWindow, myPosition, ultimatumStatus, type Formation, type GameState, type Tactic, type TrainingFocus } from '../../engine';
 import type { Dispatch } from '../App';
 import { Crest } from '../Crest';
 import { Ticker, tickerItems } from '../Ticker';
@@ -13,7 +13,6 @@ import { TrophyRoom } from '../TrophyRoom';
 import { LineupEditor } from '../LineupEditor';
 import { MatchCenter } from './MatchCenter';
 import { SaveTab } from './SaveTab';
-import { TrainingPicker } from './TrainingPicker';
 import { CareerTimeline } from './CareerTimeline';
 import { TableTab } from './TableTab';
 import { shortDate } from '../SeasonView';
@@ -91,7 +90,7 @@ export function CoachShell({ state, dispatch, onPlayRound, onFast, onMenu, onSna
             items={[
               ['preparar', 'Preparar', <Prepare key="p" state={state} dispatch={dispatch} />],
               ['elenco', 'Elenco', <SquadTable key="e" state={state} dispatch={dispatch} />],
-              ['base', 'Base', <YouthTab key="b" {...props} />],
+              ['base', 'Base', <YouthTab key="b" {...props} compact />],
             ]}
           />
         )}
@@ -144,13 +143,49 @@ export function CoachShell({ state, dispatch, onPlayRound, onFast, onMenu, onSna
   );
 }
 
-/** Time > Preparar: estratégia, treino, esquema e escalação no campinho, tudo num lugar. */
+/** Time > Preparar: esquema, estratégia e treino em três seletores, e o campinho logo abaixo. */
 function Prepare({ state, dispatch }: { state: GameState; dispatch: Dispatch }) {
   const p = state.player;
+  const tactic: Tactic = p.tactic ?? STYLE_TACTIC[p.coach.style];
+  const training: TrainingFocus = p.training ?? 'equilibrado';
   return (
-    <section className="panel">
-      <TrainingPicker value={p.training ?? 'equilibrado'} onPick={(f) => dispatch({ t: 'training', focus: f })} />
-      <LineupEditor key={`${state.reveal}-${JSON.stringify(p.lineup)}-${p.coach.formation}`} state={state} dispatch={dispatch} />
+    <section className="panel prepare">
+      <div className="plan-selects">
+        <label>
+          <span>Esquema</span>
+          <select value={p.coach.formation} onChange={(e) => dispatch({ t: 'formation', f: e.target.value as Formation })}>
+            {(['4-4-2', '4-3-3', '3-5-2', '4-5-1'] as Formation[]).map((f) => (
+              <option key={f} value={f}>
+                {f}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label>
+          <span>Estratégia</span>
+          <select value={tactic} onChange={(e) => dispatch({ t: 'tactic', v: e.target.value as Tactic })}>
+            {(Object.keys(TACTICS) as Tactic[]).map((t) => (
+              <option key={t} value={t}>
+                {TACTICS[t].label}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label>
+          <span>Treino</span>
+          <select value={training} onChange={(e) => dispatch({ t: 'training', focus: e.target.value as TrainingFocus })}>
+            {(Object.keys(TRAINING) as TrainingFocus[]).map((t) => (
+              <option key={t} value={t}>
+                {TRAINING[t].label}
+              </option>
+            ))}
+          </select>
+        </label>
+      </div>
+      <p className="muted plan-effects">
+        {TACTICS[tactic].effect} {training !== 'equilibrado' ? TRAINING[training].effect : ''}
+      </p>
+      <LineupEditor key={`${state.reveal}-${JSON.stringify(p.lineup)}-${p.coach.formation}`} state={state} dispatch={dispatch} bare />
     </section>
   );
 }

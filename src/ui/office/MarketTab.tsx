@@ -254,8 +254,7 @@ function WindowMarket({ state, dispatch }: TabProps) {
         title="Mercado de transferências"
         note={
           <>
-            Jogadores disponíveis nesta janela. Você paga a taxa à vista e o salário pesa na folha todo ano. {state.career ? 'Verba da diretoria' : 'Caixa disponível'}:{' '}
-            <strong>{money(spendable(state))}</strong>.
+            {state.career ? 'Verba' : 'Caixa'}: <strong>{money(spendable(state))}</strong>
           </>
         }
       >

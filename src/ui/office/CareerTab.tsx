@@ -120,14 +120,30 @@ export function BoardTab({ state, dispatch }: TabProps) {
   const info = BOARD_INFO[b.personality];
   const pay = payroll(p);
   const proj = projectFinance(state);
+  const main = state.office.objectives.find((o) => o.main);
   return (
     <div className="tab-stack">
-      <Section title={`Diretoria ${info.label.toLowerCase()}`} note={info.text}>
+      <section className="panel">
+        <p className="kicker">Diretoria {info.label.toLowerCase()}</p>
         <Meter value={b.confidence} label="Confiança no técnico" text={confidenceText(b.confidence)} />
-        <p className="muted">Cumprir a meta principal sobe a confiança; falhar, cair ou dar prejuízo derruba. Abaixo de 15, demissão.</p>
-      </Section>
+        {main && <p className="goal-main">{main.text}</p>}
+        <details className="more">
+          <summary>Como funciona</summary>
+          <p className="muted">{info.text} Cumprir a meta principal sobe a confiança; falhar, cair ou dar prejuízo derruba. Abaixo de 15, demissão.</p>
+        </details>
+      </section>
 
-      <Section title="Reunião com a diretoria" note="Uma por janela. A chance depende da personalidade da diretoria e da confiança; pedir gasta confiança, e um não gasta mais.">
+      <section className="panel">
+        <p className="kicker">Verba da janela</p>
+        <dl className="cs-numbers">
+          <div><dt>Contratações</dt><dd className="good">{money(b.budget)}</dd></div>
+          <div><dt>Folha</dt><dd className={pay > b.wageCap ? 'bad' : ''}>{money(pay)}</dd></div>
+          <div><dt>Teto da folha</dt><dd>{money(b.wageCap)}</dd></div>
+        </dl>
+      </section>
+
+      <section className="panel">
+        <p className="kicker">Reunião (uma por janela)</p>
         {state.office.meeting ? (
           <p className={state.office.meeting.ok ? 'good' : 'bad'}>
             {MEETING_LABEL[state.office.meeting.kind]}: {state.office.meeting.text}
@@ -141,28 +157,10 @@ export function BoardTab({ state, dispatch }: TabProps) {
             ))}
           </div>
         )}
-      </Section>
+      </section>
 
-      <Section title="Verba da janela" note="Contratações precisam caber na verba; vender devolve metade do valor para a verba. Salários precisam caber no teto da folha.">
-        <dl className="budget">
-          <div><dt>Verba para contratações</dt><dd className="good">{money(b.budget)}</dd></div>
-          <div><dt>Folha atual</dt><dd>{money(pay)}/ano</dd></div>
-          <div><dt>Teto da folha</dt><dd className={pay > b.wageCap ? 'bad' : ''}>{money(b.wageCap)}/ano</dd></div>
-          <div className="budget-total"><dt>Espaço na folha</dt><dd className={b.wageCap - pay < 0 ? 'bad' : 'good'}>{money(Math.max(0, b.wageCap - pay))}/ano</dd></div>
-        </dl>
-      </Section>
-
-      <Section title="Metas da diretoria">
-        <ul className="objectives">
-          {state.office.objectives.map((ob, i) => (
-            <li key={i} className={ob.main ? 'obj-main' : 'obj-bonus'}>
-              {ob.text}
-            </li>
-          ))}
-        </ul>
-      </Section>
-
-      <Section title="O clube por dentro" note="Estádio, estrutura, ingresso e finanças são decididos pela diretoria.">
+      <details className="panel more">
+        <summary>O clube por dentro</summary>
         <dl className="budget">
           <div><dt>Caixa</dt><dd className={p.cash < 0 ? 'bad' : ''}>{money(p.cash)}</dd></div>
           <div><dt>Saldo previsto</dt><dd className={proj.net < 0 ? 'bad' : 'good'}>{money(proj.net)}</dd></div>
@@ -172,7 +170,7 @@ export function BoardTab({ state, dispatch }: TabProps) {
           <div><dt>Arena</dt><dd>{p.arena === 2 ? 'multiuso' : p.arena === 1 ? 'moderna' : 'não tem'}{p.naming ? ' · nome vendido' : ''}</dd></div>
           <div><dt>CT · base · médico</dt><dd>{p.facilities.ct} · {p.facilities.academy} · {p.facilities.medical}</dd></div>
         </dl>
-      </Section>
+      </details>
     </div>
   );
 }

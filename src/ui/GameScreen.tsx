@@ -173,7 +173,7 @@ export function GameScreen({ state, dispatch, onRestart, onSnapshot, onResume, f
   }
 
   // cerimônia de prêmios (uma vez por temporada, antes do balanço; o modo rápido pula)
-  if (last?.awards && awardsSeen < last.season && !fast && (state.phase === 'summary' || state.phase === 'over')) {
+  if (last?.awards && awardsSeen < last.season && !fast && !(state.career && state.phase === 'summary') && (state.phase === 'summary' || state.phase === 'over')) {
     return <AwardsCeremony result={last} onDone={() => setAwardsSeen(last.season)} />;
   }
 

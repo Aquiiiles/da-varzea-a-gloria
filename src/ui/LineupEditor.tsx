@@ -49,7 +49,7 @@ export interface HalftimeMode {
   onConfirm: (ids: number[] | null, tactic: Tactic) => void;
 }
 
-export function LineupEditor({ state, dispatch, halftime }: { state: GameState; dispatch: Dispatch; halftime?: HalftimeMode }) {
+export function LineupEditor({ state, dispatch, halftime, bare }: { state: GameState; dispatch: Dispatch; halftime?: HalftimeMode; bare?: boolean }) {
   const p = state.player;
   const live = state.live;
   const day = state.reveal ?? -1;
@@ -164,6 +164,8 @@ export function LineupEditor({ state, dispatch, halftime }: { state: GameState; 
 
   return (
     <div className="lineup">
+{!bare && (
+        <>
       <p className="lineup-pos">Estratégia</p>
       <div className="seg tactic-seg">
         {(Object.keys(TACTICS) as Tactic[]).map((t) => (
@@ -183,6 +185,8 @@ export function LineupEditor({ state, dispatch, halftime }: { state: GameState; 
         ))}
       </div>
 
+        </>
+      )}
       {halftime ? (
         <p className="muted">
           Arraste quem entra do banco para a vaga de quem sai (ou toque em dois). {htSubs} de {halftime.maxSubs} substituições.

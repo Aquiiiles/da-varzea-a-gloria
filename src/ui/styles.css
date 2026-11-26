@@ -929,3 +929,26 @@ h3 { font: 700 14px/1.2 var(--font-display); text-transform: uppercase; letter-s
 .pm-out { margin: 0; font-size: 13px; }
 .save-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
 .save:disabled { opacity: 1; }
+
+/* segunda passada: menos informação de cara */
+.more summary { cursor: pointer; font-weight: 700; color: var(--muted); font-size: 13px; }
+details.panel.more summary { font: 700 12px/1.2 var(--font-display); letter-spacing: 0.12em; text-transform: uppercase; color: var(--accent); }
+.more[open] summary { margin-bottom: 8px; }
+.plan-selects { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.plan-selects label { display: flex; flex-direction: column; gap: 4px; font: 700 11px/1 var(--font-display); text-transform: uppercase; letter-spacing: 0.08em; color: var(--accent); }
+.plan-selects select { width: 100%; background: var(--panel-2); color: var(--text); border: 1px solid var(--line); border-radius: 6px; padding: 9px 6px; font: 600 14px var(--font-body); text-transform: none; letter-spacing: 0; }
+.plan-effects { margin: 8px 0 4px; font-size: 12px; }
+/* listas de jogadores mais compactas (mercado, busca, observados) */
+.pl-list { gap: 4px; }
+.pl-main { gap: 8px; padding: 6px 8px; }
+.pl-ovr { font-size: 17px; padding: 6px 0; }
+.pl-id strong { font-size: 14px; }
+.pl-id small { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 11px; }
+@media (max-width: 520px) {
+  .pl-main { grid-template-columns: 34px auto 1fr auto; }
+  .pl-aside { grid-column: auto; display: block; text-align: right; }
+  .pl-aside b { display: block; font-size: 13px; }
+  .pl-aside small { font-size: 10px; }
+}
+.cs-numbers { grid-template-columns: repeat(auto-fit, minmax(104px, 1fr)); }
+.cs-numbers dt { overflow-wrap: normal; word-break: normal; font-size: 10px; letter-spacing: 0.03em; }

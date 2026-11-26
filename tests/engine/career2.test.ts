@@ -111,3 +111,19 @@ describe('números da carreira', () => {
     expect(stintGames).toBe(rec.games);
   });
 });
+
+describe('notícias por temporada', () => {
+  it('cada notícia tem a temporada em que saiu (o fim do ano conta na temporada que acabou)', () => {
+    let s = apply(newGame(6, COACH), { t: 'job', idx: 0 });
+    s = apply(apply(s, { t: 'play' }), { t: 'next' });
+    if (s.career!.unemployed) s = apply(s, { t: 'job', idx: 0 });
+    s = apply(s, { t: 'play' });
+    const tags = s.newsSeasons!;
+    expect(tags).toHaveLength(s.news.length);
+    expect(tags.every((t, i) => i === 0 || t >= tags[i - 1])).toBe(true);
+    const headlines = s.history[0].headlines;
+    const idx = s.news.indexOf(headlines[0]);
+    if (idx >= 0) expect(tags[idx]).toBe(1);
+    expect(tags.at(-1)).toBe(2);
+  });
+});

@@ -117,6 +117,8 @@ export function CoachSummary({ state, result: r, onNext }: { state: GameState; r
         )}
       </section>
 
+      {r.awards && <AwardsLine result={r} />}
+
       {(r.coachNews ?? []).length > 0 && (
         <section className="panel">
           <p className="kicker">Sua carreira</p>
@@ -186,5 +188,34 @@ export function CoachSummary({ state, result: r, onNext }: { state: GameState; r
         </button>
       </div>
     </div>
+  );
+}
+
+/** Prêmios em poucas linhas: os seus e a Bola de Ouro. */
+function AwardsLine({ result: r }: { result: SeasonResult }) {
+  const a = r.awards!;
+  const mine = [a.general, ...a.leagues].flatMap((set) => set.items.filter((i) => i.winner.mine).map((i) => `${i.title}${set.scope === 'Temporada' ? '' : ` (${set.scope})`}: ${i.winner.name}`));
+  const bola = a.general.items.find((i) => i.id === 'bola');
+  if (mine.length === 0 && !bola) return null;
+  return (
+    <section className="panel">
+      <p className="kicker">Prêmios</p>
+      {mine.length > 0 ? (
+        <ul className="moves">
+          {mine.map((m) => (
+            <li key={m} className="good">
+              {m}
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p className="muted">Nenhum prêmio para o seu time.</p>
+      )}
+      {bola && (
+        <p className="muted">
+          Bola de Ouro: {bola.winner.name} ({bola.winner.club})
+        </p>
+      )}
+    </section>
   );
 }

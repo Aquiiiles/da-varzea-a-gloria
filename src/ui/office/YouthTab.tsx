@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { Fragment, useState, type ReactNode } from 'react';
 import { MAX_LOANS, SQUAD_MAX, YOUTH_AGE_LIMIT, YOUTH_MAX, marketWage, tryoutCost } from '../../engine';
 import { money, monthly, spendable } from '../format';
 import type { TabProps } from './Office';
@@ -6,7 +6,7 @@ import { PlayerLine, Section } from './common';
 
 const ACADEMY_LABEL = ['Campinho de terra', 'Escolinha', 'Categorias organizadas', 'Centro de formação', 'Academia de elite', 'Fábrica de craques'];
 
-export function YouthTab({ state, dispatch, goTo }: TabProps) {
+export function YouthTab({ state, dispatch, goTo, compact }: TabProps & { compact?: boolean }) {
   const p = state.player;
   const loaned = p.onLoan.filter((f) => !f.recovering);
   const hurt = p.onLoan.filter((f) => f.recovering);
@@ -21,7 +21,8 @@ export function YouthTab({ state, dispatch, goTo }: TabProps) {
 
   return (
     <div className="tab-stack">
-      {state.career && youth.length > 0 && (
+      {compact && <YouthTable state={state} dispatch={dispatch} />}
+      {!compact && state.career && youth.length > 0 && (
         <Section title="Promessas" note="Como técnico, você pode subir um garoto a qualquer momento da temporada. Ele entra no elenco e joga a partir do próximo jogo.">
           <ul className="todos">
             {ready.map((y) => (
@@ -57,6 +58,7 @@ export function YouthTab({ state, dispatch, goTo }: TabProps) {
           </ul>
         </Section>
       )}
+      {!compact && (
       <Section
         title={`Categorias de base (${p.youth.length}/${YOUTH_MAX})`}
         note={
@@ -110,6 +112,9 @@ export function YouthTab({ state, dispatch, goTo }: TabProps) {
         )}
       </Section>
 
+      )}
+
+      <Wrap on={!!compact}>
       <YouthCompetitions state={state} />
 
       {loaned.length > 0 && (
@@ -169,6 +174,7 @@ export function YouthTab({ state, dispatch, goTo }: TabProps) {
           </ul>
         )}
       </Section>
+      </Wrap>
     </div>
   );
 }
@@ -204,5 +210,100 @@ function YouthCompetitions({ state }: { state: TabProps['state'] }) {
         </ul>
       )}
     </Section>
+  );
+}
+
+/** No modo compacto, o que é menos usado fica recolhido. */
+function Wrap({ on, children }: { on: boolean; children: ReactNode }) {
+  if (!on) return <>{children}</>;
+  return (
+    <details className="panel more">
+      <summary>Peneira, emprestados e campeonatos da base</summary>
+      <div className="tab-stack">{children}</div>
+    </details>
+  );
+}
+
+/** Base em tabela (técnico): uma linha por garoto; toque para subir, emprestar ou dispensar. */
+function YouthTable({ state, dispatch }: Pick<TabProps, 'state' | 'dispatch'>) {
+  const p = state.player;
+  const [open, setOpen] = useState<number | null>(null);
+  const youth = p.youth.slice().sort((a, b) => b.ovr - a.ovr);
+  const bar = p.squad.slice().sort((a, b) => b.ovr - a.ovr)[15]?.ovr ?? 0;
+  if (youth.length === 0) {
+    return (
+      <section className="panel">
+        <p className="kicker">Base</p>
+        <p className="muted">Nenhum garoto agora. A cada temporada chegam novos.</p>
+      </section>
+    );
+  }
+  return (
+    <section className="panel squad-table">
+      <div className="st-head">
+        <h2 className="section-title">
+          Base <small>{p.youth.length}/{YOUTH_MAX}</small>
+        </h2>
+        <span className="muted">sobe a qualquer momento</span>
+      </div>
+      <table className="table sq">
+        <thead>
+          <tr>
+            <th>Pos</th>
+            <th>Garoto</th>
+            <th>Id</th>
+            <th>Ovr</th>
+            <th>Pot</th>
+            <th />
+          </tr>
+        </thead>
+        <tbody>
+          {youth.map((y) => (
+            <Fragment key={y.id}>
+              <tr className={open === y.id ? 'is-open' : ''} onClick={() => setOpen(open === y.id ? null : y.id)}>
+                <td>
+                  <span className={`pl-pos pos-${y.pos}`}>{y.pos}</span>
+                </td>
+                <td className="sq-name">{y.name}</td>
+                <td>{y.age}</td>
+                <td>
+                  <b className="sq-ovr">{y.ovr}</b>
+                </td>
+                <td>
+                  {y.potLo}–{y.potHi}
+                </td>
+                <td>
+                  {y.age >= YOUTH_AGE_LIMIT ? (
+                    <span className="st st-bad" title="última temporada na base">FIM</span>
+                  ) : y.ovr >= bar - 2 ? (
+                    <span className="st st-offer" title="já briga por vaga">PRONTO</span>
+                  ) : y.highlight ? (
+                    <span className="st st-warn" title={y.highlight}>DESTAQUE</span>
+                  ) : null}
+                </td>
+              </tr>
+              {open === y.id && (
+                <tr className="sq-detail">
+                  <td colSpan={6}>
+                    {y.highlight && <p className="muted">{y.highlight}</p>}
+                    <div className="pl-actions">
+                      <button type="button" className="btn btn-small btn-primary" disabled={p.squad.length >= SQUAD_MAX} onClick={() => dispatch({ t: 'promote', id: y.id }) && setOpen(null)}>
+                        Subir ({monthly(marketWage(y.ovr) * 0.8)})
+                      </button>
+                      <button type="button" className="btn btn-small" disabled={p.onLoan.length >= MAX_LOANS} onClick={() => dispatch({ t: 'lend', id: y.id }) && setOpen(null)}>
+                        Emprestar
+                      </button>
+                      <button type="button" className="btn btn-small btn-danger" onClick={() => dispatch({ t: 'cut', id: y.id }) && setOpen(null)}>
+                        Dispensar
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              )}
+            </Fragment>
+          ))}
+        </tbody>
+      </table>
+    </section>
   );
 }

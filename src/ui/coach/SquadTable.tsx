@@ -1,6 +1,6 @@
 import { Fragment, useState } from 'react';
 import {
-  FATIGUE_FREE, FATIGUE_REST, MORALE_HIGH, MORALE_LOW, MORALE_START, SQUAD_MAX, statusAt, bestEleven, fatigueAt, injuredAt, marketValue, offerOpen, payroll, suspendedOn,
+  FATIGUE_FREE, FATIGUE_REST, TALK_COOLDOWN, MORALE_HIGH, MORALE_LOW, MORALE_START, SQUAD_MAX, statusAt, bestEleven, fatigueAt, injuredAt, marketValue, offerOpen, payroll, suspendedOn,
   type Footballer, type GameState, type Position,
 } from '../../engine';
 import type { Dispatch } from '../App';
@@ -145,6 +145,7 @@ export function SquadTable({ state, dispatch }: { state: GameState; dispatch: Di
                         {f.intent ? <> · <span className={INTENT_LABEL[f.intent].tone}>{INTENT_LABEL[f.intent].text}</span></> : null}
                         {injured.has(f.id) && state.calendar ? ` · lesionado, volta em ${shortDate(state.calendar.year, injured.get(f.id)!.to)}` : ''}
                       </p>
+                      {live && <TalkButtons state={state} dispatch={dispatch} f={f} />}
                       <div className="pl-actions">
                         <PlayerActions state={state} dispatch={dispatch} f={f} close={() => setOpen(null)} />
                       </div>
@@ -165,4 +166,28 @@ export function SquadTable({ state, dispatch }: { state: GameState; dispatch: Di
 export function FormArrow({ v }: { v: number }) {
   if (Math.abs(v) < 0.5) return <span className="form-arrow muted">=</span>;
   return <span className={`form-arrow ${v > 0 ? 'good' : 'bad'}`}>{v > 0 ? '▲' : '▼'}{Math.abs(Math.round(v))}</span>;
+}
+
+/** Conversa com o jogador: elogiar, cobrar ou prometer vaga (uma vez a cada duas semanas por jogador). */
+function TalkButtons({ state, dispatch, f }: { state: GameState; dispatch: Dispatch; f: Footballer }) {
+  const day = state.reveal ?? -1;
+  const last = (state.live?.talks ?? []).filter((t) => t.id === f.id).at(-1);
+  const wait = last ? TALK_COOLDOWN - (day - last.day) : 0;
+  const promise = (state.live?.talks ?? []).some((t) => t.id === f.id && t.kind === 'prometer' && day - t.day < 30);
+  return (
+    <div className="talk">
+      <span className="muted">Conversar:</span>
+      <button type="button" className="btn btn-small" disabled={wait > 0} onClick={() => dispatch({ t: 'talk', id: f.id, kind: 'elogiar' })}>
+        Elogiar
+      </button>
+      <button type="button" className="btn btn-small" disabled={wait > 0} onClick={() => dispatch({ t: 'talk', id: f.id, kind: 'cobrar' })}>
+        Cobrar
+      </button>
+      <button type="button" className="btn btn-small" disabled={wait > 0} onClick={() => dispatch({ t: 'talk', id: f.id, kind: 'prometer' })}>
+        Prometer vaga
+      </button>
+      {wait > 0 && <small className="muted">Conversou há pouco ({wait} dias para a próxima).</small>}
+      {promise && <small className="warnc">Promessa de vaga: ele precisa jogar nos próximos 3 jogos.</small>}
+    </div>
+  );
 }

@@ -66,6 +66,7 @@ describe('temporada em andamento', () => {
 
   it('avançar por semana ou mês para no dia em que a janela de julho abre', () => {
     let s = coachSeason(3);
+    s.career!.board.confidence = 100; // sem risco de demissão no caminho
     const [open] = julyWindow(s.calendar!.year);
     while (s.phase === 'season' && s.reveal! < open) s = apply(s, { t: 'advance', to: 2 });
     expect(s.reveal).toBe(open);

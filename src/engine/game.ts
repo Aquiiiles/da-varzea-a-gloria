@@ -17,7 +17,7 @@ import { ActionError } from './util';
 export { ActionError };
 import { effectsCashCost, loanFor, releaseCost, renewalOffer, seatsFor, sellPrice } from './office';
 import { applyNamePack, type NamePack } from './namepack';
-import { injuredAt } from './calendarView';
+import { injuredAt, statusAt } from './calendarView';
 import { answerMidOffer, boardWatch, midSeasonOffer } from './boardwatch';
 import { dayToDate, julyWindow } from './calendar';
 import { answered, currentInterview, interviewEffects } from './interview';
@@ -244,6 +244,8 @@ function startSeason(state: GameState, afterJob = false): void {
       careerWindow(state, false);
     } else careerWindow(state, true);
   }
+  // lista de observação: novidades da janela
+  if (!afterJob) watchAlerts(state);
   // evento extraordinário (raro): na abertura da janela, com clube
   if (!afterJob && !state.career?.unemployed) rollExtraordinary(state);
 }
@@ -380,6 +382,17 @@ function applyAction(state: GameState, a: Action): void {
       p.tactic = a.v;
       return;
     }
+    case 'watch':
+      toggleWatch(state, a.id);
+      return;
+    case 'training': {
+      if (!career) fail('o treino é com o técnico');
+      p.training = a.focus;
+      return;
+    }
+    case 'talk':
+      fail('as conversas com o elenco são durante a temporada');
+      return;
     case 'job': {
       if (!career) fail('só no modo técnico');
       const offer = career.offers[a.idx];
@@ -747,7 +760,7 @@ function applyAction(state: GameState, a: Action): void {
       state.live = {
         startSquad: structuredClone(p.squad),
         changes: [],
-        lineups: [{ day: -1, ids: p.lineup?.ids ?? null, rotate: p.lineup?.rotate ?? true, formation: p.coach.formation, tactic: p.tactic }],
+        lineups: [{ day: -1, ids: p.lineup?.ids ?? null, rotate: p.lineup?.rotate ?? true, formation: p.coach.formation, tactic: p.tactic, training: p.training }],
         moments: [],
         injuries: [],
         fatigue: [],
@@ -804,7 +817,7 @@ function previewKey(state: GameState): string {
   const p = state.player;
   return JSON.stringify([
     state.seed, state.season, state.history.length, p.cash, p.squad.map((f) => f.id), p.coach, p.lineup ?? null, p.tactic ?? null,
-    state.live?.lineups, state.live?.changes.map((c) => [c.day, c.remove, c.add?.map((f) => f.id)]), state.live?.halftimes ?? [],
+    state.live?.lineups, state.live?.changes.map((c) => [c.day, c.remove, c.add?.map((f) => f.id)]), state.live?.halftimes ?? [], state.live?.talks ?? [],
   ]);
 }
 
@@ -821,12 +834,61 @@ function preview(state: GameState): void {
   live.elevens = clone.live!.elevens;
   live.cards = clone.live!.cards;
   live.status = clone.live!.status;
+  live.broken = clone.live!.broken;
   live.stats = clone.live!.stats;
   live.suspensions = clone.live!.suspensions;
 }
 
+/** Tamanho máximo da lista de observação. */
+export const MAX_WATCH = 20;
+
+/** Marca ou desmarca um jogador de outro clube na lista de observação. */
+function toggleWatch(state: GameState, id: number): void {
+  const list = (state.watch ??= []);
+  const clubs = (state.watchClubs ??= {});
+  if (list.includes(id)) {
+    state.watch = list.filter((x) => x !== id);
+    delete clubs[id];
+    return;
+  }
+  const club = state.clubs.find((c) => c.squad.some((f) => f.id === id));
+  if (!club) fail('jogador não encontrado em outro clube');
+  if (list.length >= MAX_WATCH) fail(`a lista de observação tem no máximo ${MAX_WATCH} jogadores`);
+  list.push(id);
+  clubs[id] = club.id;
+}
+
+/** Abertura da janela: o que mudou com os observados (contrato no fim, perdeu espaço, trocou de clube). */
+function watchAlerts(state: GameState): void {
+  const list = state.watch ?? [];
+  if (list.length === 0) return;
+  const clubs = (state.watchClubs ??= {});
+  const keep: number[] = [];
+  for (const id of list) {
+    const club = state.clubs.find((c) => c.squad.some((f) => f.id === id));
+    const f = club?.squad.find((x) => x.id === id);
+    if (!club || !f) {
+      state.news.push(`OBSERVADO: um jogador da sua lista saiu do radar (aposentou ou foi para o exterior)`);
+      delete clubs[id];
+      continue;
+    }
+    keep.push(id);
+    const before = state.clubs.find((c) => c.id === clubs[id]);
+    if (before && before.id !== club.id) state.news.push(`OBSERVADO: ${f.name} troca o ${before.name} pelo ${club.name}`);
+    clubs[id] = club.id;
+    if (f.contract === 1) state.news.push(`OBSERVADO: ${f.name} (${club.name}) entra no último ano de contrato`);
+    else if (!bestEleven(club.squad).ids.has(f.id)) state.news.push(`OBSERVADO: ${f.name} perdeu espaço no ${club.name} e pode sair mais barato`);
+  }
+  state.watch = keep;
+}
+
+/** Dias entre duas conversas com o mesmo jogador. */
+export const TALK_COOLDOWN = 14;
+
 /** Substituições no intervalo. */
 export const MAX_SUBS = 5;
+/** Paradas para mexer no time por jogo. */
+export const MAX_STOPS = 4;
 
 /** Ações que podem acontecer com a temporada em andamento (na janela do meio do ano). */
 const WINDOW_ACTIONS = new Set<Action['t']>(['buy', 'sell', 'bid', 'release', 'promote', 'lend', 'offer', 'counter', 'reject']);
@@ -859,40 +921,84 @@ function midSeason(state: GameState, a: Action): void {
     return;
   }
   if (a.t === 'halftime') {
-    if (!state.career) fail('o intervalo é com o técnico');
-    if (a.day !== day || !cal.matches.some((m) => m.day === day)) fail('só no intervalo do jogo de hoje');
-    if ((live.halftimes ?? []).some((h) => h.day === day)) fail('as mudanças do intervalo já foram feitas');
+    if (!state.career) fail('mexer no jogo é com o técnico');
+    if (a.day !== day || !cal.matches.some((m) => m.day === day)) fail('só durante o jogo de hoje');
+    const minute = a.minute ?? 45;
+    if (!Number.isInteger(minute) || minute % 5 !== 0 || minute < 5 || minute > 85) fail('minuto inválido');
+    const before = (live.halftimes ?? []).filter((h) => h.day === day);
+    if (before.some((h) => (h.minute ?? 45) >= minute)) fail('já houve mudança nesse ponto do jogo');
+    if (before.length >= MAX_STOPS) fail(`no máximo ${MAX_STOPS} paradas por jogo`);
     if (!a.ids && !a.tactic) fail('nenhuma mudança');
     if (a.ids) {
       const ids = [...new Set(a.ids)];
-      if (ids.length !== 11 || a.ids.length !== 11) fail('o time precisa de 11 jogadores');
-      const out = new Set([...injuredAt(live, day).map((i) => i.id), ...(live.suspensions ?? []).filter((s) => s.day === day).map((s) => s.id)]);
+      // fora: lesionados de antes, suspensos e quem se machucou ou foi expulso neste jogo antes do minuto
+      const gone = [
+        ...(live.injuries.filter((i) => i.from === day && (i.minute ?? 60) < minute)),
+        ...(live.cards ?? []).filter((c) => c.day === day && c.kind === 'vermelho' && (c.minute ?? 60) < minute),
+      ];
+      const reds = (live.cards ?? []).filter((c) => c.day === day && c.kind === 'vermelho' && (c.minute ?? 60) < minute).length;
+      if (ids.length !== a.ids.length || ids.length !== 11 - reds) fail(`o time precisa de ${11 - reds} jogadores`);
+      const out = new Set([
+        ...injuredAt(live, day).filter((i) => i.from < day).map((i) => i.id),
+        ...(live.suspensions ?? []).filter((s) => s.day === day).map((s) => s.id),
+        ...gone.map((g) => g.id),
+      ]);
       if (!ids.every((id) => p.squad.some((f) => f.id === id) && !out.has(id))) fail('jogador indisponível');
       const first = new Set(live.elevens.find((e) => e.day === day)?.ids ?? []);
       const subs = ids.filter((id) => !first.has(id)).length;
       if (subs > MAX_SUBS) fail(`no máximo ${MAX_SUBS} substituições`);
     }
-    (live.halftimes ??= []).push({ day, ids: a.ids ? [...a.ids] : null, ...(a.tactic ? { tactic: a.tactic } : {}) });
+    (live.halftimes ??= []).push({ day, minute, ids: a.ids ? [...a.ids] : null, ...(a.tactic ? { tactic: a.tactic } : {}) });
     preview(state);
     return;
   }
-  if (a.t === 'lineup' || a.t === 'formation' || a.t === 'tactic') {
+  if (a.t === 'watch') {
+    toggleWatch(state, a.id);
+    return;
+  }
+  if (a.t === 'talk') {
+    if (!state.career) fail('conversar com o elenco é com o técnico');
+    const f = p.squad.find((x) => x.id === a.id);
+    if (!f) fail('jogador não encontrado');
+    const talks = (live.talks ??= []);
+    if (talks.some((t) => t.id === a.id && day - t.day < TALK_COOLDOWN)) fail(`já conversou com ${f.name} há pouco tempo`);
+    // a reação depende da moral de agora
+    const morale = statusAt(live, day).morale[f.id] ?? f.morale ?? 60;
+    const ok = a.kind === 'elogiar' ? morale < 85 : a.kind === 'cobrar' ? morale >= 45 : true;
+    talks.push({ day, id: f.id, kind: a.kind, ok });
+    const who = state.career.name;
+    state.news.push(
+      a.kind === 'elogiar'
+        ? ok ? `${who} elogia ${f.name} em público; o jogador agradece` : `${who} elogia ${f.name}, que já anda nas nuvens`
+        : a.kind === 'cobrar'
+          ? ok ? `${who} cobra ${f.name}, que promete mais empenho` : `${who} cobra ${f.name}; o jogador não gosta e se fecha`
+          : `${who} promete vaga de titular a ${f.name}`,
+    );
+    preview(state);
+    return;
+  }
+  if (a.t === 'lineup' || a.t === 'formation' || a.t === 'tactic' || a.t === 'training') {
     if (!state.career) fail('a escalação é com o técnico');
     if (a.t === 'lineup') setLineup(p, a);
-    else if (a.t === 'tactic') {
+    else if (a.t === 'training') {
+      if ((p.training ?? 'equilibrado') === a.focus) fail('já é o treino atual');
+      p.training = a.focus;
+    } else if (a.t === 'tactic') {
       if (p.tactic === a.v) fail('já é a estratégia atual');
       p.tactic = a.v;
     } else {
       if (p.coach.formation === a.f) fail('já é o esquema atual');
       p.coach.formation = a.f;
     }
-    live.lineups.push({ day, ids: p.lineup?.ids ?? null, rotate: p.lineup?.rotate ?? true, formation: p.coach.formation, tactic: p.tactic });
+    live.lineups.push({ day, ids: p.lineup?.ids ?? null, rotate: p.lineup?.rotate ?? true, formation: p.coach.formation, tactic: p.tactic, training: p.training });
     preview(state);
     return;
   }
   if (!WINDOW_ACTIONS.has(a.t)) fail('com a temporada em andamento, só escalação e, em julho, transferências');
   const [open, close] = julyWindow(cal.year);
-  if (day < open || day > close) fail('a janela do meio do ano vai de 1º a 31 de julho');
+  // subir garoto da base não depende de janela (modo técnico)
+  const anytime = !!state.career && a.t === 'promote';
+  if (!anytime && (day < open || day > close)) fail('a janela do meio do ano vai de 1º a 31 de julho');
   const before = new Map(p.squad.map((f) => [f.id, f]));
   state.phase = 'office';
   try {

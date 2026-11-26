@@ -179,3 +179,68 @@ describe('estatísticas durante a temporada', () => {
     expect(statsUpTo(s.live!, day).every((l) => l.apps > 0)).toBe(true);
   });
 });
+
+describe('mexer no jogo a qualquer momento', () => {
+  function atMatch(seed: number): GameState {
+    let s = season(seed);
+    s.career!.board.confidence = 100;
+    for (let i = 0; i < 3; i++) s = apply(s, { t: 'advance', to: 0 });
+    while (!s.calendar!.matches.some((m) => m.day === s.reveal)) s = apply(s, { t: 'advance', to: 0 });
+    return s;
+  }
+
+  it('jogos do técnico em 18 blocos de 5 minutos, somando o placar', () => {
+    const s = atMatch(31);
+    for (const m of s.calendar!.matches.filter((x) => x.day <= s.reveal!)) {
+      expect(m.blocks).toHaveLength(18);
+      const reg = m.blocks!.reduce((a, [f, g]) => [a[0] + f, a[1] + g], [0, 0]);
+      if (!m.extraTime) expect(reg).toEqual([m.gf, m.ga]);
+    }
+  });
+
+  it('mudança aos 60 não mexe em nada antes dos 60 (placar e narração)', () => {
+    const s = atMatch(32);
+    const day = s.reveal!;
+    const before = s.calendar!.matches.find((m) => m.day === day)!;
+    const narrBefore = roundOn(s, day)!.moment.events.filter((e) => e.minute <= 60 && e.kind !== 'apito').map((e) => e.text);
+    const xi = s.live!.elevens.find((e) => e.day === day)!.ids;
+    const bench = s.player.squad.filter((f) => !xi.includes(f.id)).sort((a, b) => a.ovr - b.ovr);
+    const ids = xi.slice(0, 8).concat(bench.slice(0, 3).map((f) => f.id));
+    const t = apply(s, { t: 'halftime', day, minute: 60, ids, tactic: 'pressao' });
+    const after = t.calendar!.matches.find((m) => m.day === day)!;
+    expect(after.blocks!.slice(0, 12)).toEqual(before.blocks!.slice(0, 12));
+    const narrAfter = roundOn(t, day)!.moment.events.filter((e) => e.minute <= 60 && e.kind !== 'apito').map((e) => e.text);
+    expect(narrAfter).toEqual(narrBefore);
+    // depois dos 60 ainda dá para mexer de novo, mas não antes
+    expect(canApply(t, { t: 'halftime', day, minute: 50, ids: null, tactic: 'ofensivo' })).toBe(false);
+    expect(canApply(t, { t: 'halftime', day, minute: 75, ids: null, tactic: 'ofensivo' })).toBe(true);
+    expect(canApply(t, { t: 'halftime', day, minute: 62, ids: null, tactic: 'ofensivo' })).toBe(false);
+    expect(decodeAction(encodeAction({ t: 'halftime', day, minute: 60, ids, tactic: 'pressao' }))).toEqual({ t: 'halftime', day, minute: 60, ids, tactic: 'pressao' });
+  });
+});
+
+describe('treino e conversa com jogador', () => {
+  it('treino físico cansa menos que o equilibrado', () => {
+    const a = season(41);
+    const b = apply(a, { t: 'training', focus: 'fisico' });
+    const sum = (s: GameState) => s.live!.fatigue.reduce((x, f) => x + Object.values(f.fatigue).reduce((y, v) => y + v, 0), 0);
+    expect(sum(b)).toBeLessThan(sum(a));
+    expect(decodeAction(encodeAction({ t: 'training', focus: 'recuperacao' }))).toEqual({ t: 'training', focus: 'recuperacao' });
+  });
+
+  it('conversa: uma a cada 14 dias por jogador; elogio sobe a moral', () => {
+    let s = season(42);
+    s = apply(s, { t: 'advance', to: 0 });
+    const f = s.player.squad[5];
+    const before = s.live!.status!.at(-1)!.morale[f.id];
+    const t = apply(s, { t: 'talk', id: f.id, kind: 'elogiar' });
+    expect(canApply(t, { t: 'talk', id: f.id, kind: 'cobrar' })).toBe(false);
+    expect(t.news.at(-1)).toContain(f.name);
+    const next = t.calendar!.matches.find((m) => m.day > t.reveal!)!;
+    const after = t.live!.status!.find((x) => x.day === next.day)!.morale[f.id];
+    const base = s.live!.status!.find((x) => x.day === next.day)!.morale[f.id];
+    expect(after).toBeGreaterThan(base);
+    expect(before).toBeDefined();
+    expect(decodeAction(encodeAction({ t: 'talk', id: f.id, kind: 'prometer' }))).toEqual({ t: 'talk', id: f.id, kind: 'prometer' });
+  });
+});

@@ -44,6 +44,8 @@ export interface HalftimeMode {
   out: Set<number>;
   maxSubs: number;
   tactic: Tactic;
+  /** jogadores em campo (11 menos os expulsos) */
+  size?: number;
   onConfirm: (ids: number[] | null, tactic: Tactic) => void;
 }
 
@@ -232,7 +234,7 @@ export function LineupEditor({ state, dispatch, halftime }: { state: GameState; 
           <button
             type="button"
             className="btn btn-primary"
-            disabled={filled !== 11 || (htSubs === 0 && tactic === halftime.tactic)}
+            disabled={filled !== (halftime.size ?? 11) || (htSubs === 0 && tactic === halftime.tactic && filled === halftime.firstIds.length)}
             onClick={() => halftime.onConfirm(htSubs > 0 ? slots.filter((x): x is number => x !== null) : null, tactic)}
           >
             Confirmar e voltar ao jogo

@@ -127,3 +127,29 @@ describe('notícias por temporada', () => {
     expect(tags.at(-1)).toBe(2);
   });
 });
+
+describe('base e lista de observação (técnico)', () => {
+  it('observar: marca, desmarca, máximo de 20 e vai no replay', () => {
+    let s = apply(newGame(9, COACH), { t: 'job', idx: 0 });
+    const others = s.clubs.flatMap((c) => c.squad).slice(0, 21);
+    s = apply(s, { t: 'watch', id: others[0].id });
+    expect(s.watch).toEqual([others[0].id]);
+    s = apply(s, { t: 'watch', id: others[0].id });
+    expect(s.watch).toEqual([]);
+    for (const f of others.slice(0, 20)) s = apply(s, { t: 'watch', id: f.id });
+    expect(canApply(s, { t: 'watch', id: others[20].id })).toBe(false);
+    expect(decodeAction(encodeAction({ t: 'watch', id: 77 }))).toEqual({ t: 'watch', id: 77 });
+    // na janela seguinte, avisos dos observados
+    s = apply(apply(s, { t: 'play' }), { t: 'next' });
+    expect(s.news.some((n) => n.startsWith('OBSERVADO'))).toBe(true);
+  });
+
+  it('técnico sobe garoto da base no meio da temporada (fora da janela)', () => {
+    let s = apply(apply(newGame(9, COACH), { t: 'job', idx: 0 }), { t: 'play' });
+    s = apply(s, { t: 'advance', to: 0 });
+    const y = s.player.youth[0];
+    if (!y || s.player.squad.length >= 28) return;
+    const t = apply(s, { t: 'promote', id: y.id });
+    expect(t.player.squad.some((f) => f.id === y.id)).toBe(true);
+  });
+});

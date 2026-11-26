@@ -3,7 +3,7 @@ import { ActionError, apply, decodeRun, encodeRun, negotiationFor, newGame, repl
 import { FoundationScreen } from './FoundationScreen';
 import { GameScreen } from './GameScreen';
 import { Ticker, tickerItems } from './Ticker';
-import { loadNamePack, saveCareer } from '../storage';
+import { loadNamePack, saveCareer, saveSnapshot } from '../storage';
 
 /** Seed nova vem da UI (o motor nunca gera entropia). */
 function freshSeed(): number {
@@ -39,6 +39,8 @@ export function App() {
   const [toast, setToast] = useState<{ text: string; ok?: boolean } | null>(null);
   const stateRef = useRef(state);
   stateRef.current = state;
+  /** save aberto (cópias continuam salvando no próprio lugar) */
+  const slotRef = useRef<string | null>(null);
 
   useEffect(() => writeUrl(state), [state]);
   useEffect(() => {
@@ -49,14 +51,16 @@ export function App() {
 
   const start = useCallback((f: Foundation, seed?: number) => {
     const s = newGame(seed ?? freshSeed(), f, { pack: loadNamePack() });
+    slotRef.current = null;
     saveCareer(s);
     setState(s);
   }, []);
 
   /** Continua uma carreira salva (reconstrói pelo log de ações). */
-  const resume = useCallback((query: string) => {
+  const resume = useCallback((query: string, slot?: string) => {
     const code = decodeRun(query);
     if (!code) return setToast({ text: 'Save inválido.' });
+    slotRef.current = slot ?? null;
     try {
       setState(replay(code.seed, code.foundation, code.actions, { pack: loadNamePack() }));
     } catch {
@@ -76,7 +80,7 @@ export function App() {
           setToast({ text: e.message });
           stateRef.current = s;
           setState(s);
-          saveCareer(s);
+          saveCareer(s, slotRef.current);
           return false;
         }
         throw e;
@@ -84,7 +88,7 @@ export function App() {
     }
     stateRef.current = s;
     setState(s);
-    saveCareer(s);
+    saveCareer(s, slotRef.current);
     // acerto fechado numa negociação: o jogador sai da lista do outro clube, então avisamos aqui
     const last = actions[actions.length - 1];
     if (last?.t === 'bid') {
@@ -95,6 +99,12 @@ export function App() {
   }, []);
 
   const restart = useCallback(() => setState(null), []);
+  /** cópia do ponto atual (um save à parte) */
+  const snapshot = useCallback(() => {
+    const s = stateRef.current;
+    if (!s) return;
+    setToast(saveSnapshot(s) ? { text: 'Cópia salva. Ela aparece em "Continuar carreira".', ok: true } : { text: 'Limite de saves atingido: apague um no menu.' });
+  }, []);
 
   return (
     <div className="app">
@@ -110,7 +120,7 @@ export function App() {
       )}
       <main className="stage">
         {state ? (
-          <GameScreen state={state} dispatch={dispatch} onRestart={restart} fromLink={fromLink} />
+          <GameScreen state={state} dispatch={dispatch} onRestart={restart} onSnapshot={snapshot} fromLink={fromLink} />
         ) : (
           <FoundationScreen onStart={start} onResume={resume} />
         )}

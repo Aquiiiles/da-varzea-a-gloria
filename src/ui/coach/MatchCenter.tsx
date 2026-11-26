@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import {
-  SQUAD_MIN, START_YEAR, STYLE_TACTIC, TACTICS, YOUTH_AGE_LIMIT, hangingAt, moodLabel, payroll, ultimatumStatus, injuredAt, suspendedOn, julyWindow, nextMatchAfter, offerOpen, opponentInfo, outcomeOf, playedMatches, teamStrength, weekdayOf,
-  type GameState, type Tactic,
+  SQUAD_MIN, START_YEAR, STYLE_TACTIC, TACTICS, TRAINING, YOUTH_AGE_LIMIT, hangingAt, isDecisive, rivalName, moodLabel, payroll, ultimatumStatus, injuredAt, suspendedOn, julyWindow, nextMatchAfter, offerOpen, opponentInfo, outcomeOf, playedMatches, teamStrength, weekdayOf,
+  type GameState, type Tactic, type TrainingFocus,
 } from '../../engine';
 import type { Dispatch } from '../App';
 import { Crest } from '../Crest';
@@ -87,10 +87,15 @@ function Preseason({ state, dispatch, goTo, onFast }: Props) {
           {leaving.length > 0 && <Todo title={`${leaving.length} saída${leaving.length > 1 ? 's' : ''} no fim do ano`} text={leaving.map((f) => f.name.split(' ').slice(-1)[0]).join(', ')} action="Elenco" onClick={() => goTo('elenco')} tone="bad" />}
           {lastYear.length > 0 && <Todo title={`${lastYear.length} no último ano de contrato`} text="Renovam sozinhos se você não liberar." action="Elenco" onClick={() => goTo('elenco')} />}
           {aging.length > 0 && <Todo title={`${aging.length} garoto${aging.length > 1 ? 's' : ''} no limite da base`} text="Promova ou eles vão embora." action="Base" onClick={() => goTo('base')} tone="warn" />}
+          <Todo title={`Treino: ${TRAINING[p.training ?? 'equilibrado'].label}`} text={TRAINING[p.training ?? 'equilibrado'].effect} action="Mudar" onClick={() => document.getElementById('training')?.scrollIntoView({ behavior: 'smooth' })} />
           {!o.meeting && <Todo title="Reunião com a diretoria" text="Peça verba, um reforço ou estrutura (uma por janela)." action="Diretoria" onClick={() => goTo('diretoria')} />}
           <Todo title={`Verba: ${money(c.board.budget)}`} text={`Folha ${money(payroll(p))} de ${money(c.board.wageCap)} por ano.`} action="Mercado" onClick={() => goTo('mercado')} />
           <Todo title={`Escalação ${p.lineup?.ids ? 'escolhida por você' : 'automática'}`} text={`${p.coach.formation} · ${TACTICS[p.tactic ?? STYLE_TACTIC[p.coach.style]].label}`} action="Escalar" onClick={() => goTo('elenco')} />
         </ul>
+      </section>
+
+      <section className="panel" id="training">
+        <TrainingPicker value={p.training ?? 'equilibrado'} onPick={(f) => dispatch({ t: 'training', focus: f })} />
       </section>
 
       {c.offers.length > 0 && (
@@ -162,6 +167,8 @@ function Matchday({ state, dispatch, goTo, onPlayRound }: Props) {
   const stopsAtWindow = !!next && day < open && next.day > open;
 
   const ult = ultimatumStatus(state);
+  // promessas de vaga não cumpridas nas últimas duas semanas
+  const broken = (live.broken ?? []).filter((b) => b.day <= day && day - b.day <= 14);
   const mid = state.career!.midOffer;
   const showMid = !!mid && !mid.answered && day <= mid.until;
 
@@ -182,6 +189,12 @@ function Matchday({ state, dispatch, goTo, onPlayRound }: Props) {
         </section>
       )}
 
+      {broken.map((b) => (
+        <p key={`${b.id}-${b.day}`} className="window-alert">
+          {b.name} reclama: você prometeu vaga de titular e não cumpriu. A moral dele despencou.
+        </p>
+      ))}
+
       {showMid && (
         <section className="panel">
           <p className="kicker">Sondagem para o ano que vem</p>
@@ -197,7 +210,12 @@ function Matchday({ state, dispatch, goTo, onPlayRound }: Props) {
       {mid?.answered && state.career!.agreed && <p className="window-alert">Pré-contrato assinado com o {state.career!.agreed.club}: você assume lá na próxima temporada.</p>}
 
       {next && opp ? (
-        <section className="panel prematch">
+        <section className={`panel prematch${next.opponent === rivalName(state) ? ' is-derby' : isDecisive(next) ? ' is-final' : ''}`}>
+          {next.opponent === rivalName(state) ? (
+            <p className="pm-badge">Clássico · vale em dobro para a torcida e a diretoria</p>
+          ) : isDecisive(next) ? (
+            <p className="pm-badge">Decisão · {next.round.split(' · ')[0]}</p>
+          ) : null}
           <p className="kicker">
             {next.comp} · {next.round}
           </p>
@@ -258,6 +276,7 @@ function Matchday({ state, dispatch, goTo, onPlayRound }: Props) {
               ))}
             </div>
           </div>
+          <TrainingPicker value={p.training ?? 'equilibrado'} onPick={(f) => dispatch({ t: 'training', focus: f })} />
           <button type="button" className="link" onClick={() => goTo('elenco')}>
             Escalação: {p.lineup?.ids ? 'escolhida por você' : 'automática'} ({p.coach.formation})
           </button>
@@ -337,6 +356,23 @@ function StrengthBar({ me, them }: { me: number; them: number }) {
         <span className={diff >= 1 ? 'good' : diff <= -1 ? 'bad' : 'muted'}>{label}</span>
         <b>{them.toFixed(1)}</b>
       </div>
+    </div>
+  );
+}
+
+/** Foco do treino da semana (vale a partir de hoje). */
+function TrainingPicker({ value, onPick }: { value: TrainingFocus; onPick: (f: TrainingFocus) => void }) {
+  return (
+    <div className="pm-tactic">
+      <span className="muted">Treino da semana</span>
+      <div className="seg seg-compact tactic-seg">
+        {(Object.keys(TRAINING) as TrainingFocus[]).map((t) => (
+          <button key={t} type="button" className={`seg-btn${value === t ? ' is-on' : ''}`} onClick={() => value !== t && onPick(t)}>
+            {TRAINING[t].label}
+          </button>
+        ))}
+      </div>
+      <small className="muted">{TRAINING[value].effect}</small>
     </div>
   );
 }

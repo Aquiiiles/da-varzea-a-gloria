@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { MAX_SUBS, PLAYER_ID, STYLE_TACTIC, injuredAt, suspendedOn, tableAfter, type GameState, type RoundGame, type RoundView, type Tactic } from '../../engine';
+import { MAX_STOPS, MAX_SUBS, PLAYER_ID, isDecisive, rivalName, STYLE_TACTIC, injuredAt, suspendedOn, tableAfter, type GameState, type RoundGame, type RoundView, type Tactic } from '../../engine';
 import type { Dispatch } from '../App';
 import { LineupEditor } from '../LineupEditor';
 import { StandingsTable } from './TableTab';
@@ -20,11 +20,17 @@ function scoreAt(g: RoundGame, minute: number): [number, number] {
  */
 export function RoundLive({ state, round, dispatch, onDone }: { state: GameState; round: RoundView; dispatch: Dispatch; onDone: () => void }) {
   const m = round.moment;
+  const calMatch = state.calendar?.matches.find((x) => x.day === round.day);
+  const derby = !!calMatch && calMatch.opponent === rivalName(state);
+  const final = !!calMatch && isDecisive(calMatch);
   const live = state.live;
-  // intervalo: o jogo para nos 45 e o técnico pode mexer (uma vez por jogo)
-  const canHalftime = !!state.career && !!m.result.half && !!live && state.reveal === round.day;
-  const decided = (live?.halftimes ?? []).some((h) => h.day === round.day);
-  const [htClosed, setHtClosed] = useState(false);
+  // técnico: dá para parar o jogo e mexer (o jogo para sozinho no intervalo e em expulsão ou lesão do seu time)
+  const canChange = !!state.career && !!m.result.blocks && !!live && state.reveal === round.day;
+  const changes = (live?.halftimes ?? []).filter((h) => h.day === round.day);
+  const lastChange = changes.reduce((x, c) => Math.max(x, c.minute ?? 45), 0);
+  /** paradas já tratadas (intervalo e alertas), para não parar de novo no mesmo lance */
+  const [handled, setHandled] = useState<Set<string>>(() => new Set());
+  const [stop, setStop] = useState<{ minute: number; reason: string } | null>(null);
   const end = m.events.at(-1)?.minute ?? 90;
   const [minute, setMinute] = useState(0);
   const [speed, setSpeed] = useState(() => {
@@ -37,7 +43,7 @@ export function RoundLive({ state, round, dispatch, onDone }: { state: GameState
   const [paused, setPaused] = useState(false);
   const [view, setView] = useState<'live' | 'table'>('live');
   const finished = minute >= end;
-  const atHalftime = canHalftime && !decided && !htClosed && minute === 45;
+  const atHalftime = !!stop;
   const feedRef = useRef<HTMLOListElement>(null);
   const reduced = useMemo(() => {
     try {
@@ -51,11 +57,30 @@ export function RoundLive({ state, round, dispatch, onDone }: { state: GameState
     if (reduced) setMinute(end);
   }, [reduced, end]);
 
+  // paradas automáticas: intervalo (se ainda não mexeu ali) e expulsão ou lesão do seu time
+  useEffect(() => {
+    if (!canChange || stop || finished) return;
+    const alert = m.events.find((e) => e.alert && e.mine && e.minute === minute && !handled.has(`a${e.minute}${e.text}`));
+    if (alert && minute < 85 && lastChange < 85) {
+      setHandled(new Set([...handled, `a${alert.minute}${alert.text}`]));
+      setStop({ minute, reason: alert.text });
+      return;
+    }
+    if (minute === 45 && !handled.has('ht') && lastChange < 45) {
+      setHandled(new Set([...handled, 'ht']));
+      setStop({ minute: 45, reason: 'Intervalo' });
+    }
+  }, [minute, canChange, stop, finished, m.events, handled, lastChange]);
+
   useEffect(() => {
     if (finished || paused || reduced || atHalftime) return;
     const t = setTimeout(() => setMinute((x) => Math.min(end, x + 1)), SPEEDS[speed]?.ms ?? 55);
     return () => clearTimeout(t);
   }, [minute, finished, paused, speed, end, reduced, atHalftime]);
+
+  /** a mudança vale a partir do próximo bloco de 5 minutos (no intervalo, do 2º tempo) */
+  const changeAt = (at: number) => (at === 45 ? 45 : Math.min(85, Math.max(5, Math.ceil((at + 1) / 5) * 5)));
+  const canStopNow = canChange && !finished && changeAt(minute) > lastChange && changeAt(minute) <= 85 && changes.length < MAX_STOPS;
 
   const changeSpeed = (i: number) => {
     setSpeed(i);
@@ -112,7 +137,8 @@ export function RoundLive({ state, round, dispatch, onDone }: { state: GameState
 
   return (
     <div className="tab-stack round-live">
-      <section className={`panel live${flash ? ' is-goal' : ''}`} aria-live="polite">
+      <section className={`panel live${flash ? ' is-goal' : ''}${derby ? ' is-derby' : final ? ' is-final' : ''}`} aria-live="polite">
+        {(derby || final) && <p className="pm-badge">{derby ? 'Clássico · casa cheia' : `Decisão · ${calMatch!.round.split(' · ')[0]}`}</p>}
         <div className="live-top">
           <span className="brand-live">AO VIVO</span>
           <span className="live-count">
@@ -142,7 +168,7 @@ export function RoundLive({ state, round, dispatch, onDone }: { state: GameState
         {finished && verdict && <p className={`live-verdict v-${verdict}`}>{verdict === 'win' ? 'VITÓRIA!' : verdict === 'loss' ? 'Derrota.' : 'Empate.'}</p>}
       </section>
 
-      {atHalftime && <HalftimePanel state={state} day={round.day} dispatch={dispatch} onClose={() => setHtClosed(true)} />}
+      {stop && <HalftimePanel state={state} day={round.day} minute={changeAt(stop.minute)} reason={stop.reason} dispatch={dispatch} onClose={() => setStop(null)} />}
 
       {others.length > 0 && (
         <section className="panel">
@@ -167,7 +193,7 @@ export function RoundLive({ state, round, dispatch, onDone }: { state: GameState
 
       <div className="playbar coach-playbar">
         {atHalftime ? (
-          <button type="button" className="btn" onClick={() => setHtClosed(true)}>
+          <button type="button" className="btn" onClick={() => setStop(null)}>
             Voltar sem mudar
           </button>
         ) : !finished ? (
@@ -179,9 +205,15 @@ export function RoundLive({ state, round, dispatch, onDone }: { state: GameState
                 </button>
               ))}
             </div>
-            <button type="button" className="btn" onClick={() => setPaused(!paused)}>
-              {paused ? 'Continuar' : 'Pausar'}
-            </button>
+            {canChange ? (
+              <button type="button" className="btn btn-primary" disabled={!canStopNow} onClick={() => setStop({ minute, reason: 'Parada técnica' })}>
+                Mexer no time
+              </button>
+            ) : (
+              <button type="button" className="btn" onClick={() => setPaused(!paused)}>
+                {paused ? 'Continuar' : 'Pausar'}
+              </button>
+            )}
             <button type="button" className="btn" onClick={() => setMinute(end)}>
               Fim
             </button>
@@ -197,20 +229,38 @@ export function RoundLive({ state, round, dispatch, onDone }: { state: GameState
 }
 
 /** Vestiário no intervalo: o mesmo campinho da escalação, com até 5 substituições e a estratégia do 2º tempo. */
-function HalftimePanel({ state, day, dispatch, onClose }: { state: GameState; day: number; dispatch: Dispatch; onClose: () => void }) {
+function HalftimePanel({ state, day, minute, reason, dispatch, onClose }: { state: GameState; day: number; minute: number; reason: string; dispatch: Dispatch; onClose: () => void }) {
   const p = state.player;
   const live = state.live!;
-  const firstIds = live.elevens.find((e) => e.day === day)?.ids ?? [];
-  const out = new Set([...injuredAt(live, day).filter((i) => i.from < day).map((i) => i.id), ...suspendedOn(live, day).map((s) => s.id)]);
-  const current: Tactic = (live.lineups.filter((l) => l.day < day).at(-1)?.tactic ?? p.tactic ?? STYLE_TACTIC[p.coach.style]) as Tactic;
+  const original = live.elevens.find((e) => e.day === day)?.ids ?? [];
+  const before = (live.halftimes ?? []).filter((h) => h.day === day && (h.minute ?? 45) < minute);
+  const lastIds = before.reduce<number[] | null>((ids, h) => h.ids ?? ids, null);
+  // fora: lesão de antes, suspensos e quem se machucou ou foi expulso neste jogo antes do minuto
+  const gone = [
+    ...live.injuries.filter((i) => i.from === day && (i.minute ?? 60) < minute).map((i) => i.id),
+    ...(live.cards ?? []).filter((c) => c.day === day && c.kind === 'vermelho' && (c.minute ?? 60) < minute).map((c) => c.id),
+  ];
+  const reds = (live.cards ?? []).filter((c) => c.day === day && c.kind === 'vermelho' && (c.minute ?? 60) < minute).length;
+  const out = new Set([...injuredAt(live, day).filter((i) => i.from < day).map((i) => i.id), ...suspendedOn(live, day).map((s) => s.id), ...gone]);
+  const field = (lastIds ?? original).filter((id) => !out.has(id));
+  const used = field.filter((id) => !original.includes(id)).length;
+  const lastTactic = before.reduce<Tactic | null>((t, h) => h.tactic ?? t, null);
+  const current: Tactic = (lastTactic ?? live.lineups.filter((l) => l.day < day).at(-1)?.tactic ?? p.tactic ?? STYLE_TACTIC[p.coach.style]) as Tactic;
   const confirm = (ids: number[] | null, tactic: Tactic) => {
-    const ok = dispatch({ t: 'halftime', day, ids, ...(tactic !== current ? { tactic } : {}) });
+    const ok = dispatch({ t: 'halftime', day, minute, ids, ...(tactic !== current ? { tactic } : {}) });
     if (ok) onClose();
   };
+  const halftime = minute === 45;
   return (
     <section className="panel halftime">
-      <p className="kicker">Intervalo · vestiário</p>
-      <LineupEditor state={state} dispatch={dispatch} halftime={{ firstIds, out, maxSubs: MAX_SUBS, tactic: current, onConfirm: confirm }} />
+      <p className="kicker">{halftime ? 'Intervalo · vestiário' : `Parada técnica · vale a partir dos ${minute}'`}</p>
+      {reason !== 'Intervalo' && reason !== 'Parada técnica' && <p className="window-alert">{reason}</p>}
+      <LineupEditor
+        key={`${minute}-${field.join(',')}`}
+        state={state}
+        dispatch={dispatch}
+        halftime={{ firstIds: field, out, maxSubs: MAX_SUBS - used, tactic: current, size: 11 - reds, onConfirm: confirm }}
+      />
     </section>
   );
 }

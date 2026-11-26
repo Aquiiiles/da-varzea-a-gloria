@@ -1,7 +1,7 @@
 import { bestEleven, round1 } from './footballers';
 import { deriveRng } from './rng';
 import { clamp } from './util';
-import type { Footballer, Formation, LineupEntry, RosterChange } from './types';
+import type { Footballer, Formation, LineupEntry, RosterChange, Talk } from './types';
 
 /**
  * Elenco ao longo da temporada (só o clube do jogador): quem está no elenco em cada dia (contratações de julho),
@@ -24,6 +24,8 @@ export interface Injury {
   /** dia em que machucou e dia em que volta */
   from: number;
   to: number;
+  /** minuto do jogo em que machucou */
+  minute?: number;
 }
 
 export interface MatchPlan {
@@ -46,6 +48,8 @@ export interface CardEvent {
   id: number;
   name: string;
   kind: 'amarelo' | 'vermelho';
+  /** minuto do jogo */
+  minute?: number;
 }
 
 export interface Suspension {
@@ -64,6 +68,8 @@ export interface PlanOptions {
   fitness: number;
   /** modo técnico: forma e moral individual contam */
   coach?: boolean;
+  /** conversas do técnico com jogadores */
+  talks?: Talk[];
 }
 
 export function fatiguePenalty(fatigue: number): number {
@@ -102,6 +108,10 @@ export class SquadPlan {
   readonly statusLog: { day: number; form: Record<number, number>; morale: Record<number, number> }[] = [];
   private form = new Map<number, number>();
   private morale = new Map<number, number>();
+  private talked = new Set<Talk>();
+  private promises: { id: number; name: string; day: number; left: number }[] = [];
+  /** promessas de vaga que não foram cumpridas (dia do jogo em que o jogador se revoltou) */
+  readonly broken: { day: number; id: number; name: string }[] = [];
   readonly cards: CardEvent[] = [];
   readonly suspensions: Suspension[] = [];
   /** cansaço de cada jogador depois de cada jogo (para a interface) */
@@ -143,7 +153,8 @@ export class SquadPlan {
 
   private recover(day: number): void {
     if (this.lastDay >= 0) {
-      const rest = (day - this.lastDay) * (FATIGUE_RECOVERY + this.opts.fitness * 0.6);
+      const boost = this.lineupAt(day).training === 'recuperacao' ? 1.4 : 1;
+      const rest = (day - this.lastDay) * (FATIGUE_RECOVERY + this.opts.fitness * 0.6) * boost;
       for (const [id, f] of this.fatigue) this.fatigue.set(id, Math.max(0, f - rest));
     }
     this.lastDay = day;
@@ -166,6 +177,14 @@ export class SquadPlan {
     const preferred = lineup.ids ? new Set<number>(lineup.ids) : null;
     const { xi, strength } = pickXI(pool, lineup.formation, preferred);
     return { day, xi, strength, pool: eff };
+  }
+
+  /** Expulsões e lesões do clube durante o jogo do dia (com o minuto). */
+  matchEvents(day: number): { id: number; minute: number; kind: 'vermelho' | 'lesao' }[] {
+    const out: { id: number; minute: number; kind: 'vermelho' | 'lesao' }[] = [];
+    for (const c of this.cards) if (c.day === day && c.kind === 'vermelho') out.push({ id: c.id, minute: c.minute ?? 60, kind: 'vermelho' });
+    for (const i of this.injuries) if (i.from === day) out.push({ id: i.id, minute: i.minute ?? 60, kind: 'lesao' });
+    return out;
   }
 
   /** Moral atual (começa na que o jogador trouxe da temporada passada). */
@@ -205,13 +224,14 @@ export class SquadPlan {
       const crng = deriveRng(this.opts.seed, this.opts.season, 'cartao', day);
       const aggressive = this.lineupAt(day).tactic === 'pressao' ? 1.3 : 1;
       for (const f of plan.xi) {
+        const minute = deriveRng(this.opts.seed, this.opts.season, 'minuto', day, f.id).int(5, 88);
         if (crng.chance(RED_CHANCE * aggressive)) {
-          this.cards.push({ day, id: f.id, name: f.name, kind: 'vermelho' });
+          this.cards.push({ day, id: f.id, name: f.name, kind: 'vermelho', minute });
           pending.push({ id: f.id, name: f.name, why: 'vermelho' });
           continue;
         }
         if (crng.chance(YELLOW_CHANCE * aggressive)) {
-          this.cards.push({ day, id: f.id, name: f.name, kind: 'amarelo' });
+          this.cards.push({ day, id: f.id, name: f.name, kind: 'amarelo', minute });
           const n = (yellows.get(f.id) ?? 0) + 1;
           if (n >= YELLOWS_FOR_SUSPENSION) {
             yellows.set(f.id, 0);
@@ -225,11 +245,13 @@ export class SquadPlan {
       for (const f of plan.xi) {
         const before = this.fatigue.get(f.id) ?? 0;
         const press = this.lineupAt(day).tactic === 'pressao' ? 1.25 : 1;
-        this.fatigue.set(f.id, Math.min(100, before + FATIGUE_PER_MATCH * press * (1 - this.opts.fitness * 0.05)));
-        const chance = 0.016 * (1 + before / 60) * (1 - this.opts.medical * 0.12);
+        const training = this.lineupAt(day).training;
+        const physical = training === 'fisico' ? 0.8 : 1;
+        this.fatigue.set(f.id, Math.min(100, before + FATIGUE_PER_MATCH * press * physical * (1 - this.opts.fitness * 0.05)));
+        const chance = 0.016 * (1 + before / 60) * (1 - this.opts.medical * 0.12) * (training === 'recuperacao' ? 0.7 : 1);
         if (rng.chance(chance)) {
           const length = 7 + Math.floor(Math.pow(rng.next(), 2) * 50);
-          this.injuries.push({ id: f.id, name: f.name, from: day, to: day + length });
+          this.injuries.push({ id: f.id, name: f.name, from: day, to: day + length, minute: deriveRng(this.opts.seed, this.opts.season, 'minuto-lesao', day, f.id).int(5, 88) });
         }
       }
       this.fatigueLog.push({ day, fatigue: Object.fromEntries(this.fatigue) });
@@ -243,14 +265,45 @@ export class SquadPlan {
       const inXI = new Set(plan.xi.map((f) => f.id));
       const ranked = roster.slice().sort((a, b) => b.ovr - a.ovr || a.id - b.id);
       const expects = new Set(ranked.slice(0, 16).map((f) => f.id));
+      // conversas feitas antes deste jogo (valem uma vez)
+      for (const t of this.opts.talks ?? []) {
+        if (t.day >= day || this.talked.has(t)) continue;
+        this.talked.add(t);
+        const f = roster.find((x) => x.id === t.id);
+        if (!f) continue;
+        const m0 = this.moraleOf(f);
+        if (t.kind === 'elogiar') this.morale.set(f.id, clamp(m0 + (t.ok ? 8 : 2), 0, 100));
+        else if (t.kind === 'cobrar') {
+          if (t.ok) this.form.set(f.id, Math.min(FORM_MAX, (this.form.get(f.id) ?? 0) + 1.5));
+          else this.morale.set(f.id, clamp(m0 - 10, 0, 100));
+        } else {
+          this.morale.set(f.id, clamp(m0 + 12, 0, 100));
+          this.promises.push({ id: f.id, name: f.name, day: t.day, left: 3 });
+        }
+      }
+      const recovery = this.lineupAt(day).training === 'recuperacao';
       for (const f of roster) {
         const cur = this.form.get(f.id) ?? 0;
-        const next = inXI.has(f.id) ? cur * 0.7 + frng.normal(1.2) : cur * 0.85;
+        const next = (inXI.has(f.id) ? cur * 0.7 + frng.normal(1.2) : cur * 0.85) - (recovery ? 0.15 : 0);
         this.form.set(f.id, Math.max(-FORM_MAX, Math.min(FORM_MAX, Math.round(next * 10) / 10)));
         const m = this.moraleOf(f);
         // quem joga anima; quem esperava jogar e fica no banco se chateia; tudo volta devagar para o normal
         const dm = inXI.has(f.id) ? 1.5 : expects.has(f.id) ? -1.8 : -0.5;
         this.morale.set(f.id, clamp(Math.round((m + dm + (MORALE_START - m) * 0.06) * 10) / 10, 0, 100));
+      }
+      // promessa de vaga: tem que jogar em até 3 jogos
+      for (const pr of this.promises) {
+        if (pr.left <= 0) continue;
+        if (inXI.has(pr.id)) {
+          pr.left = 0;
+          continue;
+        }
+        pr.left--;
+        if (pr.left === 0) {
+          const f = roster.find((x) => x.id === pr.id);
+          if (f) this.morale.set(f.id, clamp(this.moraleOf(f) - 25, 0, 100));
+          this.broken.push({ day, id: pr.id, name: pr.name });
+        }
       }
       this.statusLog.push({ day, form: Object.fromEntries(this.form), morale: Object.fromEntries(this.morale) });
     }

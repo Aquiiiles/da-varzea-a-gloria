@@ -18,7 +18,7 @@ export { scaled } from './effects';
 export {
   TIERS, MAX_SEASONS, START_YEAR, FACILITY_COST, STAFF_WAGE, SEAT_PACKS, STADIUM_FINANCE, STADIUM_INSTALLMENT_NAME, LOAN_NAME, SQUAD_MIN, SQUAD_MAX, YOUTH_MAX, YOUTH_AGE_LIMIT, MAX_LOANS, LOAN_AGE_LIMIT,
 } from '../data/pyramid';
-export { COACH_STYLES, BUSINESSES, DELEGATE_INFO, TACTICS, STYLE_TACTIC } from '../data/club';
+export { COACH_STYLES, BUSINESSES, DELEGATE_INFO, TACTICS, STYLE_TACTIC, TRAINING } from '../data/club';
 export { initials } from './clubs';
 export { playedMatches, upcomingMatches, stageStarted, partialTable, outcomeOf } from './calendarView';
 export { dayToDate, weekdayOf } from './calendar';
@@ -28,7 +28,7 @@ export { BOARD_INFO, CAREER_END_AGE, CAREER_START_AGE, isCoachMode, starsFor, ti
 export { COACH_LEVELS } from './score';
 export { injuredAt, fatigueAt, suspendedOn, hangingAt, statusAt, statsUpTo, COMP_STATS_KEY, type StatLine } from './calendarView';
 export { MORALE_LOW, MORALE_HIGH, MORALE_START } from './squadplan';
-export { MAX_SUBS } from './game';
+export { MAX_SUBS, MAX_STOPS, TALK_COOLDOWN, MAX_WATCH } from './game';
 export { julyWindow } from './calendar';
 export { FATIGUE_FREE, FATIGUE_REST } from './squadplan';
 export { currentInterview, answered, interviewEffects, type Interview, type InterviewQuestion, type InterviewAnswer } from './interview';
@@ -36,4 +36,4 @@ export { coachRanking, type RankingEntry } from './ranking';
 export { quickMoment } from './live';
 export { MEETING_LABEL } from './career';
 export { roundOn, tableAfter, opponentInfo, myPosition, nextMatchAfter, type RoundView, type RoundGame, type TableMove, type OpponentInfo } from './round';
-export { ultimatumStatus, BOARD_RULES } from './boardwatch';
+export { ultimatumStatus, BOARD_RULES, rivalName, isDecisive } from './boardwatch';

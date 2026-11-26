@@ -17,6 +17,7 @@ const CHANCE = [
   '{t} pressiona e a zaga tira em cima da linha!',
 ];
 const SAVE = ['Defesaça do goleiro do {t}!', 'O goleiro do {t} voa e espalma para escanteio!', 'Milagre! O goleiro do {t} salva no reflexo.'];
+const RED = ['Vermelho! {p} é expulso depois de uma entrada dura.', 'Cartão vermelho direto para {p}!'];
 const CARD = ['Cartão amarelo para {p}, que chegou atrasado.', 'Jogo pegado: {p} leva amarelo.', 'O árbitro mostra o amarelo para {p}.'];
 
 function fill(tpl: string, p: string, t: string): string {
@@ -37,9 +38,9 @@ export function narrate(
   awayName: string,
   squad: readonly Footballer[],
   oppSquad: readonly Footballer[] = [],
-  cards?: { name: string; kind: 'amarelo' | 'vermelho' }[],
+  cards?: Incident[],
 ): LiveEvent[] {
-  if (r.half) return narrateHalves(rng0, r, playerHome, homeName, awayName, squad, oppSquad, cards ?? []);
+  if (r.blocks) return narrateBlocks(rng0, r, playerHome, homeName, awayName, squad, oppSquad, cards ?? []);
   const rng = rng0;
   const events: Omit<LiveEvent, 'score'>[] = [];
   const reg = r.reg ?? [r.hg, r.ag];
@@ -100,13 +101,20 @@ export function narrate(
   return out;
 }
 
-const RED = ['Vermelho! {p} é expulso depois de uma entrada dura.', 'Cartão vermelho direto para {p}!'];
+
+export interface Incident {
+  name: string;
+  kind: 'amarelo' | 'vermelho' | 'lesao';
+  minute?: number;
+}
+
+const INJURY = ['{p} sente a coxa e pede para sair.', '{p} cai machucado e não volta.', 'Preocupação: {p} sai de maca.'];
 
 /**
- * Narração em dois tempos (jogos com intervalo): o 1º tempo usa um sorteio e o 2º outro,
- * então mudar o 2º tempo (intervalo) não muda nada do que já foi narrado.
+ * Narração em blocos de 5 minutos (jogos do técnico): cada bloco tem o próprio sorteio,
+ * então mexer no time num minuto não muda nada do que já foi narrado antes.
  */
-function narrateHalves(
+function narrateBlocks(
   rng0: Rng,
   r: MatchResult,
   playerHome: boolean,
@@ -114,47 +122,51 @@ function narrateHalves(
   awayName: string,
   squad: readonly Footballer[],
   oppSquad: readonly Footballer[],
-  cards: { name: string; kind: 'amarelo' | 'vermelho' }[],
+  incidents: Incident[],
 ): LiveEvent[] {
-  const r1 = createRng(rng0.int(1, 2 ** 30));
-  const r2 = createRng(rng0.int(1, 2 ** 30));
-  const r3 = createRng(rng0.int(1, 2 ** 30));
+  const base = rng0.int(1, 2 ** 30);
+  const etSeed = rng0.int(1, 2 ** 30);
+  const oppFallback = personName(createRng(rng0.int(1, 2 ** 30)));
   const pick = (rng: Rng, list: readonly Footballer[], fallback: string) =>
     list.length > 0 ? rng.weighted(list, (f) => SCORE_WEIGHT[f.pos] * Math.pow(1.06, f.ovr - 50)).name : fallback;
-  const oppFallback = personName(createRng(rng0.int(1, 2 ** 30)));
   const events: Omit<LiveEvent, 'score'>[] = [];
-  const reg = r.reg ?? [r.hg, r.ag];
-  const half = r.half!;
-  const goals = (rng: Rng, h: number, a: number, from: number, to: number) => {
+  const blocks = r.blocks!;
+  blocks.forEach(([h, a], b) => {
+    const rng = createRng((base + b * 7919) >>> 0);
+    const from = b * 5 + 1;
+    const to = b * 5 + 5;
     const sides = rng.shuffle([...Array(h).fill('h'), ...Array(a).fill('a')] as ('h' | 'a')[]);
-    const minutes = sides.map(() => rng.int(from, to)).sort((x, y) => x - y);
-    sides.forEach((side, i) => {
+    for (const side of sides) {
       const mine = (side === 'h') === playerHome;
-      events.push({ minute: minutes[i], kind: 'gol', mine, text: fill(rng.pick(GOAL), mine ? pick(rng, squad, 'o camisa 9') : pick(rng, oppSquad, oppFallback), '') });
-    });
-  };
-  const flavor = (rng: Rng, n: number, from: number, to: number) => {
-    for (let i = 0; i < n; i++) {
+      events.push({ minute: rng.int(from, to), kind: 'gol', mine, text: fill(rng.pick(GOAL), mine ? pick(rng, squad, 'o camisa 9') : pick(rng, oppSquad, oppFallback), '') });
+    }
+    // lances de efeito e cartões do adversário
+    if (rng.chance(0.28)) {
       const mine = rng.chance(0.5);
       const team = mine === playerHome ? homeName : awayName;
       const other = mine === playerHome ? awayName : homeName;
       const kind = rng.pick(['chance', 'chance', 'defesa'] as const);
-      events.push({ minute: rng.int(from, to), kind, mine, text: kind === 'chance' ? fill(rng.pick(CHANCE), '', team) : fill(rng.pick(SAVE), '', other) });
+      events.push({ minute: rng.int(from, Math.min(to, 89)), kind, mine, text: kind === 'chance' ? fill(rng.pick(CHANCE), '', team) : fill(rng.pick(SAVE), '', other) });
     }
-  };
-  // 1º tempo
-  goals(r1, half[0], half[1], 2, 45);
-  flavor(r1, r1.int(2, 4), 3, 44);
-  // 2º tempo (e prorrogação)
-  goals(r2, reg[0] - half[0], reg[1] - half[1], 46, 90);
-  flavor(r2, r2.int(2, 4), 47, 89);
-  if (r.extraTime) goals(r2, r.hg - reg[0], r.ag - reg[1], 92, 120);
-  // cartões do seu time (os de verdade, que contam para suspensão) e alguns do adversário
-  for (const c of cards) {
-    const minute = r3.int(5, 88);
-    events.push({ minute, kind: 'cartao', mine: true, text: fill(c.kind === 'vermelho' ? r3.pick(RED) : r3.pick(CARD), c.name, '') });
+    if (rng.chance(0.05)) events.push({ minute: rng.int(from, Math.min(to, 89)), kind: 'cartao', mine: false, text: fill(rng.pick(CARD), pick(rng, oppSquad, oppFallback), '') });
+  });
+  // prorrogação
+  if (r.extraTime) {
+    const reg = r.reg ?? [r.hg, r.ag];
+    const rng = createRng(etSeed);
+    const sides = rng.shuffle([...Array(r.hg - reg[0]).fill('h'), ...Array(r.ag - reg[1]).fill('a')] as ('h' | 'a')[]);
+    for (const side of sides) {
+      const mine = (side === 'h') === playerHome;
+      events.push({ minute: rng.int(92, 120), kind: 'gol', mine, text: fill(rng.pick(GOAL), mine ? pick(rng, squad, 'o camisa 9') : pick(rng, oppSquad, oppFallback), '') });
+    }
   }
-  for (let i = r3.int(0, 2); i > 0; i--) events.push({ minute: r3.int(5, 88), kind: 'cartao', mine: false, text: fill(r3.pick(CARD), pick(r3, oppSquad, oppFallback), '') });
+  // o que aconteceu de verdade com o seu time (conta para suspensão e muda o jogo)
+  for (const c of incidents) {
+    const rng = createRng((base ^ (c.minute ?? 0) * 104729) >>> 0);
+    const minute = c.minute ?? rng.int(5, 88);
+    const text = c.kind === 'lesao' ? fill(rng.pick(INJURY), c.name, '') : c.kind === 'vermelho' ? fill(rng.pick(RED), c.name, '') : fill(rng.pick(CARD), c.name, '');
+    events.push({ minute, kind: c.kind === 'lesao' ? 'lesao' : 'cartao', mine: true, text, ...(c.kind === 'amarelo' ? {} : { alert: true }) });
+  }
   events.push({ minute: 0, kind: 'apito', mine: false, text: 'Rola a bola!' });
   events.push({ minute: 45, kind: 'apito', mine: false, text: 'Fim do primeiro tempo.' });
   if (r.extraTime) events.push({ minute: 90, kind: 'apito', mine: false, text: 'Fim do tempo normal. Vamos para a prorrogação!' });
@@ -201,7 +213,7 @@ export function moment(
   name: (id: string) => string,
   squad: readonly Footballer[],
   oppSquad: (id: string) => readonly Footballer[] = () => [],
-  cards?: { name: string; kind: 'amarelo' | 'vermelho' }[],
+  cards?: Incident[],
 ): LiveMoment {
   const playerHome = r.home === playerId;
   const homeName = name(r.home);
@@ -224,9 +236,13 @@ export function quickMoment(state: GameState, m: CalendarMatch): LiveMoment {
   if (m.extraTime) r.extraTime = true;
   if (m.advanced !== null) r.winner = m.advanced ? 'player' : opp;
   if (m.half) r.half = m.home ? m.half : [m.half[1], m.half[0]];
+  if (m.blocks) r.blocks = m.home ? m.blocks : m.blocks.map(([x, y]) => [y, x] as [number, number]);
   const club = state.clubs.find((c) => c.name === m.opponent);
   const name = (id: string) => (id === 'player' ? p.name : m.opponent);
-  const cards = (state.live?.cards ?? []).filter((c) => c.day === m.day);
+  const cards: Incident[] = [
+    ...(state.live?.cards ?? []).filter((c) => c.day === m.day),
+    ...(state.live?.injuries ?? []).filter((i) => i.from === m.day).map((i) => ({ name: i.name, kind: 'lesao' as const, minute: i.minute })),
+  ];
   const mo = moment(deriveRng(state.seed, state.season, 'narra', m.day), 'jogo', `${m.comp} · ${m.round}`, m.home ? 'Em casa.' : 'Fora de casa.', r, 'player', name, p.squad, () => club?.squad ?? [], cards);
   mo.day = m.day;
   return mo;

@@ -890,3 +890,26 @@ h3 { font: 700 14px/1.2 var(--font-display); text-transform: uppercase; letter-s
 .np-body { margin: 2px 0 0; font-size: 13px; color: var(--muted); }
 .np-group ul { margin: 4px 0 4px; padding-left: 16px; display: flex; flex-direction: column; gap: 3px; font-size: 13px; }
 .np-group li.is-mine { font-weight: 700; color: var(--text); }
+.pm-badge { margin: 0 0 4px; align-self: flex-start; font: 700 11px/1 var(--font-display); letter-spacing: 0.1em; text-transform: uppercase; padding: 5px 8px; border-radius: 4px; background: var(--live); color: #fff; }
+.is-final .pm-badge { background: var(--accent); color: #111; }
+.prematch.is-derby, .live.is-derby { border-color: var(--live); box-shadow: 0 0 0 1px var(--live), 0 0 24px #e6394633; }
+.prematch.is-final, .live.is-final { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent), 0 0 24px #ffd23f22; }
+.ev-lesao { border-left: 3px solid var(--bad); }
+.talk { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 0 0 8px; }
+.talk small { flex-basis: 100%; }
+.tag-watch { background: #6fb3ff; color: #111; }
+.btn-watch { border-color: #6fb3ff; color: #6fb3ff; }
+.seg-modes { grid-template-columns: repeat(4, 1fr); }
+.stints, .timeline { list-style: none; margin: 10px 0 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.stints li { display: flex; gap: 10px; align-items: center; background: var(--panel-2); border-radius: 6px; padding: 8px 10px; }
+.stints li.is-now { box-shadow: inset 3px 0 0 var(--club1, var(--accent)); }
+.stints li div, .timeline li div { display: flex; flex-direction: column; }
+.stints small, .timeline small { color: var(--muted); font-size: 12px; }
+.timeline { border-left: 2px solid var(--line); padding-left: 12px; }
+.timeline li { position: relative; display: grid; grid-template-columns: 44px 1fr; gap: 8px; }
+.timeline li::before { content: ''; position: absolute; left: -18px; top: 5px; width: 10px; height: 10px; border-radius: 50%; background: var(--line); }
+.timeline li.tl-good::before { background: var(--good); }
+.timeline li.tl-bad::before { background: var(--bad); }
+.tl-year { font: 700 14px var(--font-display); color: var(--muted); }
+.tl-titles { font-style: normal; font-weight: 700; color: var(--accent); font-size: 13px; }
+.game-menu .actions { display: flex; gap: 8px; flex-wrap: wrap; }

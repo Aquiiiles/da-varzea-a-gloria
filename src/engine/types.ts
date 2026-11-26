@@ -261,9 +261,11 @@ export interface Objective {
 /** Lance de um jogo ao vivo. */
 export interface LiveEvent {
   minute: number;
-  kind: 'gol' | 'chance' | 'defesa' | 'cartao' | 'apito' | 'penaltis';
+  kind: 'gol' | 'chance' | 'defesa' | 'cartao' | 'apito' | 'penaltis' | 'lesao';
   /** true = lance do clube do jogador */
   mine: boolean;
+  /** expulsão ou lesão do seu time (o jogo para para você mexer) */
+  alert?: boolean;
   text: string;
   score: [number, number];
 }
@@ -343,6 +345,21 @@ export interface PlayerClub extends Club {
   naming?: boolean;
   /** estratégia de jogo (modo técnico; ausente = a do estilo do técnico) */
   tactic?: Tactic;
+  /** foco do treino (modo técnico; ausente = equilibrado) */
+  training?: TrainingFocus;
+}
+
+/** Foco do treino semanal (modo técnico). */
+export type TrainingFocus = 'equilibrado' | 'fisico' | 'tatico' | 'finalizacao' | 'recuperacao';
+export type TalkKind = 'elogiar' | 'cobrar' | 'prometer';
+
+/** Conversa do técnico com um jogador (vale a partir do dia). */
+export interface Talk {
+  day: number;
+  id: number;
+  kind: TalkKind;
+  /** como o jogador reagiu (decidido na hora, pela moral) */
+  ok: boolean;
 }
 
 /* ---------------------------- Efeitos (dados) ---------------------------- */
@@ -423,8 +440,11 @@ export type Action =
   | { t: 'advance'; to: AdvanceTo } // mostra a temporada até o próximo jogo, semana, mês ou fim
   | { t: 'job'; idx: number } // técnico: aceita uma proposta de emprego
   | { t: 'lineup'; ids: number[] | null; rotate: boolean } // técnico: escalação (null = os melhores)
+  | { t: 'watch'; id: number } // lista de observação: marcar ou desmarcar um jogador de outro clube
+  | { t: 'training'; focus: TrainingFocus } // foco do treino (modo técnico)
+  | { t: 'talk'; id: number; kind: TalkKind } // conversa com um jogador (modo técnico)
   | { t: 'precontract'; accept: boolean } // proposta no meio da temporada (pré-contrato)
-  | { t: 'halftime'; day: number; ids: number[] | null; tactic?: Tactic } // intervalo: substituições e estratégia do 2º tempo
+  | { t: 'halftime'; day: number; minute?: number; ids: number[] | null; tactic?: Tactic } // durante o jogo: substituições e estratégia a partir do minuto
   | { t: 'interview'; day: number; q: number; a: number } // entrevista pós-jogo ou coletiva (dia do jogo, pergunta, resposta)
   | { t: 'tactic'; v: Tactic } // técnico: estratégia de jogo
   | { t: 'counter'; idx: number; fee: number } // pede mais por um jogador seu (proposta idx)
@@ -451,6 +471,8 @@ export interface MatchResult {
   day?: number;
   /** placar do 1º tempo (jogos do técnico, que têm intervalo) */
   half?: [number, number];
+  /** gols por bloco de 5 minutos [mandante, visitante] (jogos do técnico) */
+  blocks?: [number, number][];
 }
 
 export interface TableRow {
@@ -680,9 +702,10 @@ export interface SeasonOffice {
 }
 
 /** Escalação escolhida a partir de um dia (vale para os jogos depois dele). */
-/** Mudanças no intervalo de um jogo (modo técnico). */
+/** Mudanças durante um jogo (modo técnico): valem a partir do minuto `minute` (múltiplo de 5; intervalo = 45). */
 export interface HalftimeChange {
   day: number;
+  minute?: number;
   /** os 11 em campo no 2º tempo (null = os mesmos) */
   ids: number[] | null;
   tactic?: Tactic;
@@ -697,6 +720,8 @@ export interface LineupEntry {
   formation: Formation;
   /** estratégia de jogo valendo a partir deste dia */
   tactic?: Tactic;
+  /** foco do treino valendo a partir deste dia */
+  training?: TrainingFocus;
 }
 
 /** Mudança no elenco durante a temporada (janela do meio do ano). */
@@ -713,10 +738,14 @@ export interface LiveSeason {
   lineups: LineupEntry[];
   /** prévia: jogos ao vivo, lesões e cansaço (recalculados a cada decisão) */
   moments: LiveMoment[];
-  injuries: { id: number; name: string; from: number; to: number }[];
+  injuries: { id: number; name: string; from: number; to: number; minute?: number }[];
   fatigue: { day: number; fatigue: Record<number, number> }[];
   /** escalação de cada jogo do clube (ids dos titulares) */
   elevens: { day: number; ids: number[] }[];
+  /** conversas do técnico com jogadores */
+  talks?: Talk[];
+  /** promessas de vaga não cumpridas (prévia) */
+  broken?: { day: number; id: number; name: string }[];
   /** mudanças no intervalo (modo técnico): novo time em campo e/ou estratégia para o 2º tempo */
   halftimes?: HalftimeChange[];
   /** estatísticas por jogo (artilharia, assistências e notas durante a temporada) */
@@ -724,7 +753,7 @@ export interface LiveSeason {
   /** forma e moral de cada jogador depois de cada jogo (prévia) */
   status?: { day: number; form: Record<number, number>; morale: Record<number, number> }[];
   /** cartões e suspensões do clube (prévia) */
-  cards?: { day: number; id: number; name: string; kind: 'amarelo' | 'vermelho' }[];
+  cards?: { day: number; id: number; name: string; kind: 'amarelo' | 'vermelho'; minute?: number }[];
   suspensions?: { day: number; id: number; name: string; why: 'amarelos' | 'vermelho' }[];
   /** respostas em entrevistas e coletivas (os efeitos entram no fim da temporada) */
   interviews?: { day: number; kind: 'pos' | 'coletiva'; q: number; a: number; quote: string; effect: { mood?: number; board?: number; rep?: number; morale?: number } }[];
@@ -764,6 +793,10 @@ export interface GameState {
   live?: LiveSeason | null;
   /** temporada do último evento extraordinário */
   lastExtraordinary?: number;
+  /** lista de observação: jogadores de outros clubes que o técnico acompanha */
+  watch?: number[];
+  /** clube de cada observado quando foi visto pela última vez (para avisar quando ele muda) */
+  watchClubs?: Record<number, string>;
   /** técnicos da IA sem clube (demitidos), para a dança dos técnicos */
   freeCoaches?: string[];
   /** dança dos técnicos: as mudanças das últimas temporadas */
@@ -833,6 +866,8 @@ export interface CalendarMatch {
   advanced: boolean | null;
   /** placar do 1º tempo, do ponto de vista do jogador (jogos com intervalo) */
   half?: [number, number];
+  /** gols por bloco de 5 minutos [a favor, contra] */
+  blocks?: [number, number][];
 }
 
 export interface SeasonCalendar {

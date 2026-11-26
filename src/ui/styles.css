@@ -974,3 +974,16 @@ details.panel.more summary { font: 700 12px/1.2 var(--font-display); letter-spac
 .meeting-list small { color: var(--muted); font-size: 12px; }
 .meeting-odds b { font-weight: 700; }
 .meeting-none { border-style: dashed; }
+
+/* posições fáceis de achar: cor por posição, destaque de quem serve na vaga tocada */
+.pcard { border-top-width: 3px; }
+.pcard-GOL { border-top-color: #d4a017; }
+.pcard-DEF { border-top-color: #3d8bdb; }
+.pcard-MEI { border-top-color: #3fae63; }
+.pcard-ATA { border-top-color: #d9434f; }
+.pcard .pc-pos { padding: 1px 4px; border-radius: 3px; }
+.pc-pos.is-off { outline: 1px solid var(--bad); }
+.pcard.is-fit { box-shadow: 0 0 0 2px var(--good); }
+.pcard.is-dim { opacity: 0.35; }
+.bench-label { padding: 4px 6px; border-radius: 4px; text-align: center; align-self: center; }
+.pc-flag { font-weight: 700; text-transform: uppercase; }

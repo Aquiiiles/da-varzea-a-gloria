@@ -48,6 +48,8 @@ export interface HalftimeMode {
   tactic: Tactic;
   /** jogadores em campo (11 menos os expulsos) */
   size?: number;
+  /** por que cada um de `out` não pode entrar (saiu, expulso, lesionado, suspenso) */
+  reasons?: Map<number, string>;
   onConfirm: (ids: number[] | null, tactic: Tactic) => void;
 }
 
@@ -149,14 +151,14 @@ export function LineupEditor({ state, dispatch, halftime, bare }: { state: GameS
     return (
       <button
         type="button"
-        className={`pcard${same(selected, spot) ? ' is-sel' : ''}${out ? ' is-out' : ''}${drag && same(drag.from, spot) ? ' is-ghost' : ''}`}
+        className={`pcard pcard-${f.pos}${same(selected, spot) ? ' is-sel' : ''}${out ? ' is-out' : ''}${drag && same(drag.from, spot) ? ' is-ghost' : ''}${fitClass(spot, f)}`}
         data-spot={spot.kind === 'slot' ? `slot:${spot.i}` : `bench:${f.id}`}
         onPointerDown={(e) => down(e, spot, f.id)}
         onPointerMove={move}
         onPointerUp={up}
         onPointerCancel={() => ((start.current = null), setDrag(null))}
       >
-        <span className={`pc-pos${offPos ? ' bad' : ''}`}>
+        <span className={`pc-pos pos-${f.pos}${offPos ? ' is-off' : ''}`}>
           {f.pos}
           {penalty > 0 && <em className="pc-pen">-{penalty}</em>}
         </span>
@@ -166,7 +168,7 @@ export function LineupEditor({ state, dispatch, halftime, bare }: { state: GameS
           {Math.abs(form[f.id] ?? 0) >= 0.5 && <i className={`pc-form ${(form[f.id] ?? 0) > 0 ? 'good' : 'bad'}`}>{(form[f.id] ?? 0) > 0 ? '▲' : '▼'}</i>}
         </b>
         {out ? (
-          <i className="pc-flag">{susp ? 'suspenso' : 'lesionado'}</i>
+          <i className="pc-flag">{halftime?.reasons?.get(f.id) ?? (susp ? 'suspenso' : 'lesionado')}</i>
         ) : (
           <span className="pc-fat" title={`cansaço ${tired}`}>
             <span className="pc-track">
@@ -179,6 +181,16 @@ export function LineupEditor({ state, dispatch, halftime, bare }: { state: GameS
     );
   };
 
+  /** vaga escolhida (tocada ou arrastada): o banco destaca quem é da posição dela */
+  const wantPos: Position | null = (() => {
+    const s = drag?.from ?? selected;
+    if (s?.kind === 'slot') return slotPos[s.i];
+    return null;
+  })();
+  function fitClass(spot: Spot, f: Footballer): string {
+    if (spot.kind !== 'bench' || !wantPos) return '';
+    return f.pos === wantPos ? ' is-fit' : ' is-dim';
+  }
   const tactic: Tactic = htTactic ?? p.tactic ?? STYLE_TACTIC[p.coach.style];
   const htSubs = halftime ? slots.filter((id) => id !== null && !halftime.firstIds.includes(id)).length : 0;
   // linhas do campo, do ataque (em cima) ao goleiro (embaixo)
@@ -253,7 +265,7 @@ export function LineupEditor({ state, dispatch, halftime, bare }: { state: GameS
         if (group.length === 0) return null;
         return (
           <div key={pos} className="bench-group">
-            <span className="bench-label">{POS_GROUP[pos]}</span>
+            <span className={`bench-label pos-${pos}`}>{POS_GROUP[pos]}</span>
             <div className="bench">
               {group.map((f) => (
                 <Card key={f.id} f={f} spot={{ kind: 'bench', id: f.id }} />

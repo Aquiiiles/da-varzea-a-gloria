@@ -882,6 +882,20 @@ function watchAlerts(state: GameState): void {
   state.watch = keep;
 }
 
+/** Quem foi substituído no jogo do dia antes do minuto (não pode voltar). */
+export function subbedOut(live: NonNullable<GameState['live']>, day: number, minute: number): Set<number> {
+  let field = new Set(live.elevens.find((e) => e.day === day)?.ids ?? []);
+  const out = new Set<number>();
+  const changes = (live.halftimes ?? []).filter((h) => h.day === day && (h.minute ?? 45) < minute).sort((a, b) => (a.minute ?? 45) - (b.minute ?? 45));
+  for (const c of changes) {
+    if (!c.ids) continue;
+    const next = new Set(c.ids);
+    for (const id of field) if (!next.has(id)) out.add(id);
+    field = next;
+  }
+  return out;
+}
+
 /** Dias entre duas conversas com o mesmo jogador. */
 export const TALK_COOLDOWN = 14;
 
@@ -947,6 +961,10 @@ function midSeason(state: GameState, a: Action): void {
       const first = new Set(live.elevens.find((e) => e.day === day)?.ids ?? []);
       const subs = ids.filter((id) => !first.has(id)).length;
       if (subs > MAX_SUBS) fail(`no máximo ${MAX_SUBS} substituições`);
+      // quem já foi substituído neste jogo não volta
+      const left = subbedOut(live, day, minute);
+      const back = ids.find((id) => left.has(id));
+      if (back !== undefined) fail(`${p.squad.find((f) => f.id === back)?.name ?? 'esse jogador'} já saiu do jogo e não pode voltar`);
     }
     (live.halftimes ??= []).push({ day, minute, ids: a.ids ? [...a.ids] : null, ...(a.tactic ? { tactic: a.tactic } : {}) });
     preview(state);

@@ -2,8 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { ActionError, apply, decodeRun, encodeRun, negotiationFor, newGame, replay, seedFromEntropy, type Action, type Foundation, type GameState } from '../engine';
 import { FoundationScreen } from './FoundationScreen';
 import { GameScreen } from './GameScreen';
-import { Ticker } from './Ticker';
-import { calendarTicker } from './SeasonView';
+import { Ticker, tickerItems } from './Ticker';
 import { loadNamePack, saveCareer } from '../storage';
 
 /** Seed nova vem da UI (o motor nunca gera entropia). */
@@ -99,13 +98,16 @@ export function App() {
 
   return (
     <div className="app">
-      <header className="masthead">
-        <div className="brand">
-          <span className="brand-live">AO VIVO</span>
-          <span className="brand-name">DA VÁRZEA À GLÓRIA</span>
-        </div>
-        <Ticker items={state ? (state.reveal != null ? tickerDuringSeason(state) : state.news.slice(-8).reverse()) : DEFAULT_NEWS} />
-      </header>
+      {/* modo técnico: o cabeçalho do clube ocupa o topo (com o letreiro dentro) */}
+      {!(state?.career && !state.career.unemployed && (state.phase === 'office' || state.phase === 'season')) && (
+        <header className="masthead">
+          <div className="brand">
+            <span className="brand-live">AO VIVO</span>
+            <span className="brand-name">DA VÁRZEA À GLÓRIA</span>
+          </div>
+          <Ticker items={state ? tickerItems(state) : DEFAULT_NEWS} />
+        </header>
+      )}
       <main className="stage">
         {state ? (
           <GameScreen state={state} dispatch={dispatch} onRestart={restart} fromLink={fromLink} />
@@ -122,11 +124,6 @@ export function App() {
   );
 }
 
-/** Durante a temporada, o letreiro só mostra o que já aconteceu (as manchetes do fim ficam para o resumo). */
-function tickerDuringSeason(state: GameState): string[] {
-  const items = calendarTicker(state);
-  return items.length > 0 ? items : [`Começa a temporada ${state.calendar?.year ?? ''}: ${state.player.name} estreia em breve`];
-}
 
 const DEFAULT_NEWS = [
   'Federação abre inscrições para novos times na Várzea',

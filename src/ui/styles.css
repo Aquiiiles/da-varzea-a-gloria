@@ -773,3 +773,42 @@ h3 { font: 700 14px/1.2 var(--font-display); text-transform: uppercase; letter-s
 .ultimatum { border: 2px solid var(--live); background: linear-gradient(180deg, #e6394622, var(--panel) 70%); }
 .ch-ult { border-color: var(--live); animation: pulse 1.6s infinite; }
 .moves { margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 4px; font-size: 14px; }
+
+/* elenco compacto (técnico) */
+.squad-table { padding: 14px 10px; display: flex; flex-direction: column; gap: 10px; }
+.st-head { display: flex; justify-content: space-between; align-items: baseline; padding: 0 4px; }
+.st-head .section-title small { font-size: 13px; color: var(--muted); }
+.st-filters { display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap; }
+.st-sort { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--muted); }
+.st-sort select { background: var(--panel-2); color: var(--text); border: 1px solid var(--line); border-radius: 6px; padding: 4px 6px; }
+.sq { margin-top: 0; }
+.sq th, .sq td { padding: 6px 3px; vertical-align: middle; }
+.sq td:nth-child(n + 3), .sq th:nth-child(n + 3) { text-align: center; }
+.sq tbody tr { cursor: pointer; }
+.sq tbody tr.is-xi td { background: #ffffff08; }
+.sq tbody tr.is-xi td:first-child { box-shadow: inset 3px 0 0 var(--club1, var(--accent)); }
+.sq tbody tr.is-open td { background: var(--panel-2); }
+.sq .pl-pos { font-size: 10px; padding: 2px 4px; }
+.sq-name { font-weight: 600; max-width: 140px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-align: left; }
+.sq-tag { margin-left: 4px; font-size: 9px; font-style: normal; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; }
+.sq-ovr { display: inline-grid; place-items: center; min-width: 26px; padding: 2px 3px; border-radius: 4px; font: 700 13px var(--font-display); }
+.sq-fat { display: inline-block; width: 34px; height: 6px; border-radius: 3px; background: #ffffff14; overflow: hidden; vertical-align: middle; }
+.sq-fat span { display: block; height: 100%; }
+.st { font: 700 9px/1 var(--font-display); letter-spacing: 0.05em; padding: 3px 4px; border-radius: 3px; }
+.st-bad { background: var(--bad); color: #111; }
+.st-warn { background: var(--warn); color: #111; }
+.st-offer { background: var(--accent); color: #111; }
+.sq-detail td { background: var(--panel-2); text-align: left !important; padding: 8px 10px; cursor: default; }
+.sq-detail .pl-actions { display: flex; flex-wrap: wrap; gap: 6px; padding: 0; }
+.sq-legend { font-size: 11px; margin: 0; padding: 0 4px; }
+.coach-head .ticker { margin: 0 -16px; }
+.goals { display: flex; flex-direction: column; gap: 6px; border-top: 3px solid var(--club1, var(--accent)); }
+.goal-main { margin: 0; font: 700 18px/1.25 var(--font-display); text-transform: uppercase; }
+.todos { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.todo { display: flex; align-items: center; justify-content: space-between; gap: 10px; background: var(--panel-2); border: 1px solid var(--line); border-left: 3px solid var(--line); border-radius: 6px; padding: 8px 10px; }
+.todo div { display: flex; flex-direction: column; min-width: 0; }
+.todo strong { font-size: 14px; }
+.todo small { color: var(--muted); font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.todo-bad { border-left-color: var(--bad); }
+.todo-warn { border-left-color: var(--warn); }
+.todo-good { border-left-color: var(--good); }

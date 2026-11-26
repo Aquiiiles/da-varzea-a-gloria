@@ -827,6 +827,8 @@ function preview(state: GameState): void {
 
 /** Substituições no intervalo. */
 export const MAX_SUBS = 5;
+/** Paradas para mexer no time por jogo. */
+export const MAX_STOPS = 4;
 
 /** Ações que podem acontecer com a temporada em andamento (na janela do meio do ano). */
 const WINDOW_ACTIONS = new Set<Action['t']>(['buy', 'sell', 'bid', 'release', 'promote', 'lend', 'offer', 'counter', 'reject']);
@@ -859,20 +861,34 @@ function midSeason(state: GameState, a: Action): void {
     return;
   }
   if (a.t === 'halftime') {
-    if (!state.career) fail('o intervalo é com o técnico');
-    if (a.day !== day || !cal.matches.some((m) => m.day === day)) fail('só no intervalo do jogo de hoje');
-    if ((live.halftimes ?? []).some((h) => h.day === day)) fail('as mudanças do intervalo já foram feitas');
+    if (!state.career) fail('mexer no jogo é com o técnico');
+    if (a.day !== day || !cal.matches.some((m) => m.day === day)) fail('só durante o jogo de hoje');
+    const minute = a.minute ?? 45;
+    if (!Number.isInteger(minute) || minute % 5 !== 0 || minute < 5 || minute > 85) fail('minuto inválido');
+    const before = (live.halftimes ?? []).filter((h) => h.day === day);
+    if (before.some((h) => (h.minute ?? 45) >= minute)) fail('já houve mudança nesse ponto do jogo');
+    if (before.length >= MAX_STOPS) fail(`no máximo ${MAX_STOPS} paradas por jogo`);
     if (!a.ids && !a.tactic) fail('nenhuma mudança');
     if (a.ids) {
       const ids = [...new Set(a.ids)];
-      if (ids.length !== 11 || a.ids.length !== 11) fail('o time precisa de 11 jogadores');
-      const out = new Set([...injuredAt(live, day).map((i) => i.id), ...(live.suspensions ?? []).filter((s) => s.day === day).map((s) => s.id)]);
+      // fora: lesionados de antes, suspensos e quem se machucou ou foi expulso neste jogo antes do minuto
+      const gone = [
+        ...(live.injuries.filter((i) => i.from === day && (i.minute ?? 60) < minute)),
+        ...(live.cards ?? []).filter((c) => c.day === day && c.kind === 'vermelho' && (c.minute ?? 60) < minute),
+      ];
+      const reds = (live.cards ?? []).filter((c) => c.day === day && c.kind === 'vermelho' && (c.minute ?? 60) < minute).length;
+      if (ids.length !== a.ids.length || ids.length !== 11 - reds) fail(`o time precisa de ${11 - reds} jogadores`);
+      const out = new Set([
+        ...injuredAt(live, day).filter((i) => i.from < day).map((i) => i.id),
+        ...(live.suspensions ?? []).filter((s) => s.day === day).map((s) => s.id),
+        ...gone.map((g) => g.id),
+      ]);
       if (!ids.every((id) => p.squad.some((f) => f.id === id) && !out.has(id))) fail('jogador indisponível');
       const first = new Set(live.elevens.find((e) => e.day === day)?.ids ?? []);
       const subs = ids.filter((id) => !first.has(id)).length;
       if (subs > MAX_SUBS) fail(`no máximo ${MAX_SUBS} substituições`);
     }
-    (live.halftimes ??= []).push({ day, ids: a.ids ? [...a.ids] : null, ...(a.tactic ? { tactic: a.tactic } : {}) });
+    (live.halftimes ??= []).push({ day, minute, ids: a.ids ? [...a.ids] : null, ...(a.tactic ? { tactic: a.tactic } : {}) });
     preview(state);
     return;
   }

@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import {
-  SQUAD_MIN, START_YEAR, STYLE_TACTIC, TACTICS, YOUTH_AGE_LIMIT, hangingAt, moodLabel, payroll, ultimatumStatus, injuredAt, suspendedOn, julyWindow, nextMatchAfter, offerOpen, opponentInfo, outcomeOf, playedMatches, teamStrength, weekdayOf,
+  SQUAD_MIN, START_YEAR, STYLE_TACTIC, TACTICS, YOUTH_AGE_LIMIT, hangingAt, isDecisive, rivalName, moodLabel, payroll, ultimatumStatus, injuredAt, suspendedOn, julyWindow, nextMatchAfter, offerOpen, opponentInfo, outcomeOf, playedMatches, teamStrength, weekdayOf,
   type GameState, type Tactic,
 } from '../../engine';
 import type { Dispatch } from '../App';
@@ -197,7 +197,12 @@ function Matchday({ state, dispatch, goTo, onPlayRound }: Props) {
       {mid?.answered && state.career!.agreed && <p className="window-alert">Pré-contrato assinado com o {state.career!.agreed.club}: você assume lá na próxima temporada.</p>}
 
       {next && opp ? (
-        <section className="panel prematch">
+        <section className={`panel prematch${next.opponent === rivalName(state) ? ' is-derby' : isDecisive(next) ? ' is-final' : ''}`}>
+          {next.opponent === rivalName(state) ? (
+            <p className="pm-badge">Clássico · vale em dobro para a torcida e a diretoria</p>
+          ) : isDecisive(next) ? (
+            <p className="pm-badge">Decisão · {next.round.split(' · ')[0]}</p>
+          ) : null}
           <p className="kicker">
             {next.comp} · {next.round}
           </p>

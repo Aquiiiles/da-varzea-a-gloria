@@ -21,41 +21,60 @@ export function goalRates(homeStrength: number, awayStrength: number, homeAdv: n
 export type GoalMult = [number, number];
 
 /**
- * Jogo em dois tempos (modo técnico): o 2º tempo usa outra força e outra estratégia (mudanças no intervalo).
- * Os gols do 1º tempo são sorteados antes, com o mesmo sorteio, então mexer no intervalo não muda o 1º tempo.
+ * Jogo em blocos (modo técnico): 18 blocos de 5 minutos, cada um com a força e a estratégia daquele momento
+ * (substituições, expulsão, lesão). Os blocos são sorteados em ordem, então mexer no minuto 60 não muda nada antes.
  */
-export interface SecondHalf {
-  /** variação de força no 2º tempo [mandante, visitante] */
+export const BLOCKS = 18;
+export const BLOCK_MINUTES = 5;
+
+export interface BlockState {
+  /** variação de força [mandante, visitante] naquele bloco */
   delta: [number, number];
   mult: GoalMult;
 }
 
-/** Quem joga em dois tempos (o simulador da temporada liga durante a simulação; null = todos em um bloco). */
-let halfHook: ((home: string, away: string) => SecondHalf | null) | null = null;
+/** Quem joga em blocos (o simulador da temporada liga durante a simulação; null = um bloco só). */
+let blockHook: ((home: string, away: string) => ((block: number) => BlockState) | null) | null = null;
 
-export function withHalves<T>(hook: (home: string, away: string) => SecondHalf | null, fn: () => T): T {
-  const prev = halfHook;
-  halfHook = hook;
+export function withBlocks<T>(hook: (home: string, away: string) => ((block: number) => BlockState) | null, fn: () => T): T {
+  const prev = blockHook;
+  blockHook = hook;
   try {
     return fn();
   } finally {
-    halfHook = prev;
+    blockHook = prev;
   }
 }
 
-/** Tempo normal: um bloco (padrão) ou dois tempos. Devolve também as médias valendo no fim (para a prorrogação). */
+/** Tempo normal: um bloco (padrão) ou 18 blocos de 5 minutos. Devolve também as médias do fim (para a prorrogação). */
 function regulation(rng: Rng, home: string, away: string, hs: number, as: number, homeAdv: number, mult: GoalMult): { r: MatchResult; lh: number; la: number } {
   const [lh0, la0] = goalRates(hs, as, homeAdv);
   const lh = lh0 * mult[0];
   const la = la0 * mult[1];
-  const second = halfHook?.(home, away);
-  if (!second) return { r: { home, away, hg: rng.poisson(lh), ag: rng.poisson(la) }, lh, la };
-  const h1 = rng.poisson(lh / 2);
-  const a1 = rng.poisson(la / 2);
-  const [lh2b, la2b] = goalRates(hs + second.delta[0], as + second.delta[1], homeAdv);
-  const lh2 = lh2b * second.mult[0];
-  const la2 = la2b * second.mult[1];
-  return { r: { home, away, hg: h1 + rng.poisson(lh2 / 2), ag: a1 + rng.poisson(la2 / 2), half: [h1, a1] }, lh: lh2, la: la2 };
+  const plan = blockHook?.(home, away);
+  if (!plan) return { r: { home, away, hg: rng.poisson(lh), ag: rng.poisson(la) }, lh, la };
+  const blocks: [number, number][] = [];
+  let hg = 0;
+  let ag = 0;
+  let endH = lh;
+  let endA = la;
+  for (let b = 0; b < BLOCKS; b++) {
+    const st = plan(b);
+    const [x, y] = goalRates(hs + st.delta[0], as + st.delta[1], homeAdv);
+    endH = x * st.mult[0];
+    endA = y * st.mult[1];
+    const h = rng.poisson(endH / BLOCKS);
+    const a = rng.poisson(endA / BLOCKS);
+    blocks.push([h, a]);
+    hg += h;
+    ag += a;
+  }
+  const half: [number, number] = [0, 0];
+  for (let b = 0; b < BLOCKS / 2; b++) {
+    half[0] += blocks[b][0];
+    half[1] += blocks[b][1];
+  }
+  return { r: { home, away, hg, ag, half, blocks }, lh: endH, la: endA };
 }
 
 export function playMatch(

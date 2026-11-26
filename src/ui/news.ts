@@ -43,6 +43,8 @@ const RULES: [RegExp, NewsCat, boolean][] = [
   [/^FESTA/, 'clube', true],
   [/^MERCADO/, 'mercado', false],
   [/^(TERREMOTO|ZEBRA)/, 'competicoes', true],
+  [/^CLÁSSICO/, 'competicoes', true],
+  [/^DECISÃO/, 'competicoes', true],
 ];
 
 const KEYWORDS: [RegExp, NewsCat][] = [

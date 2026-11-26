@@ -67,7 +67,7 @@ export function encodeAction(a: Action): string {
     case 'meeting': return `M${a.kind}`;
     case 'lineup': return `L${a.rotate ? 1 : 0}${a.ids ? a.ids.map((id) => `_${id}`).join('') : ''}`;
     case 'precontract': return `Q${a.accept ? 1 : 0}`;
-    case 'halftime': return `H${a.day}_${a.tactic ? TACTIC_LIST.indexOf(a.tactic) : 'n'}${a.ids ? a.ids.map((id) => `_${id}`).join('') : ''}`;
+    case 'halftime': return `H${a.day}${a.minute !== undefined && a.minute !== 45 ? `m${a.minute}` : ''}_${a.tactic ? TACTIC_LIST.indexOf(a.tactic) : 'n'}${a.ids ? a.ids.map((id) => `_${id}`).join('') : ''}`;
     case 'next': return 'z';
   }
 }
@@ -127,12 +127,15 @@ export function decodeAction(tok: string): Action | null {
     }
     case 'Q': return rest === '0' || rest === '1' ? { t: 'precontract', accept: rest === '1' } : null;
     case 'H': {
-      const [day, tac, ...ids] = rest.split('_');
-      if (!/^\d{1,3}$/.test(day ?? '') || !(tac === 'n' || /^\d$/.test(tac ?? ''))) return null;
+      const [dayPart, tac, ...ids] = rest.split('_');
+      const dm = /^(\d{1,3})(?:m(\d{1,2}))?$/.exec(dayPart ?? '');
+      if (!dm || !(tac === 'n' || /^\d$/.test(tac ?? ''))) return null;
+      const day = dm[1];
+      const minute = dm[2] ? Number(dm[2]) : undefined;
       if (ids.length > 11 || !ids.every((x) => /^\d{1,7}$/.test(x))) return null;
       const t = tac === 'n' ? undefined : TACTIC_LIST[Number(tac)];
       if (tac !== 'n' && !t) return null;
-      return { t: 'halftime', day: Number(day), ids: ids.length > 0 ? ids.map(Number) : null, ...(t ? { tactic: t } : {}) };
+      return { t: 'halftime', day: Number(day), ...(minute !== undefined ? { minute } : {}), ids: ids.length > 0 ? ids.map(Number) : null, ...(t ? { tactic: t } : {}) };
     }
     case 'L': {
       const [flag, ...ids] = rest.split('_');

@@ -24,6 +24,8 @@ export interface Injury {
   /** dia em que machucou e dia em que volta */
   from: number;
   to: number;
+  /** minuto do jogo em que machucou */
+  minute?: number;
 }
 
 export interface MatchPlan {
@@ -46,6 +48,8 @@ export interface CardEvent {
   id: number;
   name: string;
   kind: 'amarelo' | 'vermelho';
+  /** minuto do jogo */
+  minute?: number;
 }
 
 export interface Suspension {
@@ -168,6 +172,14 @@ export class SquadPlan {
     return { day, xi, strength, pool: eff };
   }
 
+  /** Expulsões e lesões do clube durante o jogo do dia (com o minuto). */
+  matchEvents(day: number): { id: number; minute: number; kind: 'vermelho' | 'lesao' }[] {
+    const out: { id: number; minute: number; kind: 'vermelho' | 'lesao' }[] = [];
+    for (const c of this.cards) if (c.day === day && c.kind === 'vermelho') out.push({ id: c.id, minute: c.minute ?? 60, kind: 'vermelho' });
+    for (const i of this.injuries) if (i.from === day) out.push({ id: i.id, minute: i.minute ?? 60, kind: 'lesao' });
+    return out;
+  }
+
   /** Moral atual (começa na que o jogador trouxe da temporada passada). */
   moraleOf(f: Footballer): number {
     return this.morale.get(f.id) ?? f.morale ?? MORALE_START;
@@ -205,13 +217,14 @@ export class SquadPlan {
       const crng = deriveRng(this.opts.seed, this.opts.season, 'cartao', day);
       const aggressive = this.lineupAt(day).tactic === 'pressao' ? 1.3 : 1;
       for (const f of plan.xi) {
+        const minute = deriveRng(this.opts.seed, this.opts.season, 'minuto', day, f.id).int(5, 88);
         if (crng.chance(RED_CHANCE * aggressive)) {
-          this.cards.push({ day, id: f.id, name: f.name, kind: 'vermelho' });
+          this.cards.push({ day, id: f.id, name: f.name, kind: 'vermelho', minute });
           pending.push({ id: f.id, name: f.name, why: 'vermelho' });
           continue;
         }
         if (crng.chance(YELLOW_CHANCE * aggressive)) {
-          this.cards.push({ day, id: f.id, name: f.name, kind: 'amarelo' });
+          this.cards.push({ day, id: f.id, name: f.name, kind: 'amarelo', minute });
           const n = (yellows.get(f.id) ?? 0) + 1;
           if (n >= YELLOWS_FOR_SUSPENSION) {
             yellows.set(f.id, 0);
@@ -229,7 +242,7 @@ export class SquadPlan {
         const chance = 0.016 * (1 + before / 60) * (1 - this.opts.medical * 0.12);
         if (rng.chance(chance)) {
           const length = 7 + Math.floor(Math.pow(rng.next(), 2) * 50);
-          this.injuries.push({ id: f.id, name: f.name, from: day, to: day + length });
+          this.injuries.push({ id: f.id, name: f.name, from: day, to: day + length, minute: deriveRng(this.opts.seed, this.opts.season, 'minuto-lesao', day, f.id).int(5, 88) });
         }
       }
       this.fatigueLog.push({ day, fatigue: Object.fromEntries(this.fatigue) });

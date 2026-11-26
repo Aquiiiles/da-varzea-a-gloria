@@ -44,9 +44,27 @@ export function boardWatch(state: GameState, fromDay: number, toDay: number): nu
   if (!c || c.unemployed || !cal || c.firedDay !== undefined) return null;
   const ms = cal.matches;
   const club = state.player.name;
+  const rival = rivalName(state);
   for (let i = 0; i < ms.length; i++) {
     const m = ms[i];
     if (m.day <= fromDay || m.day > toDay) continue;
+    // clássico e decisão: vale mais para a diretoria e vira manchete
+    const res = outcomeOf(m);
+    if (rival && m.opponent === rival) {
+      c.board.confidence = clamp(c.board.confidence + (res === 'V' ? 4 : res === 'D' ? -4 : 0), 0, 100);
+      state.news.push(
+        res === 'V'
+          ? `CLÁSSICO: ${club} vence o ${rival} por ${m.gf} a ${m.ga} e a cidade é do ${club}`
+          : res === 'D'
+            ? `CLÁSSICO: ${rival} vence o ${club} por ${m.ga} a ${m.gf}; a torcida cobra ${c.name}`
+            : `CLÁSSICO: ${club} e ${rival} empatam em ${m.gf} a ${m.ga}`,
+      );
+    } else if (isDecisive(m)) {
+      if (res === 'V') {
+        c.board.confidence = clamp(c.board.confidence + 3, 0, 100);
+        state.news.push(`DECISÃO: ${club} passa pelo ${m.opponent} (${m.comp}, ${m.round.split(' · ')[0]})`);
+      } else if (res === 'D') state.news.push(`DECISÃO: ${club} cai diante do ${m.opponent} (${m.comp}, ${m.round.split(' · ')[0]})`);
+    }
     const u = c.ultimatum;
     if (u) {
       if (i < u.from) continue;
@@ -149,4 +167,15 @@ export function answerMidOffer(state: GameState, accept: boolean): void {
     c.board.confidence = clamp(c.board.confidence + 3, 0, 100);
     state.news.push(`${c.name} recusa o ${mo.offer.club} e fica no ${club}`);
   }
+}
+
+/** Nome do rival do clube do técnico (clássico). */
+export function rivalName(state: GameState): string | null {
+  const id = state.player.rivalId;
+  return state.clubs.find((c) => c.id === id)?.name ?? null;
+}
+
+/** Jogo decisivo: final, semifinal ou jogo de mata-mata que decide a vaga. */
+export function isDecisive(m: CalendarMatch): boolean {
+  return m.advanced !== null && /final|semi/i.test(m.round);
 }

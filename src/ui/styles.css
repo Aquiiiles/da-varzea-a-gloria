@@ -890,3 +890,8 @@ h3 { font: 700 14px/1.2 var(--font-display); text-transform: uppercase; letter-s
 .np-body { margin: 2px 0 0; font-size: 13px; color: var(--muted); }
 .np-group ul { margin: 4px 0 4px; padding-left: 16px; display: flex; flex-direction: column; gap: 3px; font-size: 13px; }
 .np-group li.is-mine { font-weight: 700; color: var(--text); }
+.pm-badge { margin: 0 0 4px; align-self: flex-start; font: 700 11px/1 var(--font-display); letter-spacing: 0.1em; text-transform: uppercase; padding: 5px 8px; border-radius: 4px; background: var(--live); color: #fff; }
+.is-final .pm-badge { background: var(--accent); color: #111; }
+.prematch.is-derby, .live.is-derby { border-color: var(--live); box-shadow: 0 0 0 1px var(--live), 0 0 24px #e6394633; }
+.prematch.is-final, .live.is-final { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent), 0 0 24px #ffd23f22; }
+.ev-lesao { border-left: 3px solid var(--bad); }

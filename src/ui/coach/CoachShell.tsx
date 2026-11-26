@@ -13,6 +13,7 @@ import { NewsTab } from '../office/NewsTab';
 import { TrophyRoom } from '../TrophyRoom';
 import { LineupEditor } from '../LineupEditor';
 import { MatchCenter } from './MatchCenter';
+import { CareerTimeline } from './CareerTimeline';
 import { TableTab } from './TableTab';
 import { shortDate } from '../SeasonView';
 
@@ -39,13 +40,17 @@ interface Props {
   onPlayRound: () => void;
   /** modo rápido (várias temporadas) */
   onFast: () => void;
+  /** voltar ao menu inicial (a carreira fica salva) */
+  onMenu?: () => void;
+  /** salvar uma cópia do ponto atual */
+  onSnapshot?: () => void;
 }
 
 /**
  * Modo técnico: tudo gira em torno da rodada. Barra inferior com Jogo, Elenco, Tabela, Mercado e Carreira;
  * cabeçalho compacto (toque para ver os detalhes).
  */
-export function CoachShell({ state, dispatch, onPlayRound, onFast }: Props) {
+export function CoachShell({ state, dispatch, onPlayRound, onFast, onMenu, onSnapshot }: Props) {
   const [tab, setTab] = useState<CoachTab>('jogo');
   const [sub, setSub] = useState<Record<CoachTab, string>>({ jogo: '', elenco: 'elenco', tabela: '', mercado: '', carreira: 'carreira' });
   const goTo = (t: TabId) => {
@@ -93,11 +98,30 @@ export function CoachShell({ state, dispatch, onPlayRound, onFast }: Props) {
             onChange={(v) => setSub({ ...sub, carreira: v })}
             items={[
               ['carreira', 'Técnico', <CareerTab key="c" {...props} />],
+              ['historia', 'Linha do tempo', <CareerTimeline key="h" state={state} />],
               ['diretoria', 'Diretoria', <BoardTab key="d" {...props} />],
               ['noticias', 'Notícias', <NewsTab key="n" {...props} />],
               ['trofeus', 'Troféus', <TrophyRoom key="t" state={state} />],
             ]}
           />
+        )}
+        {tab === 'carreira' && (onMenu || onSnapshot) && (
+          <section className="panel game-menu">
+            <p className="kicker">Jogo</p>
+            <p className="muted">A carreira é salva sozinha a cada decisão. Uma cópia guarda este ponto à parte, para testar outro caminho.</p>
+            <div className="actions">
+              {onSnapshot && (
+                <button type="button" className="btn" onClick={onSnapshot}>
+                  Salvar uma cópia
+                </button>
+              )}
+              {onMenu && (
+                <button type="button" className="btn" onClick={onMenu}>
+                  Voltar ao menu
+                </button>
+              )}
+            </div>
+          </section>
         )}
       </div>
       <nav className="bottom-nav" aria-label="Navegação do técnico">

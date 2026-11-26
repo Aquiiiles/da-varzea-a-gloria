@@ -28,7 +28,7 @@ function ColorPicker({ label, value, onChange }: { label: string; value: string;
   );
 }
 
-function SavedRuns({ onResume }: { onResume: (query: string) => void }) {
+function SavedRuns({ onResume }: { onResume: (query: string, slot?: string) => void }) {
   const [careers, setCareers] = useState<CareerSave[]>(() => listCareers());
   const hall = listHall();
   if (careers.length === 0 && hall.length === 0) return null;
@@ -40,7 +40,7 @@ function SavedRuns({ onResume }: { onResume: (query: string) => void }) {
           <ul className="save-list">
             {careers.map((c) => (
               <li key={c.id}>
-                <button type="button" className="save" onClick={() => onResume(c.query)}>
+                <button type="button" className="save" onClick={() => onResume(c.query, c.id)}>
                   <Crest name={c.name} short={initials(c.name)} colors={c.colors} size={36} />
                   <span>
                     <strong>{c.name}</strong>
@@ -152,7 +152,7 @@ function NamePackPanel() {
   );
 }
 
-export function FoundationScreen({ onStart, onResume }: { onStart: (f: Foundation, seed?: number) => void; onResume: (query: string) => void }) {
+export function FoundationScreen({ onStart, onResume }: { onStart: (f: Foundation, seed?: number) => void; onResume: (query: string, slot?: string) => void }) {
   const daily = today();
   const [name, setName] = useState('');
   const [c1, setC1] = useState('#c8102e');

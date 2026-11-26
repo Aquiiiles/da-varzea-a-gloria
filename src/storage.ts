@@ -9,7 +9,7 @@ import { REAL_PACK } from './data/realclubs';
 
 const CAREERS_KEY = 'dvg:careers:v3';
 const HALL_KEY = 'dvg:hall:v3';
-const MAX_CAREERS = 5;
+const MAX_CAREERS = 10;
 const MAX_HALL = 10;
 
 export interface CareerSave {
@@ -74,9 +74,10 @@ export function listHall(): HallEntry[] {
   return read<HallEntry>(HALL_KEY).sort((a, b) => b.score - a.score);
 }
 
-/** Salva a carreira (ou, se a run acabou, move para o hall da fama). */
-export function saveCareer(state: GameState): void {
-  const id = careerId(state);
+/** Salva a carreira (ou, se a run acabou, move para o hall da fama). `slot` = save aberto (cópias guardam no próprio lugar). */
+export function saveCareer(state: GameState, slot?: string | null): void {
+  const id = slot ?? careerId(state);
+  const keepName = slot ? read<CareerSave>(CAREERS_KEY).find((c) => c.id === slot)?.name : undefined;
   const others = read<CareerSave>(CAREERS_KEY).filter((c) => c.id !== id);
   if (state.phase === 'over') {
     write(CAREERS_KEY, others);
@@ -102,7 +103,7 @@ export function saveCareer(state: GameState): void {
   }
   const save: CareerSave = {
     id,
-    name: saveName(state),
+    name: keepName?.startsWith('Cópia: ') ? `Cópia: ${saveName(state)}` : saveName(state),
     colors: state.player.colors,
     tierName: TIERS[state.player.tier].name,
     season: state.season,
@@ -110,6 +111,24 @@ export function saveCareer(state: GameState): void {
     updatedAt: Date.now(),
   };
   write(CAREERS_KEY, [save, ...others].slice(0, MAX_CAREERS));
+}
+
+/** Cópia da carreira neste ponto: um save à parte, que o salvamento automático não sobrescreve. */
+export function saveSnapshot(state: GameState): boolean {
+  const id = `${careerId(state)}-c${Date.now().toString(36)}`;
+  const save: CareerSave = {
+    id,
+    name: `Cópia: ${saveName(state)}`,
+    colors: state.player.colors,
+    tierName: TIERS[state.player.tier].name,
+    season: state.season,
+    query: encodeRun(state),
+    updatedAt: Date.now(),
+  };
+  const all = read<CareerSave>(CAREERS_KEY);
+  if (all.length >= MAX_CAREERS) return false;
+  write(CAREERS_KEY, [save, ...all]);
+  return true;
 }
 
 export function deleteCareer(id: string): void {

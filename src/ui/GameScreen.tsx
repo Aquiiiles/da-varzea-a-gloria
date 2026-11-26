@@ -20,10 +20,12 @@ interface Props {
   state: GameState;
   dispatch: Dispatch;
   onRestart: () => void;
+  /** salvar uma cópia do ponto atual */
+  onSnapshot?: () => void;
   fromLink: boolean;
 }
 
-export function GameScreen({ state, dispatch, onRestart, fromLink }: Props) {
+export function GameScreen({ state, dispatch, onRestart, onSnapshot, fromLink }: Props) {
   /** null = desligado; número = tamanho do histórico quando o modo rápido começou */
   const [fastFrom, setFastFrom] = useState<number | null>(null);
   const fast = fastFrom !== null;
@@ -115,7 +117,7 @@ export function GameScreen({ state, dispatch, onRestart, fromLink }: Props) {
         return <RoundLive key={`rodada-${narrateDay}`} state={state} round={round} dispatch={dispatch} onDone={done} />;
       }
     }
-    return <CoachShell state={state} dispatch={dispatch} onPlayRound={playRound} onFast={() => setFast(true)} />;
+    return <CoachShell state={state} dispatch={dispatch} onPlayRound={playRound} onFast={() => setFast(true)} onMenu={onRestart} onSnapshot={onSnapshot} />;
   }
 
   // jogo ao vivo: o próximo (por data) que a temporada já alcançou e ainda não foi assistido
@@ -191,6 +193,6 @@ export function GameScreen({ state, dispatch, onRestart, fromLink }: Props) {
     );
   }
 
-  if (coachMode) return <CoachShell state={state} dispatch={dispatch} onPlayRound={playRound} onFast={() => setFast(true)} />;
+  if (coachMode) return <CoachShell state={state} dispatch={dispatch} onPlayRound={playRound} onFast={() => setFast(true)} onMenu={onRestart} onSnapshot={onSnapshot} />;
   return <Office state={state} dispatch={dispatch} onFast={() => setFast(true)} />;
 }

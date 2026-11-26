@@ -1,4 +1,5 @@
-import type { NamePack, PackClub } from '../engine/namepack';
+import { parsePlayer, type NamePack, type PackClub, type PackPlayer } from '../engine/namepack';
+import { REAL_SQUADS } from './realsquads';
 
 /**
  * Clubes reais do Brasil (temporada 2026), do maior para o menor em cada série.
@@ -151,8 +152,18 @@ const OUTROS: PackClub[] = [
   { name: 'Metropolitano' },
 ];
 
+/** Junta técnico e elenco reais (quando houver) aos clubes. */
+function withSquads(list: PackClub[]): PackClub[] {
+  return list.map((c) => {
+    const real = REAL_SQUADS[c.name];
+    if (!real) return c;
+    const squad = real.squad.map(parsePlayer).filter((x): x is PackPlayer => x !== null);
+    return { ...c, ...(real.coach ? { coach: real.coach } : {}), ...(squad.length > 0 ? { squad } : {}) };
+  });
+}
+
 export const REAL_PACK: NamePack = {
   title: 'Clubes do Brasil',
-  divisions: { 1: SERIE_A, 2: SERIE_B, 3: SERIE_C, 4: SERIE_D },
+  divisions: { 1: withSquads(SERIE_A), 2: withSquads(SERIE_B), 3: SERIE_C, 4: SERIE_D },
   pool: OUTROS,
 };

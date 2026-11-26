@@ -26,6 +26,8 @@ export interface Club {
   prestige?: number;
   /** elenco do clube (a força é o time titular dele) */
   squad: Footballer[];
+  /** técnico (nome real do pacote; sem ele, um nome gerado) */
+  coachName?: string;
 }
 
 export type CompId = 'varzea' | 'estadual_b' | 'estadual_a' | 'serie_d' | 'serie_c' | 'serie_b' | 'serie_a';

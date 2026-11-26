@@ -1,6 +1,6 @@
 import { EVENTS, EVENT_CHANCE } from '../data/events';
 import { OPPORTUNITIES } from '../data/opportunities';
-import { FACILITY_COST, LOAN_AGE_LIMIT, MAX_LOANS, MAX_SEASONS, SQUAD_MAX, SQUAD_MIN, STADIUM_FINANCE, STADIUM_INSTALLMENT_NAME, LOAN_NAME, STAFF_WAGE, TIERS, YOUTH_MAX } from '../data/pyramid';
+import { START_YEAR, FACILITY_COST, LOAN_AGE_LIMIT, MAX_LOANS, MAX_SEASONS, SQUAD_MAX, SQUAD_MIN, STADIUM_FINANCE, STADIUM_INSTALLMENT_NAME, LOAN_NAME, STAFF_WAGE, TIERS, YOUTH_MAX } from '../data/pyramid';
 import { generateWorld, initials } from './clubs';
 import { applyEffects, nextId } from './effects';
 import { bestEleven, foundingSquad, incomingOffers, marketListings, marketWage, round1, tryoutCandidates, tryoutCost, youthIntake } from './footballers';
@@ -74,7 +74,8 @@ export function newGame(seed: number, foundation: Foundation, opts: GameOptions 
   const playerNames = new Set<string>();
   let pid = 100;
   const { clubs, serial } = generateWorld(rng, taken, { next: () => pid++, names: playerNames, season: 1 });
-  if (opts.pack) applyNamePack(clubs, opts.pack, taken);
+  // pacote: nomes dos clubes e, quando houver, técnicos e elencos reais (sorteio próprio, ids na sequência)
+  if (opts.pack) applyNamePack(clubs, opts.pack, taken, { rng: deriveRng(seedU, 'pacote'), nextId: () => pid++, year: START_YEAR, names: playerNames });
   const preset = ORIGINS[f.origin];
   const rival = rng.pick(clubs.filter((c) => c.stateDiv === 'V'));
   const squad = foundingSquad(deriveRng(seedU, 'squad'), preset.squadMean, 1, playerNames);

@@ -52,3 +52,32 @@ describe('rodada a rodada', () => {
     expect(info.form.every((x) => ['V', 'E', 'D'].includes(x))).toBe(true);
   });
 });
+
+describe('elencos e técnicos reais (pacote)', () => {
+  it('clubes do pacote recebem técnico e jogadores reais sem mudar a força', async () => {
+    const { REAL_PACK } = await import('../../src/data/realclubs');
+    const plain = newGame(11, COACH);
+    const real = newGame(11, COACH, { pack: REAL_PACK });
+    const fla = real.clubs.find((c) => c.name === 'Flamengo')!;
+    expect(fla.coachName).toBe('Filipe Luís');
+    expect(fla.squad.some((f) => f.name === 'Pedro' && f.pos === 'ATA')).toBe(true);
+    expect(fla.squad.length).toBeGreaterThanOrEqual(18);
+    // mesma posição no mundo: a força do clube é a do mundo gerado (±1)
+    const same = plain.clubs.find((c) => c.id === fla.id)!;
+    expect(Math.abs(same.strength - fla.strength)).toBeLessThan(1.5);
+    // nomes de jogadores não se repetem
+    const names = real.clubs.flatMap((c) => c.squad.map((f) => f.name));
+    expect(new Set(names).size).toBe(names.length);
+    // determinístico
+    expect(JSON.stringify(newGame(11, COACH, { pack: REAL_PACK }).clubs)).toBe(JSON.stringify(real.clubs));
+  });
+
+  it('pacote importado aceita técnico e elenco em texto ou objeto', async () => {
+    const { parseNamePack } = await import('../../src/engine/namepack');
+    const pack = parseNamePack({ divisions: { 1: [{ name: 'Time X', coach: 'Fulano', squad: ['João;ATA;2000;80', { name: 'Zé', pos: 'gol', born: 1995, rating: 70 }, 'ruim;XYZ;2000;80'] }] } });
+    expect(typeof pack).toBe('object');
+    const c = (pack as Exclude<typeof pack, string>).divisions[1]![0];
+    expect(c.coach).toBe('Fulano');
+    expect(c.squad).toHaveLength(2);
+  });
+});

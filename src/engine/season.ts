@@ -625,6 +625,7 @@ export function simulateSeason(state: GameState): SeasonResult {
     leagues,
     playerId: PLAYER,
     playerCoach: p.coach.name,
+    coachOf: (id) => byId.get(id)?.coachName,
     nameOf,
     tierOf,
     strengthOf: (id) => (id === PLAYER ? pStrength : byId.get(id)?.strength ?? 0),

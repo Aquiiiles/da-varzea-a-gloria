@@ -8,7 +8,6 @@ import {
 import type { Dispatch } from '../App';
 import { money, num } from '../format';
 import { Stars } from './CoachTab';
-import { LineupEditor } from '../LineupEditor';
 import type { TabProps } from './Office';
 import { Section } from './common';
 import { JobOfferCard } from './OfferCards';
@@ -85,7 +84,7 @@ export function Unemployed({ state, dispatch }: { state: GameState; dispatch: Di
 }
 
 /** Aba Técnico (modo técnico): você, seu estilo e o esquema. */
-export function CareerTab({ state, dispatch }: TabProps) {
+export function CareerTab({ state }: TabProps) {
   const c = state.career!;
   const p = state.player;
   const stars = starsFor(c.reputation);
@@ -106,10 +105,6 @@ export function CareerTab({ state, dispatch }: TabProps) {
         </div>
         <Meter value={c.reputation} label="Reputação" text={reputationText(c.reputation)} />
         <p className="muted">Clubes que costumam te procurar: {TIERS[tierForReputation(c.reputation)].name} e vizinhos.</p>
-      </Section>
-
-      <Section title="Escalação, esquema e estratégia" note="Lesionados ficam de fora; com o rodízio, quem está muito cansado descansa.">
-        <LineupEditor key={JSON.stringify(p.lineup ?? null) + p.coach.formation} state={state} dispatch={dispatch} />
       </Section>
 
       <CoachRankingSection state={state} />

@@ -63,8 +63,8 @@ function weights(xi: Footballer[], f: (x: Footballer) => number): [Float64Array,
 }
 
 /** Nome do técnico de um clube da IA (fixo por clube; não fica salvo no estado). */
-export function aiCoachName(seed: number, clubId: string): string {
-  return personName(deriveRng(seed, 'tecnico', clubId));
+export function aiCoachName(seed: number, clubId: string, club?: { coachName?: string }): string {
+  return club?.coachName ?? personName(deriveRng(seed, 'tecnico', clubId));
 }
 
 export class SeasonStats {

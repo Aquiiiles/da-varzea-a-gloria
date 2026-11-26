@@ -31,7 +31,7 @@ export function generateSquad(rng: Rng, target: number, ids: IdSource): Football
 }
 
 /** Desloca o overall de todos para a força bater com o alvo (±0,3). */
-function calibrate(squad: Footballer[], target: number): void {
+export function calibrate(squad: Footballer[], target: number): void {
   for (let k = 0; k < 3; k++) {
     const diff = Math.round(target - squadStrength(squad));
     if (Math.abs(diff) < 1) return;

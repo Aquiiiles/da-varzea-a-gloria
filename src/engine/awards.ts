@@ -25,6 +25,8 @@ export interface AwardsInput {
   leagues: LeagueInfo[];
   playerId: string;
   playerCoach: string;
+  /** técnico real de um clube da IA (pacote), se houver */
+  coachOf?: (clubId: string) => string | undefined;
   nameOf: (clubId: string) => string;
   tierOf: (clubId: string) => Tier | null;
   strengthOf: (clubId: string) => number;
@@ -89,7 +91,7 @@ export function computeAwards(inp: AwardsInput): SeasonAwards {
     const detail = L.champion === clubId ? `campeão (cotado em ${expected}º)` : `${actual}º lugar (cotado em ${expected}º)`;
     return { score, detail };
   };
-  const coachName = (clubId: string) => (clubId === inp.playerId ? inp.playerCoach : aiCoachName(inp.seed, clubId));
+  const coachName = (clubId: string) => (clubId === inp.playerId ? inp.playerCoach : aiCoachName(inp.seed, clubId, { coachName: inp.coachOf?.(clubId) }));
   const coachEntry = (clubId: string, detail: string): AwardEntry => ({ name: coachName(clubId), club: inp.nameOf(clubId), mine: clubId === inp.playerId, detail });
 
   // ---------------------- por liga ----------------------

@@ -65,11 +65,12 @@ export interface RankingEntry {
 export function coachRanking(state: GameState): RankingEntry[] {
   const all = state.coachPoints ?? {};
   const sum = (id: string) => (all[id] ?? []).reduce((s, v) => s + v, 0);
-  const rows: Omit<RankingEntry, 'pos'>[] = state.clubs.map((c) => ({ name: aiCoachName(state.seed, c.id), club: c.name, points: sum(c.id), me: false }));
+  // empate (como no começo da carreira): vale o tamanho do clube
+  const rows: (Omit<RankingEntry, 'pos'> & { weight: number })[] = state.clubs.map((c) => ({ name: aiCoachName(state.seed, c.id, c), club: c.name, points: sum(c.id), me: false, weight: c.strength }));
   if (state.career) {
-    rows.push({ name: state.career.name, club: state.career.unemployed ? 'sem clube' : state.player.name, points: sum(ME), me: true });
+    rows.push({ name: state.career.name, club: state.career.unemployed ? 'sem clube' : state.player.name, points: sum(ME), me: true, weight: state.career.unemployed ? 0 : state.player.strength });
   }
   return rows
-    .sort((a, b) => b.points - a.points || Number(b.me) - Number(a.me) || a.name.localeCompare(b.name))
-    .map((r, i) => ({ ...r, pos: i + 1 }));
+    .sort((a, b) => b.points - a.points || b.weight - a.weight || a.name.localeCompare(b.name))
+    .map(({ weight: _w, ...r }, i) => ({ ...r, pos: i + 1 }));
 }

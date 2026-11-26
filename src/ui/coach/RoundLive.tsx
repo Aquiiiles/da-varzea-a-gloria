@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { MAX_SUBS, PLAYER_ID, STYLE_TACTIC, TACTICS, injuredAt, suspendedOn, tableAfter, type Footballer, type GameState, type RoundGame, type RoundView, type Tactic } from '../../engine';
+import { MAX_SUBS, PLAYER_ID, STYLE_TACTIC, injuredAt, suspendedOn, tableAfter, type GameState, type RoundGame, type RoundView, type Tactic } from '../../engine';
 import type { Dispatch } from '../App';
+import { LineupEditor } from '../LineupEditor';
 import { StandingsTable } from './TableTab';
 
 /** ms por minuto de jogo em cada velocidade */
@@ -195,79 +196,21 @@ export function RoundLive({ state, round, dispatch, onDone }: { state: GameState
   );
 }
 
-/** Vestiário no intervalo: até 5 substituições e a estratégia do 2º tempo. */
+/** Vestiário no intervalo: o mesmo campinho da escalação, com até 5 substituições e a estratégia do 2º tempo. */
 function HalftimePanel({ state, day, dispatch, onClose }: { state: GameState; day: number; dispatch: Dispatch; onClose: () => void }) {
   const p = state.player;
   const live = state.live!;
   const firstIds = live.elevens.find((e) => e.day === day)?.ids ?? [];
   const out = new Set([...injuredAt(live, day).filter((i) => i.from < day).map((i) => i.id), ...suspendedOn(live, day).map((s) => s.id)]);
-  const byId = new Map(p.squad.map((f) => [f.id, f]));
-  const [ids, setIds] = useState<number[]>(firstIds.filter((id) => byId.has(id)));
-  const [sel, setSel] = useState<number | null>(null);
   const current: Tactic = (live.lineups.filter((l) => l.day < day).at(-1)?.tactic ?? p.tactic ?? STYLE_TACTIC[p.coach.style]) as Tactic;
-  const [tactic, setTactic] = useState<Tactic>(current);
-  const onField = new Set(ids);
-  const bench = p.squad.filter((f) => !onField.has(f.id) && !out.has(f.id)).sort((a, b) => ['GOL', 'DEF', 'MEI', 'ATA'].indexOf(a.pos) - ['GOL', 'DEF', 'MEI', 'ATA'].indexOf(b.pos) || b.ovr - a.ovr);
-  const subs = ids.filter((id) => !firstIds.includes(id)).length;
-  const changed = subs > 0 || tactic !== current;
-  const field = ids.map((id) => byId.get(id)).filter((f): f is Footballer => !!f).sort((a, b) => ['GOL', 'DEF', 'MEI', 'ATA'].indexOf(a.pos) - ['GOL', 'DEF', 'MEI', 'ATA'].indexOf(b.pos) || b.ovr - a.ovr);
-
-  const swapIn = (inId: number) => {
-    if (sel === null) return;
-    const next = ids.map((id) => (id === sel ? inId : id));
-    if (next.filter((id) => !firstIds.includes(id)).length > MAX_SUBS) return;
-    setIds(next);
-    setSel(null);
-  };
-  const confirm = () => {
-    const ok = dispatch({ t: 'halftime', day, ids: subs > 0 ? ids : null, ...(tactic !== current ? { tactic } : {}) });
+  const confirm = (ids: number[] | null, tactic: Tactic) => {
+    const ok = dispatch({ t: 'halftime', day, ids, ...(tactic !== current ? { tactic } : {}) });
     if (ok) onClose();
   };
-  const Row = ({ f, on }: { f: Footballer; on: boolean }) => (
-    <li>
-      <button
-        type="button"
-        className={`ht-row${on && sel === f.id ? ' is-sel' : ''}${!on && sel !== null ? ' can-in' : ''}${on && !firstIds.includes(f.id) ? ' is-new' : ''}`}
-        onClick={() => (on ? setSel(sel === f.id ? null : f.id) : swapIn(f.id))}
-        disabled={!on && sel === null}
-      >
-        <span className="ht-pos">{f.pos}</span>
-        <span className="ht-name">{f.name}</span>
-        <b>{f.ovr}</b>
-      </button>
-    </li>
-  );
-
   return (
     <section className="panel halftime">
       <p className="kicker">Intervalo · vestiário</p>
-      <p className="muted">
-        Toque em quem sai e depois em quem entra (até {MAX_SUBS} substituições). Vale para o 2º tempo.
-      </p>
-      <div className="ht-cols">
-        <div>
-          <p className="ht-title">Em campo</p>
-          <ul className="ht-list">{field.map((f) => <Row key={f.id} f={f} on />)}</ul>
-        </div>
-        <div>
-          <p className="ht-title">Banco</p>
-          <ul className="ht-list">{bench.map((f) => <Row key={f.id} f={f} on={false} />)}</ul>
-        </div>
-      </div>
-      <p className="ht-title">Estratégia no 2º tempo</p>
-      <div className="seg seg-compact tactic-seg">
-        {(Object.keys(TACTICS) as Tactic[]).map((t) => (
-          <button key={t} type="button" className={`seg-btn${tactic === t ? ' is-on' : ''}`} onClick={() => setTactic(t)}>
-            {TACTICS[t].label}
-          </button>
-        ))}
-      </div>
-      <p className="muted">
-        {subs} de {MAX_SUBS} substituições{tactic !== current ? ` · estratégia: ${TACTICS[tactic].label}` : ''}
-      </p>
-      <button type="button" className="btn btn-primary" disabled={!changed} onClick={confirm}>
-        Confirmar e voltar ao jogo
-      </button>
+      <LineupEditor state={state} dispatch={dispatch} halftime={{ firstIds, out, maxSubs: MAX_SUBS, tactic: current, onConfirm: confirm }} />
     </section>
   );
 }

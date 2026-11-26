@@ -37,19 +37,30 @@ const same = (a: Spot | null, b: Spot | null) => !!a && !!b && (a.kind === 'slot
  * ou toque em dois jogadores para trocar. Lesionado não joga; com o rodízio, quem está muito cansado descansa.
  * Durante a temporada, vale para os jogos depois de hoje.
  */
-export function LineupEditor({ state, dispatch }: { state: GameState; dispatch: Dispatch }) {
+/** Modo intervalo: o mesmo campinho, valendo só para o 2º tempo do jogo de hoje. */
+export interface HalftimeMode {
+  firstIds: number[];
+  /** lesionados e suspensos: não podem entrar */
+  out: Set<number>;
+  maxSubs: number;
+  tactic: Tactic;
+  onConfirm: (ids: number[] | null, tactic: Tactic) => void;
+}
+
+export function LineupEditor({ state, dispatch, halftime }: { state: GameState; dispatch: Dispatch; halftime?: HalftimeMode }) {
   const p = state.player;
   const live = state.live;
   const day = state.reveal ?? -1;
-  const injured = new Set(live ? injuredAt(live, day).map((i) => i.id) : []);
+  const injured = halftime ? halftime.out : new Set(live ? injuredAt(live, day).map((i) => i.id) : []);
   // suspensos no próximo jogo
   const nextDay = state.calendar?.matches.find((m) => m.day > day)?.day;
-  const suspended = new Set(live && nextDay !== undefined ? suspendedOn(live, nextDay).map((s) => s.id) : []);
+  const suspended = new Set(!halftime && live && nextDay !== undefined ? suspendedOn(live, nextDay).map((s) => s.id) : []);
   const fatigue = live ? fatigueAt(live, day) : {};
   const formation = p.coach.formation;
   const slotPos = slotsOf(formation);
   const current = p.lineup?.ids ?? null;
-  const [slots, setSlots] = useState<(number | null)[]>(() => arrange(p.squad, current ?? [...bestEleven(p.squad, formation).ids], formation));
+  const [slots, setSlots] = useState<(number | null)[]>(() => arrange(p.squad, halftime ? halftime.firstIds : current ?? [...bestEleven(p.squad, formation).ids], formation));
+  const [htTactic, setHtTactic] = useState<Tactic | null>(halftime?.tactic ?? null);
   const [rotate, setRotate] = useState(p.lineup?.rotate ?? true);
   const [selected, setSelected] = useState<Spot | null>(null);
   const [drag, setDrag] = useState<{ from: Spot; x: number; y: number; id: number } | null>(null);
@@ -71,6 +82,11 @@ export function LineupEditor({ state, dispatch }: { state: GameState; dispatch: 
     if (a.kind === 'bench' && b.kind === 'bench') return;
     if (a.kind === 'slot') next[a.i] = ib ?? null;
     if (b.kind === 'slot') next[b.i] = ia ?? null;
+    if (halftime) {
+      // no intervalo: lesionado/suspenso não entra e o limite de substituições vale
+      if (next.some((id) => id !== null && halftime.out.has(id))) return;
+      if (next.filter((id) => id !== null && !halftime.firstIds.includes(id)).length > halftime.maxSubs) return;
+    }
     setSlots(next);
   };
 
@@ -134,7 +150,8 @@ export function LineupEditor({ state, dispatch }: { state: GameState; dispatch: 
     );
   };
 
-  const tactic: Tactic = p.tactic ?? STYLE_TACTIC[p.coach.style];
+  const tactic: Tactic = htTactic ?? p.tactic ?? STYLE_TACTIC[p.coach.style];
+  const htSubs = halftime ? slots.filter((id) => id !== null && !halftime.firstIds.includes(id)).length : 0;
   // linhas do campo, do ataque (em cima) ao goleiro (embaixo)
   const rows = [...ORDER].reverse().map((pos) => ({ pos, idx: slotPos.map((x, i) => (x === pos ? i : -1)).filter((i) => i >= 0) }));
   const dragged = drag ? byId.get(drag.id) : undefined;
@@ -144,15 +161,15 @@ export function LineupEditor({ state, dispatch }: { state: GameState; dispatch: 
       <p className="lineup-pos">Estratégia</p>
       <div className="seg tactic-seg">
         {(Object.keys(TACTICS) as Tactic[]).map((t) => (
-          <button key={t} type="button" className={`seg-btn${tactic === t ? ' is-on' : ''}`} onClick={() => tactic !== t && dispatch({ t: 'tactic', v: t })}>
+          <button key={t} type="button" className={`seg-btn${tactic === t ? ' is-on' : ''}`} onClick={() => tactic !== t && (halftime ? setHtTactic(t) : dispatch({ t: 'tactic', v: t }))}>
             <strong>{TACTICS[t].label}</strong>
           </button>
         ))}
       </div>
       <p className="muted">{TACTICS[tactic].effect}</p>
 
-      <p className="lineup-pos">Esquema</p>
-      <div className="seg formation-mini">
+      {!halftime && <p className="lineup-pos">Esquema</p>}
+      <div className="seg formation-mini" hidden={!!halftime} style={halftime ? { display: 'none' } : undefined}>
         {FORMATION_LIST.map((f) => (
           <button key={f} type="button" className={`seg-btn${formation === f ? ' is-on' : ''}`} onClick={() => formation !== f && dispatch({ t: 'formation', f })}>
             <strong>{f}</strong>
@@ -160,10 +177,16 @@ export function LineupEditor({ state, dispatch }: { state: GameState; dispatch: 
         ))}
       </div>
 
-      <p className="muted">
-        Arraste um jogador para a vaga (ou toque em dois para trocar).{live ? ' Vale para os jogos depois de hoje.' : ''}{' '}
-        {current ? 'Escalação escolhida por você.' : 'Agora no automático (os melhores do esquema).'}
-      </p>
+      {halftime ? (
+        <p className="muted">
+          Arraste quem entra do banco para a vaga de quem sai (ou toque em dois). {htSubs} de {halftime.maxSubs} substituições.
+        </p>
+      ) : (
+        <p className="muted">
+          Arraste um jogador para a vaga (ou toque em dois para trocar).{live ? ' Vale para os jogos depois de hoje.' : ''}{' '}
+          {current ? 'Escalação escolhida por você.' : 'Agora no automático (os melhores do esquema).'}
+        </p>
+      )}
 
       <div className="pitch">
         {rows.map((r) => (
@@ -200,6 +223,19 @@ export function LineupEditor({ state, dispatch }: { state: GameState; dispatch: 
         </div>
       )}
 
+      {halftime ? (
+        <div className="actions">
+          <button
+            type="button"
+            className="btn btn-primary"
+            disabled={filled !== 11 || (htSubs === 0 && tactic === halftime.tactic)}
+            onClick={() => halftime.onConfirm(htSubs > 0 ? slots.filter((x): x is number => x !== null) : null, tactic)}
+          >
+            Confirmar e voltar ao jogo
+          </button>
+        </div>
+      ) : (
+        <>
       <label className="lineup-rotate">
         <input type="checkbox" checked={rotate} onChange={(e) => setRotate(e.target.checked)} />
         Rodízio: poupar quem estiver muito cansado (cansaço {FATIGUE_REST}+)
@@ -217,6 +253,8 @@ export function LineupEditor({ state, dispatch }: { state: GameState; dispatch: 
           Automático
         </button>
       </div>
+        </>
+      )}
     </div>
   );
 }

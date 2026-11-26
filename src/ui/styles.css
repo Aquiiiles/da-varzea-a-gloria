@@ -812,3 +812,5 @@ h3 { font: 700 14px/1.2 var(--font-display); text-transform: uppercase; letter-s
 .todo-bad { border-left-color: var(--bad); }
 .todo-warn { border-left-color: var(--warn); }
 .todo-good { border-left-color: var(--good); }
+.form-arrow { font: 700 11px var(--font-display); }
+.pc-form { font-style: normal; font-size: 9px; margin-left: 2px; vertical-align: top; }

@@ -120,7 +120,7 @@ export function simulateSeason(state: GameState): SeasonResult {
     live?.startSquad ?? p.squad,
     live?.changes ?? [],
     live?.lineups ?? [{ day: -1, ids: p.lineup?.ids ?? null, rotate: p.lineup?.rotate ?? true, formation: p.coach.formation, tactic: p.tactic }],
-    { seed, season, formation: p.coach.formation, medical: p.facilities.medical, fitness: p.staff.fitness },
+    { seed, season, formation: p.coach.formation, medical: p.facilities.medical, fitness: p.staff.fitness, coach: !!state.career },
   );
   const coachBonus = coachEdge(p.coach.rating, p.tier) + moraleEdge(p.coach.morale) + p.formMod + form;
   /** dia do jogo sendo simulado (as competições avisam pela data da rodada) */
@@ -467,6 +467,7 @@ export function simulateSeason(state: GameState): SeasonResult {
     state.live.fatigue = plan.fatigueLog;
     state.live.elevens = [...new Set(state.calendar!.matches.map((m) => m.day))].map((d) => ({ day: d, ids: plan.at(d).xi.map((f) => f.id) }));
     state.live.cards = plan.cards.map((c) => ({ ...c }));
+    state.live.status = plan.statusLog;
     state.live.suspensions = plan.suspensions.map((x) => ({ ...x }));
   }
 
@@ -736,6 +737,14 @@ export function simulateSeason(state: GameState): SeasonResult {
   p.capacityBuilding = 0;
   p.national = nextNat.get(PLAYER) ?? null;
   p.stateDiv = nextState.get(PLAYER) ?? p.stateDiv;
+  // moral individual (técnico): metade fica para a próxima temporada
+  if (state.career) {
+    const final = plan.finalMorale();
+    for (const f of p.squad) {
+      const m = final.get(f.id);
+      if (m !== undefined) f.morale = Math.round(m * 0.5 + 30);
+    }
+  }
   evolveClub(state, result);
   const ids = { next: () => nextId(state), names: allNames(state), season: season + 1 };
   applyMovements(state, nextNat, nextState, leaveState, ids);
@@ -956,6 +965,7 @@ export function decideIntents(state: GameState): void {
     const ask = renewWage(f.ovr, f.wage, f.homegrown);
     f.askWage = ask;
     if (renewTarget(f.ovr, f.wage, f.homegrown) > renewalCap(p.tier, f.wage)) f.intent = 'clube_maior';
+    else if ((f.morale ?? 60) < 30) f.intent = 'sai'; // insatisfeito: não renova
     else if (rng.chance(refusalChance(f, ids.has(f.id)))) f.intent = 'sai';
     else f.intent = ask > f.wage * 1.15 ? 'aumento' : 'renova';
   }

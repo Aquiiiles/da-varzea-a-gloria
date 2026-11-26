@@ -84,6 +84,8 @@ export interface Footballer {
   loan?: { clubId: string; club: string; wage: number };
   /** veio do exterior (craque estrangeiro) */
   foreign?: string;
+  /** moral (0–100), guardada de uma temporada para a outra (modo técnico) */
+  morale?: number;
   /** fora a temporada inteira por lesão grave (fica em onLoan, o clube paga o salário, não evolui) */
   recovering?: boolean;
   /** intenção para o fim da temporada (decidida na abertura da janela, visível para o presidente) */
@@ -695,6 +697,8 @@ export interface LiveSeason {
   elevens: { day: number; ids: number[] }[];
   /** mudanças no intervalo (modo técnico): novo time em campo e/ou estratégia para o 2º tempo */
   halftimes?: HalftimeChange[];
+  /** forma e moral de cada jogador depois de cada jogo (prévia) */
+  status?: { day: number; form: Record<number, number>; morale: Record<number, number> }[];
   /** cartões e suspensões do clube (prévia) */
   cards?: { day: number; id: number; name: string; kind: 'amarelo' | 'vermelho' }[];
   suspensions?: { day: number; id: number; name: string; why: 'amarelos' | 'vermelho' }[];

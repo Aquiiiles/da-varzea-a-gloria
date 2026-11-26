@@ -140,3 +140,27 @@ describe('partida interativa (intervalo, cartões, suspensão)', () => {
     expect(found).toBe(true);
   });
 });
+
+describe('forma e moral individual (técnico)', () => {
+  it('quem joga ganha moral, reserva que esperava jogar perde; forma fica entre -3 e +3', () => {
+    const s = season(13);
+    const live = s.live!;
+    expect((live.status ?? []).length).toBeGreaterThan(5);
+    const last = live.status!.at(-1)!;
+    const vals = Object.values(last.form);
+    expect(vals.every((v) => v >= -3 && v <= 3)).toBe(true);
+    expect(vals.some((v) => v !== 0)).toBe(true);
+    // titular mais usado x reserva entre os 16 melhores que pouco jogou
+    const games = new Map<number, number>();
+    for (const e of live.elevens) for (const id of e.ids) games.set(id, (games.get(id) ?? 0) + 1);
+    const byGames = s.player.squad.slice().sort((a, b) => (games.get(b.id) ?? 0) - (games.get(a.id) ?? 0));
+    expect(last.morale[byGames[0].id]).toBeGreaterThan(last.morale[byGames.at(-1)!.id]);
+  });
+
+  it('modo presidente não tem forma nem moral', () => {
+    let s = newGame(13, { name: 'Unidos', colors: ['#c8102e', '#ffffff'], origin: 'pub' });
+    if (s.office.event) s = apply(s, { t: 'event', choice: 0 });
+    s = apply(s, { t: 'play' });
+    expect(s.live!.status ?? []).toHaveLength(0);
+  });
+});

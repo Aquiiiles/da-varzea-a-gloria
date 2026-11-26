@@ -62,6 +62,8 @@ export interface PlanOptions {
   formation: Formation;
   medical: number;
   fitness: number;
+  /** modo técnico: forma e moral individual contam */
+  coach?: boolean;
 }
 
 export function fatiguePenalty(fatigue: number): number {
@@ -82,8 +84,24 @@ function pickXI(roster: Footballer[], formation: Formation, preferred: Set<numbe
   return { xi, strength: round1(mean + depth) };
 }
 
+/** Forma: fase do jogador (de -3 a +3 de overall), oscila jogo a jogo e volta para o normal. */
+export const FORM_MAX = 3;
+/** Moral (0–100): sobe jogando, cai no banco quando esperava jogar. */
+export const MORALE_START = 60;
+export const MORALE_LOW = 30;
+export const MORALE_HIGH = 80;
+
+/** Efeito da moral no overall. */
+export function moraleEffect(morale: number): number {
+  return morale < MORALE_LOW ? -1.5 : morale > MORALE_HIGH ? 0.5 : 0;
+}
+
 export class SquadPlan {
   readonly injuries: Injury[] = [];
+  /** forma e moral de cada jogador depois de cada jogo (para a interface) */
+  readonly statusLog: { day: number; form: Record<number, number>; morale: Record<number, number> }[] = [];
+  private form = new Map<number, number>();
+  private morale = new Map<number, number>();
   readonly cards: CardEvent[] = [];
   readonly suspensions: Suspension[] = [];
   /** cansaço de cada jogador depois de cada jogo (para a interface) */
@@ -137,7 +155,8 @@ export class SquadPlan {
     const injured = this.injuredOn(day);
     const tired = (f: Footballer) => this.fatigue.get(f.id) ?? 0;
     const available = this.rosterAt(day).filter((f) => !injured.has(f.id));
-    const eff = available.map((f) => ({ ...f, ovr: Math.round(f.ovr - fatiguePenalty(tired(f))) }));
+    const personal = (f: Footballer) => (this.opts.coach ? (this.form.get(f.id) ?? 0) + moraleEffect(this.moraleOf(f)) : 0);
+    const eff = available.map((f) => ({ ...f, ovr: Math.round(f.ovr - fatiguePenalty(tired(f)) + personal(f)) }));
     let pool = eff;
     if (lineup.rotate) {
       // rodízio: quem está muito cansado descansa se sobrar gente suficiente
@@ -147,6 +166,16 @@ export class SquadPlan {
     const preferred = lineup.ids ? new Set<number>(lineup.ids) : null;
     const { xi, strength } = pickXI(pool, lineup.formation, preferred);
     return { day, xi, strength, pool: eff };
+  }
+
+  /** Moral atual (começa na que o jogador trouxe da temporada passada). */
+  moraleOf(f: Footballer): number {
+    return this.morale.get(f.id) ?? f.morale ?? MORALE_START;
+  }
+
+  /** Moral de cada jogador no fim da temporada. */
+  finalMorale(): Map<number, number> {
+    return new Map(this.morale);
   }
 
   /** Força com outro time em campo (mudanças no intervalo), com o cansaço e os desfalques do dia. */
@@ -190,6 +219,8 @@ export class SquadPlan {
           } else yellows.set(f.id, n);
         }
       }
+      // forma (sorteio próprio do dia) e moral: quem joga sobe, quem esperava jogar e ficou no banco cai
+      if (this.opts.coach) this.updatePersonal(day, plan);
       const rng = deriveRng(this.opts.seed, this.opts.season, 'lesao', day);
       for (const f of plan.xi) {
         const before = this.fatigue.get(f.id) ?? 0;
@@ -202,6 +233,26 @@ export class SquadPlan {
         }
       }
       this.fatigueLog.push({ day, fatigue: Object.fromEntries(this.fatigue) });
+    }
+  }
+
+  private updatePersonal(day: number, plan: MatchPlan): void {
+    {
+      const frng = deriveRng(this.opts.seed, this.opts.season, 'forma', day);
+      const roster = this.rosterAt(day);
+      const inXI = new Set(plan.xi.map((f) => f.id));
+      const ranked = roster.slice().sort((a, b) => b.ovr - a.ovr || a.id - b.id);
+      const expects = new Set(ranked.slice(0, 16).map((f) => f.id));
+      for (const f of roster) {
+        const cur = this.form.get(f.id) ?? 0;
+        const next = inXI.has(f.id) ? cur * 0.7 + frng.normal(1.2) : cur * 0.85;
+        this.form.set(f.id, Math.max(-FORM_MAX, Math.min(FORM_MAX, Math.round(next * 10) / 10)));
+        const m = this.moraleOf(f);
+        // quem joga anima; quem esperava jogar e fica no banco se chateia; tudo volta devagar para o normal
+        const dm = inXI.has(f.id) ? 1.5 : expects.has(f.id) ? -1.8 : -0.5;
+        this.morale.set(f.id, clamp(Math.round((m + dm + (MORALE_START - m) * 0.06) * 10) / 10, 0, 100));
+      }
+      this.statusLog.push({ day, form: Object.fromEntries(this.form), morale: Object.fromEntries(this.morale) });
     }
   }
 

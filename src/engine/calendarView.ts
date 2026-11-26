@@ -79,3 +79,10 @@ export function hangingAt(live: LiveSeason, day: number): { id: number; name: st
   }
   return [...count.entries()].filter(([, v]) => v.n === 2).map(([id, v]) => ({ id, name: v.name }));
 }
+
+/** Forma e moral de cada jogador no dia `day` (depois do último jogo até ali). */
+export function statusAt(live: LiveSeason, day: number): { form: Record<number, number>; morale: Record<number, number> } {
+  let last: NonNullable<LiveSeason['status']>[number] | null = null;
+  for (const s of live.status ?? []) if (s.day <= day) last = s;
+  return last ? { form: last.form, morale: last.morale } : { form: {}, morale: {} };
+}

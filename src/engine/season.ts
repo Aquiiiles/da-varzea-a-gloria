@@ -14,7 +14,7 @@ import { computeAwards, myAwards, type AwardsInput, type LeagueInfo } from './aw
 import { continentalCup, foreignClubs, nationalCup, stateCup, worldCup, type CupEnv, type CupResult } from './cups';
 import { nextId } from './effects';
 import { TICKET_POLICY, attendance, seasonFinance } from './finance';
-import { bestEleven, develop, makeFootballer, marketValue, marketWage, retires, round1, squadStrength } from './footballers';
+import { bestEleven, develop, makeFootballer, marketValue, marketWage, retires, round1, squadStrength, lineupStrength } from './footballers';
 import { applyResult, emptyRow, sortTable, type LeagueContext } from './league';
 import { moment } from './live';
 import { BASE_HOME_ADVANTAGE, BLOCK_MINUTES, withBlocks, type BlockState, type GoalMult } from './match';
@@ -60,7 +60,8 @@ export function playerHomeAdv(state: GameState): number {
 /** Força esperada do time (sem a sorte da temporada): XI + técnico + eventos. */
 export function teamStrength(state: GameState): number {
   const p = state.player;
-  return Math.round((squadStrength(p.squad, p.coach.formation) + coachEdge(p.coach.rating, p.tier) + moraleEdge(p.coach.morale) + p.formMod) * 10) / 10;
+  const chosen = p.lineup?.ids ? lineupStrength(p.squad, p.coach.formation, p.lineup.ids) : null;
+  return Math.round(((chosen ?? squadStrength(p.squad, p.coach.formation)) + coachEdge(p.coach.rating, p.tier) + moraleEdge(p.coach.morale) + p.formMod) * 10) / 10;
 }
 
 /** O clube pode jogar no nível `tier` com esse estádio? */

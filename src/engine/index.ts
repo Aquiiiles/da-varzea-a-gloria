@@ -34,6 +34,7 @@ export { FATIGUE_FREE, FATIGUE_REST } from './squadplan';
 export { currentInterview, answered, interviewEffects, type Interview, type InterviewQuestion, type InterviewAnswer } from './interview';
 export { coachRanking, type RankingEntry } from './ranking';
 export { quickMoment } from './live';
-export { MEETING_LABEL } from './career';
+export { MEETING_LABEL, MEETING_INFO, meetingChance } from './career';
 export { roundOn, tableAfter, opponentInfo, myPosition, nextMatchAfter, type RoundView, type RoundGame, type TableMove, type OpponentInfo } from './round';
 export { ultimatumStatus, BOARD_RULES, rivalName, isDecisive } from './boardwatch';
+export { formationSlots, positionPenalty, lineupStrength } from './footballers';

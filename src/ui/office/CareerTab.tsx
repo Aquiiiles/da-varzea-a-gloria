@@ -1,9 +1,9 @@
 import {
   coachRanking,
-  MEETING_LABEL,
+  MEETING_INFO, meetingChance,
   socios,
   BOARD_INFO, CAREER_END_AGE, COACH_STYLES, START_YEAR, TIERS, coachEdge, payroll, projectFinance, starsFor, tierForReputation,
-  type GameState, type JobOffer,
+  type GameState, type JobOffer, type MeetingKind,
 } from '../../engine';
 import type { Dispatch } from '../App';
 import { money, num } from '../format';
@@ -146,16 +146,33 @@ export function BoardTab({ state, dispatch }: TabProps) {
         <p className="kicker">Reunião (uma por janela)</p>
         {state.office.meeting ? (
           <p className={state.office.meeting.ok ? 'good' : 'bad'}>
-            {MEETING_LABEL[state.office.meeting.kind]}: {state.office.meeting.text}
+            {MEETING_INFO[state.office.meeting.kind].label}: {state.office.meeting.text}
           </p>
         ) : (
-          <div className="meeting-actions">
-            {MEETING_LABEL.map((label, k) => (
-              <button key={label} type="button" className="btn" onClick={() => dispatch({ t: 'meeting', kind: k as 0 | 1 | 2 })}>
-                {label}
-              </button>
-            ))}
-          </div>
+          <ul className="meeting-list">
+            {MEETING_INFO.map((m, k) => {
+              const kind = k as MeetingKind;
+              const chance = Math.round(meetingChance(state, kind) * 100);
+              const none = kind === 4;
+              return (
+                <li key={m.label} className={none ? 'meeting-none' : ''}>
+                  <div>
+                    <strong>{m.label}</strong>
+                    <small>{m.gain}</small>
+                    {!none && (
+                      <small className="meeting-odds">
+                        <b className={chance >= 55 ? 'good' : chance < 35 ? 'bad' : 'warnc'}>{chance}% de chance</b> · confiança −{m.cost[0]} se aceitar, −{m.cost[1]} se negar
+                      </small>
+                    )}
+                    {none && <small className="meeting-odds good">confiança +2</small>}
+                  </div>
+                  <button type="button" className={`btn btn-small${none ? '' : ' btn-primary'}`} onClick={() => dispatch({ t: 'meeting', kind })}>
+                    {none ? 'Escolher' : 'Pedir'}
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
         )}
       </section>
 

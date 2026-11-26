@@ -4,6 +4,7 @@ import { Crest } from './Crest';
 import { deleteCareer, listCareers, listHall, loadNamePack, saveNamePack, type CareerSave } from '../storage';
 import { today } from './daily';
 import { REAL_PACK } from '../data/realclubs';
+import { Juggler } from './Juggler';
 
 const SWATCHES = ['#c8102e', '#1d428a', '#fdb913', '#00843d', '#ffffff', '#111111', '#6c1d45', '#ef7d00', '#9bcbeb', '#7a263a'];
 
@@ -166,8 +167,19 @@ export function FoundationScreen({ onStart, onResume }: { onStart: (f: Foundatio
 
   return (
     <>
+    <section className="hero">
+      <div className="hero-field" aria-hidden="true" />
+      <Juggler className="hero-juggler" />
+      <div className="hero-copy">
+        <p className="hero-kicker">Manager de futebol</p>
+        <h1 className="hero-title">
+          Da Várzea
+          <br />à Glória
+        </h1>
+        <p className="hero-sub">Do campo de terra ao Mundial.</p>
+      </div>
+    </section>
     <SavedRuns onResume={onResume} />
-    <NamePackPanel />
     <section className="panel modes">
       <p className="kicker">Modo de jogo</p>
       <div className="mode-grid">
@@ -280,6 +292,7 @@ export function FoundationScreen({ onStart, onResume }: { onStart: (f: Foundatio
     </section>
     </>
     )}
+    <NamePackPanel />
     </>
   );
 }

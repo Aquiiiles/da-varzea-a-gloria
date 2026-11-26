@@ -1,15 +1,18 @@
 :root {
-  --bg: #0b0f14;
-  --panel: #131a22;
-  --panel-2: #1a2330;
-  --line: #263243;
-  --text: #e8edf2;
-  --muted: #8a99ab;
+  --bg: #0a100c;
+  --panel: #111915;
+  --panel-2: #18221c;
+  --line: #22302a;
+  --text: #f2f6f3;
+  --muted: #a5b5ab;
   --accent: #ffd23f;
   --live: #e63946;
-  --good: #2ecc71;
-  --bad: #ff5c5c;
+  --good: #35d07f;
+  --bad: #ff6464;
   --warn: #ffb020;
+  --grass: #1c6b3a;
+  --grass-2: #175d32;
+  --radius: 14px;
   --font-display: 'Oswald', 'Arial Narrow', system-ui, sans-serif;
   --font-body: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
   color-scheme: dark;
@@ -22,8 +25,8 @@ html, body {
   background: var(--bg);
   color: var(--text);
   font-family: var(--font-body);
-  font-size: 15px;
-  line-height: 1.45;
+  font-size: 16px;
+  line-height: 1.5;
   -webkit-font-smoothing: antialiased;
 }
 
@@ -51,7 +54,7 @@ button:disabled { cursor: default; opacity: 0.5; }
 
 /* ------------------------------ layout ------------------------------ */
 .stage { width: 100%; max-width: 760px; margin: 0 auto; padding: 16px; flex: 1; }
-.panel { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 18px 16px; }
+.panel { background: var(--panel); border: 1px solid transparent; border-radius: var(--radius); padding: 18px; box-shadow: 0 1px 0 #ffffff08 inset; }
 .game { display: flex; flex-direction: column; gap: 12px; }
 
 .kicker { margin: 0 0 4px; font: 700 12px/1.2 var(--font-display); letter-spacing: 0.12em; text-transform: uppercase; color: var(--accent); }
@@ -1035,3 +1038,123 @@ details.panel.more summary { font: 700 12px/1.2 var(--font-display); letter-spac
 .mvp { margin: 6px 0 0; text-align: center; font-weight: 700; }
 .pc-cap { position: absolute; top: -7px; left: -5px; width: 18px; height: 18px; border-radius: 50%; background: var(--accent); color: #111; font: 700 11px/18px var(--font-display); font-style: normal; text-align: center; }
 .roles { margin-top: 12px; }
+
+/* ------------------------------ embaixadinha ------------------------------ */
+.juggler { display: block; overflow: visible; }
+.juggler * { transform-box: view-box; }
+.jg-ground { fill: #ffffff10; }
+.jg-shadow { fill: #00000055; transform-origin: 170px 250px; animation: jg-shadow 1.2s infinite; }
+.jg-limb { fill: none; stroke: #d9b38c; stroke-width: 9; stroke-linecap: round; stroke-linejoin: round; }
+.jg-shorts-leg { stroke: #f4f4f4; stroke-width: 12; }
+.jg-boot { fill: none; stroke: #111; stroke-width: 7; stroke-linecap: round; }
+.jg-shirt { fill: none; stroke: var(--accent); stroke-width: 26; stroke-linecap: round; }
+.jg-number { font: 700 15px var(--font-display); fill: #0b3d1f; text-anchor: middle; }
+.jg-head { fill: #d9b38c; }
+.jg-shorts { fill: #f4f4f4; }
+.jg-hair { fill: #2a1d14; }
+.jg-arm { stroke-width: 8; }
+.jg-arm-back { opacity: 0.85; transform-origin: 99px 70px; animation: jg-arm-back 1.2s ease-in-out infinite; }
+.jg-arm-front { transform-origin: 101px 70px; animation: jg-arm-front 1.2s ease-in-out infinite; }
+.jg-body { transform-origin: 98px 240px; animation: jg-body 1.2s ease-in-out infinite; }
+.jg-kick { transform-origin: 98px 136px; animation: jg-kick 1.2s infinite; }
+.jg-shin { transform-origin: 101px 188px; animation: jg-shin 1.2s infinite; }
+.jg-ball { animation: jg-ball 1.2s infinite; }
+.jg-spin { animation: jg-spin 1.2s linear infinite; }
+.jg-ball-fill { fill: #fff; stroke: #222; stroke-width: 1.2; }
+.jg-ball-mark { fill: #222; }
+.jg-ball-line { stroke: #222; stroke-width: 1.2; fill: none; }
+
+/* a bola sobe devagarinho (desacelera) e desce acelerando até o pé */
+@keyframes jg-ball {
+  0% { transform: translate(170px, 200px); animation-timing-function: cubic-bezier(0.2, 0.6, 0.4, 1); }
+  50% { transform: translate(166px, 78px); animation-timing-function: cubic-bezier(0.6, 0, 0.8, 0.4); }
+  100% { transform: translate(170px, 200px); }
+}
+@keyframes jg-spin { to { transform: rotate(-360deg); } }
+@keyframes jg-shadow {
+  0%, 100% { transform: scale(1); opacity: 1; }
+  50% { transform: scale(0.5); opacity: 0.4; }
+}
+/* coxa sobe no toque e volta; a canela dobra na volta */
+@keyframes jg-kick {
+  0% { transform: rotate(-48deg); }
+  22% { transform: rotate(-8deg); }
+  60% { transform: rotate(0deg); }
+  88% { transform: rotate(-34deg); }
+  100% { transform: rotate(-48deg); }
+}
+@keyframes jg-shin {
+  0% { transform: rotate(18deg); }
+  22% { transform: rotate(32deg); }
+  60% { transform: rotate(4deg); }
+  88% { transform: rotate(26deg); }
+  100% { transform: rotate(18deg); }
+}
+@keyframes jg-body {
+  0%, 100% { transform: rotate(-2deg); }
+  50% { transform: rotate(1deg); }
+}
+@keyframes jg-arm-back {
+  0%, 100% { transform: rotate(-14deg); }
+  50% { transform: rotate(4deg); }
+}
+@keyframes jg-arm-front {
+  0%, 100% { transform: rotate(12deg); }
+  50% { transform: rotate(-6deg); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .jg-ball, .jg-spin, .jg-kick, .jg-shin, .jg-body, .jg-arm-back, .jg-arm-front, .jg-shadow { animation: none; }
+  .jg-ball { transform: translate(166px, 90px); }
+}
+
+/* ============================== repaginada ============================== */
+/* menos caixa dentro de caixa, mais respiro, cantos arredondados e números fortes */
+.panel .panel, .panel .box { box-shadow: none; }
+.stage { padding: 16px 16px 24px; }
+.game, .tab-stack { gap: 14px; }
+.kicker { font-size: 12px; letter-spacing: 0.14em; color: var(--accent); }
+.lede { color: var(--muted); font-size: 16px; }
+.muted { color: var(--muted); }
+.btn { border-radius: 10px; min-height: 46px; }
+.btn-small { min-height: 36px; }
+.btn-primary { box-shadow: 0 6px 18px #ffd23f22; }
+.origin, .option, .offer-card { border-radius: 12px; }
+.text-input { border-radius: 10px; }
+.table td, .table th { padding-top: 9px; padding-bottom: 9px; }
+
+/* tela inicial: estádio à noite, gramado e o craque fazendo embaixadinha */
+.hero {
+  position: relative; overflow: hidden; margin: -16px -16px 0; padding: 40px 20px 28px; min-height: 340px;
+  display: flex; align-items: flex-end;
+  background:
+    radial-gradient(120% 70% at 85% 0%, #ffffff22 0%, transparent 55%),
+    radial-gradient(90% 60% at 10% 0%, #ffffff14 0%, transparent 50%),
+    linear-gradient(180deg, #08130d 0%, #0c2416 55%, var(--grass-2) 100%);
+}
+.hero-field {
+  position: absolute; left: -10%; right: -10%; bottom: -40px; height: 150px;
+  background:
+    radial-gradient(ellipse 120px 34px at 50% 52%, transparent 96%, #ffffff30 97%, #ffffff30 99%, transparent 100%),
+    linear-gradient(#ffffff30, #ffffff30) 50% 0 / 2px 100% no-repeat,
+    repeating-linear-gradient(90deg, var(--grass) 0 60px, var(--grass-2) 60px 120px);
+  transform: perspective(300px) rotateX(48deg); transform-origin: bottom;
+  border-top: 2px solid #ffffff30;
+}
+.hero-juggler { position: absolute; right: -18px; bottom: 18px; width: 180px; height: auto; filter: drop-shadow(0 10px 18px #0008); }
+.hero-copy { position: relative; z-index: 1; max-width: 60%; }
+.hero-kicker { margin: 0 0 6px; font: 700 12px/1 var(--font-display); letter-spacing: 0.2em; text-transform: uppercase; color: var(--accent); }
+.hero-title { margin: 0; font: 700 44px/0.95 var(--font-display); text-transform: uppercase; letter-spacing: 0.01em; text-shadow: 0 2px 12px #000a; }
+.hero-sub { margin: 10px 0 0; color: #d7e4dc; font-size: 16px; }
+@media (min-width: 640px) {
+  .hero { min-height: 380px; border-radius: 0 0 var(--radius) var(--radius); }
+  .hero-title { font-size: 64px; }
+  .hero-juggler { width: 260px; right: 40px; }
+}
+
+/* placar no estilo de transmissão */
+.scoreboard { background: linear-gradient(180deg, #0f1712, #0a0f0c); border: 0; border-radius: 12px; box-shadow: inset 0 -3px 0 var(--accent); }
+.sb-score span { font-size: 54px; }
+.sb-clock { border-radius: 6px; }
+
+/* barra inferior mais limpa */
+.coach-nav, .bottom-nav { backdrop-filter: blur(8px); }

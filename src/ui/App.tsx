@@ -109,7 +109,7 @@ export function App() {
   return (
     <div className="app">
       {/* modo técnico: o cabeçalho do clube ocupa o topo (com o letreiro dentro) */}
-      {!(state?.career && !state.career.unemployed && (state.phase === 'office' || state.phase === 'season')) && (
+      {state && !(state.career && !state.career.unemployed && (state.phase === 'office' || state.phase === 'season')) && (
         <header className="masthead">
           <div className="brand">
             <span className="brand-live">AO VIVO</span>

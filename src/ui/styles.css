@@ -913,3 +913,19 @@ h3 { font: 700 14px/1.2 var(--font-display); text-transform: uppercase; letter-s
 .tl-year { font: 700 14px var(--font-display); color: var(--muted); }
 .tl-titles { font-style: normal; font-weight: 700; color: var(--accent); font-size: 13px; }
 .game-menu .actions { display: flex; gap: 8px; flex-wrap: wrap; }
+
+/* reorganização do técnico */
+.bottom-nav.bn-6 { grid-template-columns: repeat(6, 1fr); }
+.bn-6 .bn-item { font-size: 10px; }
+.bn-6 .bn-item svg { width: 20px; height: 20px; }
+.plan-line { display: flex; justify-content: space-between; align-items: center; gap: 10px; width: 100%; background: var(--panel-2); border: 1px solid var(--line); border-radius: 6px; padding: 10px 12px; text-align: left; font-size: 13px; color: var(--muted); }
+.plan-line b { color: var(--accent); font-size: 13px; white-space: nowrap; }
+.headline-link { display: flex; flex-direction: column; gap: 4px; width: 100%; text-align: left; background: var(--panel); border: 1px solid var(--line); border-left: 4px solid var(--accent); border-radius: 8px; padding: 12px 14px; font: 700 16px/1.25 var(--font-display); text-transform: uppercase; }
+.headline-link .np-kicker { margin: 0; }
+.last-line { margin: 0; color: var(--muted); font-size: 13px; }
+.last-line b { padding: 1px 6px; border-radius: 3px; background: var(--panel-2); color: var(--text); }
+.last-line b.res-V { background: var(--good); color: #111; }
+.last-line b.res-D { background: var(--bad); color: #111; }
+.pm-out { margin: 0; font-size: 13px; }
+.save-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+.save:disabled { opacity: 1; }

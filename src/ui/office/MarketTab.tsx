@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import { useMemo } from 'react';
-import { MAX_WATCH, SQUAD_MAX, TIERS, agentFee, listingOpen, negotiationFor, squadStrength, type Club, type Footballer, type ListingProfile, type Position, type Tier } from '../../engine';
+import { MAX_WATCH, SQUAD_MIN, SQUAD_MAX, TIERS, offerOpen, agentFee, listingOpen, negotiationFor, squadStrength, type Club, type Footballer, type ListingProfile, type Position, type Tier } from '../../engine';
 import { NegotiationPanel } from './Negotiation';
+import { SaleOfferCard } from './OfferCards';
 import { money, monthly, spendable } from '../format';
 import { marketValue } from '../../engine';
 import type { TabProps } from './Office';
@@ -15,31 +16,72 @@ const PROFILE_LABEL: Record<ListingProfile | 'todos', string> = {
   livre: 'Sem clube',
 };
 
-type Mode = 'janela' | 'buscar' | 'clubes' | 'observados';
+type Mode = 'janela' | 'buscar' | 'observados' | 'propostas';
 
-export function MarketTab(props: TabProps) {
-  const [mode, setMode] = useState<Mode>('janela');
+export function MarketTab(props: TabProps & { mode?: string; onMode?: (m: string) => void }) {
+  const [modeState, setModeState] = useState<Mode>('janela');
+  const mode = (props.mode as Mode | undefined) ?? modeState;
+  const setMode = (m: Mode) => (props.onMode ? props.onMode(m) : setModeState(m));
+  const offers = props.state.office.offers.filter((o) => o && offerOpen(props.state, o)).length;
   return (
     <div className="tab-stack">
-      <div className="seg seg-modes" role="tablist" aria-label="Mercado">
+      <div className="subtabs" role="tablist" aria-label="Mercado">
         {(
           [
             ['janela', 'Janela'],
-            ['buscar', 'Buscar jogadores'],
-            ['clubes', 'Clubes'],
+            ['buscar', 'Buscar'],
             ['observados', `Observados${(props.state.watch ?? []).length > 0 ? ` (${props.state.watch!.length})` : ''}`],
+            ['propostas', `Propostas${offers > 0 ? ` (${offers})` : ''}`],
           ] as [Mode, string][]
         ).map(([m, label]) => (
-          <button key={m} type="button" role="tab" aria-selected={mode === m} className={`seg-btn${mode === m ? ' is-on' : ''}`} onClick={() => setMode(m)}>
+          <button key={m} type="button" role="tab" aria-selected={mode === m} className={`subtab${mode === m ? ' is-on' : ''}`} onClick={() => setMode(m)}>
             {label}
           </button>
         ))}
       </div>
       {mode === 'janela' && <WindowMarket {...props} />}
-      {mode === 'buscar' && <SearchMarket {...props} />}
-      {mode === 'clubes' && <ClubsMarket {...props} />}
+      {mode === 'buscar' && <SearchOrClubs {...props} />}
       {mode === 'observados' && <WatchMarket {...props} />}
+      {mode === 'propostas' && <OffersMarket {...props} />}
     </div>
+  );
+}
+
+/** Buscar: por filtros ou navegando pelos clubes. */
+function SearchOrClubs(props: TabProps) {
+  const [by, setBy] = useState<'filtros' | 'clubes'>('filtros');
+  return (
+    <div className="tab-stack">
+      <div className="seg seg-compact" style={{ gridTemplateColumns: '1fr 1fr' }}>
+        <button type="button" className={`seg-btn${by === 'filtros' ? ' is-on' : ''}`} onClick={() => setBy('filtros')}>
+          Por filtros
+        </button>
+        <button type="button" className={`seg-btn${by === 'clubes' ? ' is-on' : ''}`} onClick={() => setBy('clubes')}>
+          Por clube
+        </button>
+      </div>
+      {by === 'filtros' ? <SearchMarket {...props} /> : <ClubsMarket {...props} />}
+    </div>
+  );
+}
+
+/** Propostas recebidas pelos seus jogadores (aceitar, negociar, recusar). */
+function OffersMarket({ state, dispatch }: TabProps) {
+  const p = state.player;
+  const list = state.office.offers.map((of, idx) => ({ of, idx })).filter(({ of }) => of && offerOpen(state, of));
+  return (
+    <Section title="Propostas recebidas">
+      {list.length === 0 ? (
+        <p className="empty">Nenhuma proposta pelos seus jogadores agora.</p>
+      ) : (
+        <div className="offer-grid">
+          {list.map(({ of, idx }) => {
+            const f = p.squad.find((x) => x.id === of!.playerId);
+            return f ? <SaleOfferCard key={`${idx}-${of!.fee}`} state={state} offer={of!} f={f} idx={idx} dispatch={dispatch} disabled={p.squad.length <= SQUAD_MIN} /> : null;
+          })}
+        </div>
+      )}
+    </Section>
   );
 }
 

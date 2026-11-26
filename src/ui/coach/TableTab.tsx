@@ -1,20 +1,34 @@
 import { useState } from 'react';
 import { COMP_STATS_KEY, PLAYER_ID, outcomeOf, playedMatches, stageStarted, statsUpTo, tableAfter, type CalendarMatch, type GameState, type StatLine } from '../../engine';
 import { MatchRow } from '../SeasonView';
+import { NewsTab } from '../office/NewsTab';
+import type { Dispatch } from '../App';
 
 /** Aba Tabela: classificação de cada competição de pontos (com setas da última rodada) e os seus resultados. */
-export function TableTab({ state }: { state: GameState }) {
+export function TableTab({ state, view: viewProp, onView }: { state: GameState; dispatch?: Dispatch; view?: string; onView?: (v: string) => void }) {
   const cal = state.calendar;
   const day = state.reveal ?? -1;
   const [pick, setPick] = useState<number | null>(null);
   const [showAll, setShowAll] = useState(false);
-  const [view, setView] = useState<'tabela' | 'artilharia' | 'time' | 'copas'>('tabela');
+  const [viewState, setViewState] = useState<string>('tabela');
+  const view = viewProp ?? viewState;
+  const setView = (v: string) => (onView ? onView(v) : setViewState(v));
+  if (view === 'jornal') {
+    return (
+      <div className="tab-stack">
+        <ViewNav view={view} setView={setView} />
+        <NewsTab state={state} dispatch={() => false} goTo={() => {}} />
+      </div>
+    );
+  }
   if (!cal || state.reveal == null) {
     return (
-      <section className="panel">
-        <p className="kicker">Tabela</p>
-        <p className="muted">A temporada ainda não começou. As tabelas aparecem quando a bola rolar.</p>
-      </section>
+      <div className="tab-stack">
+        <ViewNav view={view} setView={setView} />
+        <section className="panel">
+          <p className="muted">A temporada ainda não começou. Tabelas e estatísticas aparecem quando a bola rolar.</p>
+        </section>
+      </div>
     );
   }
   const stages = cal.stages.filter((s) => s.ids.includes(PLAYER_ID) && stageStarted(s, day));
@@ -29,21 +43,7 @@ export function TableTab({ state }: { state: GameState }) {
   const n = rows.length;
 
   const live = state.live;
-  const views = [
-    ['tabela', 'Classificação'],
-    ['artilharia', 'Artilharia'],
-    ['time', 'Seu time'],
-    ['copas', 'Copas'],
-  ] as const;
-  const nav = (
-    <div className="subtabs">
-      {views.map(([id, label]) => (
-        <button key={id} type="button" className={`subtab${view === id ? ' is-on' : ''}`} onClick={() => setView(id)}>
-          {label}
-        </button>
-      ))}
-    </div>
-  );
+  const nav = <ViewNav view={view} setView={setView} />;
   if (view === 'artilharia' && live && stage) {
     const key = COMP_STATS_KEY[stage.comp];
     const lines = statsUpTo(live, day, key);
@@ -273,5 +273,25 @@ function CupPaths({ matches, stageComps }: { matches: CalendarMatch[]; stageComp
         );
       })}
     </>
+  );
+}
+
+const VIEWS = [
+  ['tabela', 'Classificação'],
+  ['artilharia', 'Artilharia'],
+  ['time', 'Seu time'],
+  ['copas', 'Copas'],
+  ['jornal', 'Jornal'],
+] as const;
+
+function ViewNav({ view, setView }: { view: string; setView: (v: string) => void }) {
+  return (
+    <div className="subtabs">
+      {VIEWS.map(([id, label]) => (
+        <button key={id} type="button" className={`subtab${view === id ? ' is-on' : ''}`} onClick={() => setView(id)}>
+          {label}
+        </button>
+      ))}
+    </div>
   );
 }

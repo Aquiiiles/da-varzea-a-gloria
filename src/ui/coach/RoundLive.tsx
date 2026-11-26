@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { MAX_STOPS, MAX_SUBS, PLAYER_ID, subbedOut, isDecisive, rivalName, STYLE_TACTIC, injuredAt, suspendedOn, tableAfter, type GameState, type LiveEvent, type RoundGame, type RoundView, type Tactic } from '../../engine';
+import { MAX_STOPS, MAX_SUBS, TIRED_AT, liveRatings, staminaAt, type LiveRating, PLAYER_ID, subbedOut, isDecisive, rivalName, STYLE_TACTIC, injuredAt, suspendedOn, tableAfter, type GameState, type LiveEvent, type RoundGame, type RoundView, type Tactic } from '../../engine';
 import type { Dispatch } from '../App';
 import { LineupEditor } from '../LineupEditor';
 import { StandingsTable } from './TableTab';
@@ -110,6 +110,10 @@ export function RoundLive({ state, round, dispatch, onDone }: { state: GameState
     feedRef.current?.scrollTo({ top: 0, behavior: reduced ? 'auto' : 'smooth' });
   }, [shown.length, reduced]);
 
+  const ratingMinute = finished ? 90 : stop ? Math.max(1, minute) : minute;
+  const ratings = useMemo(() => (round.stats ? liveRatings(state, round, Math.max(1, ratingMinute)) : []), [state, round, ratingMinute]);
+  const stamina = useMemo(() => (round.stats ? staminaAt(state, round.day, Math.min(90, minute)) : new Map<number, number>()), [state, round.day, minute, round.stats]);
+
   const myGoals = m.playerHome ? m.result.hg : m.result.ag;
   const theirGoals = m.playerHome ? m.result.ag : m.result.hg;
   const won = m.result.winner ? (m.playerHome ? m.result.winner === m.result.home : m.result.winner === m.result.away) : null;
@@ -175,6 +179,11 @@ export function RoundLive({ state, round, dispatch, onDone }: { state: GameState
           ))}
         </ol>
         {finished && verdict && <p className={`live-verdict v-${verdict}`}>{verdict === 'win' ? 'VITÓRIA!' : verdict === 'loss' ? 'Derrota.' : 'Empate.'}</p>}
+        {finished && ratings[0] && (
+          <p className="mvp">
+            Melhor do seu time: {ratings[0].name} ({ratings[0].rating.toFixed(1)})
+          </p>
+        )}
       </section>
 
       {round.stats && (
@@ -188,7 +197,20 @@ export function RoundLive({ state, round, dispatch, onDone }: { state: GameState
         />
       )}
 
-      {stop && <HalftimePanel state={state} day={round.day} minute={changeAt(stop.minute)} reason={stop.reason} dispatch={dispatch} onClose={() => setStop(null)} />}
+      {round.stats && !stop && <Ratings ratings={ratings} stamina={stamina} finished={finished} />}
+
+      {stop && (
+        <HalftimePanel
+          state={state}
+          day={round.day}
+          minute={changeAt(stop.minute)}
+          reason={stop.reason}
+          dispatch={dispatch}
+          onClose={() => setStop(null)}
+          stamina={staminaAt(state, round.day, changeAt(stop.minute))}
+          ratings={new Map(ratings.map((r) => [r.id, r.rating]))}
+        />
+      )}
 
       {others.length > 0 && (
         <section className="panel">
@@ -249,7 +271,35 @@ export function RoundLive({ state, round, dispatch, onDone }: { state: GameState
 }
 
 /** Vestiário no intervalo: o mesmo campinho da escalação, com até 5 substituições e a estratégia do 2º tempo. */
-function HalftimePanel({ state, day, minute, reason, dispatch, onClose }: { state: GameState; day: number; minute: number; reason: string; dispatch: Dispatch; onClose: () => void }) {
+/** Notas ao vivo: quem está em campo, com fôlego; os que já saíram ficam apagados. */
+function Ratings({ ratings, stamina, finished }: { ratings: LiveRating[]; stamina: Map<number, number>; finished: boolean }) {
+  if (ratings.length === 0) return null;
+  const list = finished ? ratings : ratings.filter((r) => r.onField).concat(ratings.filter((r) => !r.onField));
+  return (
+    <section className="panel notas">
+      <p className="kicker">Notas{finished ? ' do jogo' : ' ao vivo'}</p>
+      <ul>
+        {list.map((r) => {
+          const f = stamina.get(r.id) ?? 100;
+          return (
+            <li key={r.id}>
+              <span className="n-pos">{r.pos}</span>
+              <span className={`n-name${r.onField || finished ? '' : ' n-off'}`}>
+                {r.name}
+                {r.goals > 0 ? ` · ${r.goals} gol${r.goals > 1 ? 's' : ''}` : ''}
+              </span>
+              {!finished && r.onField ? <span className={`n-fol${f < 55 ? ' bad' : ''}`}>fôlego {f}</span> : <span className="n-fol">{r.onField ? '' : 'saiu'}</span>}
+              <b className={r.rating >= 7.5 ? 'good' : r.rating < 5.8 ? 'bad' : ''}>{r.rating.toFixed(1)}</b>
+            </li>
+          );
+        })}
+      </ul>
+      {!finished && [...stamina.values()].some((v) => v < TIRED_AT) && <p className="muted">Fôlego abaixo de {TIRED_AT} já pesa no rendimento. Sem mexer, o auxiliar troca aos 60' e 75'; se você mexer, as trocas são suas.</p>}
+    </section>
+  );
+}
+
+function HalftimePanel({ state, day, minute, reason, dispatch, onClose, stamina, ratings }: { state: GameState; day: number; minute: number; reason: string; dispatch: Dispatch; onClose: () => void; stamina: Map<number, number>; ratings: Map<number, number> }) {
   const p = state.player;
   const live = state.live!;
   const original = live.elevens.find((e) => e.day === day)?.ids ?? [];
@@ -286,7 +336,7 @@ function HalftimePanel({ state, day, minute, reason, dispatch, onClose }: { stat
         key={`${minute}-${field.join(',')}`}
         state={state}
         dispatch={dispatch}
-        halftime={{ firstIds: field, out, reasons, maxSubs: MAX_SUBS - used, tactic: current, size: 11 - reds, onConfirm: confirm }}
+        halftime={{ firstIds: field, out, reasons, maxSubs: MAX_SUBS - used, tactic: current, size: 11 - reds, onConfirm: confirm, stamina, ratings }}
       />
     </section>
   );

@@ -1,5 +1,5 @@
 import { useState, type ReactNode } from 'react';
-import { BOARD_INFO, START_YEAR, STYLE_TACTIC, TACTICS, TRAINING, julyWindow, myPosition, ultimatumStatus, type Formation, type GameState, type Tactic, type TrainingFocus } from '../../engine';
+import { BOARD_INFO, START_YEAR, bestEleven, leadership, resolveRoles, type Footballer, type Roles, STYLE_TACTIC, TACTICS, TRAINING, julyWindow, myPosition, ultimatumStatus, type Formation, type GameState, type Tactic, type TrainingFocus } from '../../engine';
 import type { Dispatch } from '../App';
 import { Crest } from '../Crest';
 import { Ticker, tickerItems } from '../Ticker';
@@ -186,7 +186,45 @@ function Prepare({ state, dispatch }: { state: GameState; dispatch: Dispatch }) 
         {TACTICS[tactic].effect} {training !== 'equilibrado' ? TRAINING[training].effect : ''}
       </p>
       <LineupEditor key={`${state.reveal}-${JSON.stringify(p.lineup)}-${p.coach.formation}`} state={state} dispatch={dispatch} bare />
+      <RolesPicker state={state} dispatch={dispatch} />
     </section>
+  );
+}
+
+/** Capitão e cobradores: automático (o auxiliar escolhe entre os titulares) ou um jogador fixo. */
+function RolesPicker({ state, dispatch }: { state: GameState; dispatch: Dispatch }) {
+  const p = state.player;
+  const xiIds = p.lineup?.ids ?? [...bestEleven(p.squad, p.coach.formation).ids];
+  const xi = p.squad.filter((f) => xiIds.includes(f.id));
+  const auto = resolveRoles(xi, null);
+  const cur = p.roles ?? { captain: null, pens: null, fk: null };
+  const set = (k: keyof Roles, v: string) => dispatch({ t: 'roles', roles: { ...cur, [k]: v === '' ? null : Number(v) } });
+  const sorted = (score: (f: Footballer) => number) => p.squad.slice().sort((a, b) => score(b) - score(a));
+  const rows: [keyof Roles, string, Footballer | null, Footballer[], string][] = [
+    ['captain', 'Capitão', auto.captain, sorted(leadership), 'Puxa o time quando está perdendo e segura quem fica no banco.'],
+    ['pens', 'Pênaltis', auto.pens, sorted((f) => f.ovr + (f.pos === 'ATA' ? 2 : 0)), 'Pesa na disputa de pênaltis.'],
+    ['fk', 'Faltas', auto.fk, sorted((f) => f.ovr + (f.pos === 'MEI' ? 2 : 0)), 'Bom batedor faz o time marcar um pouco mais.'],
+  ];
+  return (
+    <div className="roles">
+      <p className="lineup-pos">Funções</p>
+      <div className="plan-selects">
+        {rows.map(([k, label, a, list, hint]) => (
+          <label key={k} title={hint}>
+            <span>{label}</span>
+            <select value={cur[k] ?? ''} onChange={(e) => set(k, e.target.value)}>
+              <option value="">Auto: {a ? a.name.split(' ').slice(-1)[0] : '—'}</option>
+              {list.map((f) => (
+                <option key={f.id} value={f.id}>
+                  {f.pos} {f.name} ({f.ovr})
+                </option>
+              ))}
+            </select>
+          </label>
+        ))}
+      </div>
+      <p className="muted plan-effects">Capitão fora do time: a braçadeira passa para outro, com metade do efeito. Personalidade conta: leal e profissional são os melhores líderes.</p>
+    </div>
   );
 }
 

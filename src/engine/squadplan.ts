@@ -1,3 +1,4 @@
+import { resolveRoles } from './roles';
 import { benchFactor, cardFactor, personalityOf } from './personality';
 import { bestEleven, lineupStrength, round1 } from './footballers';
 import { deriveRng } from './rng';
@@ -37,6 +38,8 @@ export interface MatchPlan {
   strength: number;
   /** quem estava disponível (com o cansaço do dia já descontado) */
   pool: Footballer[];
+  /** cansaço de cada disponível antes do jogo (0 a 100) */
+  pre: Record<number, number>;
 }
 
 /** Cartões: chance por titular por jogo; 3 amarelos ou um vermelho = suspenso no jogo seguinte. */
@@ -185,7 +188,7 @@ export class SquadPlan {
     }
     const preferred = lineup.ids ? new Set<number>(lineup.ids) : null;
     const { xi, strength } = pickXI(pool, lineup.formation, preferred, lineup.ids);
-    return { day, xi, strength, pool: eff };
+    return { day, xi, strength, pool: eff, pre: Object.fromEntries(available.map((f) => [f.id, Math.round(tired(f))])) };
   }
 
   /** Expulsões e lesões do clube durante o jogo do dia (com o minuto). */
@@ -292,13 +295,17 @@ export class SquadPlan {
         }
       }
       const recovery = this.lineupAt(day).training === 'recuperacao';
+      // capitão em campo segura o vestiário: quem fica no banco se chateia menos
+      const roles = this.lineupAt(day).roles;
+      const leader = resolveRoles(plan.xi, roles).captain;
+      const calm = leader && !(roles?.captain != null && leader.id !== roles.captain) ? 0.8 : 1;
       for (const f of roster) {
         const cur = this.form.get(f.id) ?? 0;
         const next = (inXI.has(f.id) ? cur * 0.7 + frng.normal(1.2) : cur * 0.85) - (recovery ? 0.15 : 0);
         this.form.set(f.id, Math.max(-FORM_MAX, Math.min(FORM_MAX, Math.round(next * 10) / 10)));
         const m = this.moraleOf(f);
         // quem joga anima; quem esperava jogar e fica no banco se chateia; tudo volta devagar para o normal
-        const dm = inXI.has(f.id) ? 1.5 : (expects.has(f.id) ? -1.8 : -0.5) * benchFactor(personalityOf(f));
+        const dm = inXI.has(f.id) ? 1.5 : (expects.has(f.id) ? -1.8 : -0.5) * benchFactor(personalityOf(f)) * calm * (roles?.captain === f.id ? 1.8 : 1);
         this.morale.set(f.id, clamp(Math.round((m + dm + (MORALE_START - m) * 0.06) * 10) / 10, 0, 100));
       }
       // promessa de vaga: tem que jogar em até 3 jogos

@@ -35,8 +35,10 @@ export { currentInterview, answered, interviewEffects, type Interview, type Inte
 export { coachRanking, type RankingEntry } from './ranking';
 export { quickMoment, blockStats, type BlockStat } from './live';
 export { MEETING_LABEL, MEETING_INFO, meetingChance } from './career';
-export { roundOn, tableAfter, opponentInfo, myPosition, nextMatchAfter, matchChanges, type MatchChange, type RoundView, type RoundGame, type TableMove, type OpponentInfo } from './round';
+export { roundOn, tableAfter, opponentInfo, myPosition, nextMatchAfter, matchChanges, liveRatings, type LiveRating, type MatchChange, type RoundView, type RoundGame, type TableMove, type OpponentInfo } from './round';
 export { ultimatumStatus, BOARD_RULES, rivalName, isDecisive } from './boardwatch';
 export { formationSlots, positionPenalty, lineupStrength } from './footballers';
 export { personalityOf, PERSONALITY_INFO, type Personality } from './personality';
 export { coachMarketWage, offerWage, wageRaiseChance } from './career';
+export { TIRED_AT, matchStamina, staminaAt } from './stamina';
+export { resolveRoles, leadership } from './roles';

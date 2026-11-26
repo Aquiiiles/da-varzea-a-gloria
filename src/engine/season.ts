@@ -1,3 +1,4 @@
+import { personalityOf } from './personality';
 import { SERIE_D_SPOTS, SQUAD_MAX, SQUAD_MIN, START_YEAR, TIERS, YOUTH_AGE_LIMIT, YOUTH_MAX } from '../data/pyramid';
 import { evolveAiClubs, refreshStrength, type AiTransfer } from './aisquad';
 import { levelOf, makeClub, syncTier } from './clubs';
@@ -226,6 +227,7 @@ export function simulateSeason(state: GameState): SeasonResult {
   /** placar do 1º tempo dos jogos do jogador, por dia (do ponto de vista dele) */
   const halves = new Map<number, [number, number]>();
   const blocksOf = new Map<number, [number, number][]>();
+  const ratesOf = new Map<number, [number, number][]>();
 
   const capacityAtInspection = p.capacity + p.capacityBuilding;
   const nameOf = (id: string) => (id === PLAYER ? p.name : foreign.get(id)?.name ?? byId.get(id)?.name ?? id);
@@ -266,6 +268,7 @@ export function simulateSeason(state: GameState): SeasonResult {
           : (m, rng) => {
               if (m.half && (m.home === PLAYER || m.away === PLAYER)) halves.set(m.day ?? 0, m.home === PLAYER ? m.half : [m.half[1], m.half[0]]);
               if (m.blocks && (m.home === PLAYER || m.away === PLAYER)) blocksOf.set(m.day ?? 0, m.home === PLAYER ? m.blocks : m.blocks.map(([x, y]) => [y, x] as [number, number]));
+              if (m.rates && (m.home === PLAYER || m.away === PLAYER)) ratesOf.set(m.day ?? 0, m.home === PLAYER ? m.rates : m.rates.map(([x, y]) => [y, x] as [number, number]));
               stats.record(label, m, rng);
             },
       rng: deriveRng(seed, season, label),
@@ -507,6 +510,8 @@ export function simulateSeason(state: GameState): SeasonResult {
     if (h) m.half = h;
     const bl = blocksOf.get(m.day);
     if (bl) m.blocks = bl;
+    const rt = ratesOf.get(m.day);
+    if (rt) m.rates = rt;
   }
   if (state.live) {
     // para a tela da temporada: lesões, cansaço e quem jogou cada partida
@@ -1019,9 +1024,12 @@ export function decideIntents(state: GameState): void {
     if (f.contract !== 1) continue;
     const ask = renewWage(f.ovr, f.wage, f.homegrown);
     f.askWage = ask;
-    if (renewTarget(f.ovr, f.wage, f.homegrown) > renewalCap(p.tier, f.wage)) f.intent = 'clube_maior';
-    else if ((f.morale ?? 60) < 30) f.intent = 'sai'; // insatisfeito: não renova
-    else if (rng.chance(refusalChance(f, ids.has(f.id)))) f.intent = 'sai';
+    // no modo técnico o jeito do jogador pesa: o leal fica, o ambicioso quer subir
+    const jeito = state.career ? personalityOf(f) : 'equilibrado';
+    const reach = jeito === 'ambicioso' ? 0.85 : jeito === 'leal' ? 1.2 : 1;
+    if (renewTarget(f.ovr, f.wage, f.homegrown) > renewalCap(p.tier, f.wage) * reach) f.intent = 'clube_maior';
+    else if ((f.morale ?? 60) < (jeito === 'leal' ? 20 : 30)) f.intent = 'sai'; // insatisfeito: não renova
+    else if (rng.chance(refusalChance(f, ids.has(f.id)) * (jeito === 'leal' ? 0.4 : jeito === 'ambicioso' ? 1.3 : 1))) f.intent = 'sai';
     else f.intent = ask > f.wage * 1.15 ? 'aumento' : 'renova';
   }
 }

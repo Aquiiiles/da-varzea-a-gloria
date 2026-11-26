@@ -54,6 +54,7 @@ function regulation(rng: Rng, home: string, away: string, hs: number, as: number
   const plan = blockHook?.(home, away);
   if (!plan) return { r: { home, away, hg: rng.poisson(lh), ag: rng.poisson(la) }, lh, la };
   const blocks: [number, number][] = [];
+  const rates: [number, number][] = [];
   let hg = 0;
   let ag = 0;
   let endH = lh;
@@ -63,6 +64,7 @@ function regulation(rng: Rng, home: string, away: string, hs: number, as: number
     const [x, y] = goalRates(hs + st.delta[0], as + st.delta[1], homeAdv);
     endH = x * st.mult[0];
     endA = y * st.mult[1];
+    rates.push([Math.round(endH * 1000) / 1000, Math.round(endA * 1000) / 1000]);
     const h = rng.poisson(endH / BLOCKS);
     const a = rng.poisson(endA / BLOCKS);
     blocks.push([h, a]);
@@ -74,7 +76,7 @@ function regulation(rng: Rng, home: string, away: string, hs: number, as: number
     half[0] += blocks[b][0];
     half[1] += blocks[b][1];
   }
-  return { r: { home, away, hg, ag, half, blocks }, lh: endH, la: endA };
+  return { r: { home, away, hg, ag, half, blocks, rates }, lh: endH, la: endA };
 }
 
 export function playMatch(

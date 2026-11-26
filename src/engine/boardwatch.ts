@@ -1,3 +1,4 @@
+import { offerWage } from './career';
 import { julyWindow } from './calendar';
 import { outcomeOf } from './calendarView';
 import { deriveRng } from './rng';
@@ -143,7 +144,7 @@ export function midSeasonOffer(state: GameState, fromDay: number, toDay: number)
   if (pool.length === 0) return;
   const cl = rng.weighted(pool, (x) => 1 + (x.prestige ?? 0) / 6);
   const personalities: BoardPersonality[] = ['paciente', 'imediatista', 'mao_de_vaca'];
-  const offer: JobOffer = { clubId: cl.id, club: cl.name, tier: cl.tier, personality: rng.pick(personalities), contract: rng.int(2, 3), pitch: PITCH_MID[cl.tier] };
+  const offer: JobOffer = { clubId: cl.id, club: cl.name, tier: cl.tier, personality: rng.pick(personalities), contract: rng.int(2, 3), pitch: PITCH_MID[cl.tier], wage: offerWage(state, cl.id, cl.tier) };
   c.midOffer = { offer, until: close };
   state.news.push(`SONDAGEM: o ${cl.name} quer ${c.name} para a próxima temporada`);
 }

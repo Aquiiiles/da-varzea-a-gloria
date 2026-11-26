@@ -1,6 +1,7 @@
 import { partialTable, outcomeOf } from './calendarView';
-import { quickMoment } from './live';
-import { deriveRng } from './rng';
+import { TACTICS } from '../data/club';
+import { blockStats, quickMoment, type BlockStat } from './live';
+import { deriveRng, hashSeed } from './rng';
 import { PLAYER_ID } from './season';
 import type { CalendarMatch, CalendarStage, Club, Footballer, GameState, LiveMoment, TableRow } from './types';
 
@@ -31,6 +32,40 @@ export interface RoundView {
   moment: LiveMoment;
   /** jogos da rodada (o do jogador primeiro) */
   games: RoundGame[];
+  /** estatísticas por bloco de 5 minutos (jogos do técnico) */
+  stats: BlockStat[] | null;
+  /** suas mexidas durante o jogo */
+  changes: MatchChange[];
+}
+
+export interface MatchChange {
+  minute: number;
+  ins: string[];
+  outs: string[];
+  /** nova estratégia (rótulo) */
+  tactic: string | null;
+}
+
+/** As mexidas do jogador no jogo do dia, com quem entrou e quem saiu. */
+export function matchChanges(state: GameState, day: number): MatchChange[] {
+  const live = state.live;
+  if (!live) return [];
+  const name = (id: number) => state.player.squad.find((f) => f.id === id)?.name ?? `#${id}`;
+  let field = live.elevens.find((e) => e.day === day)?.ids ?? [];
+  const list = (live.halftimes ?? []).filter((h) => h.day === day).sort((a, b) => (a.minute ?? 45) - (b.minute ?? 45));
+  return list.map((h) => {
+    const minute = h.minute ?? 45;
+    // quem já tinha saído por lesão ou expulsão não conta como substituído
+    const gone = new Set([
+      ...live.injuries.filter((i) => i.from === day && (i.minute ?? 60) < minute).map((i) => i.id),
+      ...(live.cards ?? []).filter((c) => c.day === day && c.kind === 'vermelho' && (c.minute ?? 60) < minute).map((c) => c.id),
+    ]);
+    const next = h.ids ?? field;
+    const ins = next.filter((id) => !field.includes(id)).map(name);
+    const outs = field.filter((id) => !next.includes(id) && !gone.has(id)).map(name);
+    field = next;
+    return { minute, ins, outs, tactic: h.tactic ? TACTICS[h.tactic].label : null };
+  });
 }
 
 /** Fase de pontos em que o jogador joga no dia (e o índice dele). */
@@ -82,7 +117,8 @@ export function roundOn(state: GameState, day: number): RoundView | null {
       games.push({ home: stage.ids[h], away: stage.ids[a], homeName: name(h), awayName: name(a), hg, ag, goals: goalMinutes(state.seed, state.season, day, k, hg, ag), mine: false });
     });
   }
-  return { day, comp: m.comp, round: m.round, stage: at?.stage ?? null, moment, games };
+  const stats = blockStats(moment.result, moment.playerHome, hashSeed(state.seed, state.season, 'stats', day));
+  return { day, comp: m.comp, round: m.round, stage: at?.stage ?? null, moment, games, stats, changes: matchChanges(state, day) };
 }
 
 export interface TableMove extends TableRow {

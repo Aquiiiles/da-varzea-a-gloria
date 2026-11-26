@@ -1,3 +1,4 @@
+import { personalityOf, scoldThreshold } from './personality';
 import { EVENTS, EVENT_CHANCE } from '../data/events';
 import { OPPORTUNITIES } from '../data/opportunities';
 import { START_YEAR, FACILITY_COST, LOAN_AGE_LIMIT, MAX_LOANS, MAX_SEASONS, SQUAD_MAX, SQUAD_MIN, STADIUM_FINANCE, STADIUM_INSTALLMENT_NAME, LOAN_NAME, STAFF_WAGE, TIERS, YOUTH_MAX } from '../data/pyramid';
@@ -21,7 +22,7 @@ import { injuredAt, statusAt } from './calendarView';
 import { answerMidOffer, boardWatch, midSeasonOffer } from './boardwatch';
 import { dayToDate, julyWindow } from './calendar';
 import { answered, currentInterview, interviewEffects } from './interview';
-import { CAREER_END_AGE, CAREER_START_AGE, boardMeeting, careerWindow, refundBudget, settleCareer, spendBudget, takeOver, wageCheck } from './career';
+import { CAREER_END_AGE, CAREER_START_AGE, boardMeeting, careerWindow, negotiateJob, refundBudget, settleCareer, spendBudget, takeOver, wageCheck } from './career';
 import { ARENA } from './finance';
 import { rollExtraordinary } from './extraordinary';
 import { personName, varzeaClubName } from './names';
@@ -369,7 +370,7 @@ function applyAction(state: GameState, a: Action): void {
   const actionRng = () => deriveRng(state.seed, state.season, 'act', state.actions.length);
   const career = state.career;
   if (career && BOARD_ACTIONS.has(a.t) && !boardActing) fail('isso é com a diretoria: o técnico cuida do time');
-  if (career && career.unemployed && a.t !== 'job' && a.t !== 'formation') fail('você está sem clube: aceite uma proposta');
+  if (career && career.unemployed && a.t !== 'job' && a.t !== 'jobwage' && a.t !== 'formation') fail('você está sem clube: aceite uma proposta');
 
   switch (a.t) {
     case 'lineup': {
@@ -400,6 +401,14 @@ function applyAction(state: GameState, a: Action): void {
       takeOver(state, offer);
       state.news.push(`${career.name} é o novo técnico do ${offer.club}`);
       startSeason(state, true);
+      return;
+    }
+    case 'jobwage': {
+      if (!career) fail('só no modo técnico');
+      const offer = career.offers[a.idx];
+      if (!offer) fail('proposta indisponível');
+      if (offer.negotiated) fail('já negociou essa proposta');
+      state.news.push(negotiateJob(state, a.idx));
       return;
     }
     case 'buy': {
@@ -982,7 +991,7 @@ function midSeason(state: GameState, a: Action): void {
     if (talks.some((t) => t.id === a.id && day - t.day < TALK_COOLDOWN)) fail(`já conversou com ${f.name} há pouco tempo`);
     // a reação depende da moral de agora
     const morale = statusAt(live, day).morale[f.id] ?? f.morale ?? 60;
-    const ok = a.kind === 'elogiar' ? morale < 85 : a.kind === 'cobrar' ? morale >= 45 : true;
+    const ok = a.kind === 'elogiar' ? morale < 85 : a.kind === 'cobrar' ? morale >= scoldThreshold(personalityOf(f)) : true;
     talks.push({ day, id: f.id, kind: a.kind, ok });
     const who = state.career.name;
     state.news.push(

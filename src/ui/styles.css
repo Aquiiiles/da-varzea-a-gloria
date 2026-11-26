@@ -987,3 +987,34 @@ details.panel.more summary { font: 700 12px/1.2 var(--font-display); letter-spac
 .pcard.is-dim { opacity: 0.35; }
 .bench-label { padding: 4px 6px; border-radius: 4px; text-align: center; align-self: center; }
 .pc-flag { font-weight: 700; text-transform: uppercase; }
+
+/* estatísticas ao vivo */
+.live-stats { display: grid; gap: 8px; }
+.ls-head { display: grid; grid-template-columns: 1fr auto 1fr; align-items: baseline; gap: 8px; font-size: 13px; }
+.ls-head b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ls-head b:last-child { text-align: right; }
+.ls-row { display: grid; grid-template-columns: 40px 1fr 40px; align-items: center; gap: 8px; font-variant-numeric: tabular-nums; font-weight: 700; }
+.ls-row span:last-child { text-align: right; }
+.ls-poss { height: 10px; border-radius: 5px; background: var(--live); overflow: hidden; }
+.ls-poss i { display: block; height: 100%; background: var(--good); transition: width 0.4s ease; }
+.ls-nums { display: grid; gap: 4px; margin: 0; }
+.ls-nums div { display: grid; grid-template-columns: 40px 1fr 40px; align-items: center; gap: 8px; }
+.ls-nums dd { margin: 0; font-weight: 700; font-variant-numeric: tabular-nums; }
+.ls-nums dd:last-child { text-align: right; }
+.ls-nums dt { text-align: center; color: var(--muted); font-size: 12px; }
+.ls-press { display: grid; grid-template-columns: repeat(18, 1fr); gap: 2px; height: 56px; position: relative; background: linear-gradient(var(--line), var(--line)) center / 100% 1px no-repeat; }
+.lp { position: relative; }
+.lp i { position: absolute; left: 0; right: 0; border-radius: 2px; }
+.lp i.up { bottom: 50%; background: var(--good); }
+.lp i.down { top: 50%; background: var(--live); }
+.lp-half { border-right: 1px dashed var(--muted); }
+.lp-change::before { content: ''; position: absolute; top: 0; bottom: 0; left: -1px; width: 2px; background: var(--accent); }
+.ls-moment { margin: 0; font-size: 13px; color: var(--muted); }
+.ls-moment.good { color: var(--good); }
+.ls-moment.bad { color: var(--bad); }
+.ev-troca { border-left: 3px solid var(--accent); }
+.pl-jeito { margin: 0 0 4px; font-size: 13px; }
+.offer-ctas { display: grid; gap: 8px; }
+.offer-cta small { font-weight: 400; opacity: 0.8; }
+.offer-note.bad { color: var(--bad); }
+.offer-note.good { color: var(--good); }

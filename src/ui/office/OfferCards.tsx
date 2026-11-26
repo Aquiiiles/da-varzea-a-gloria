@@ -1,12 +1,12 @@
 import { useState } from 'react';
-import { BOARD_INFO, TIERS, marketValue, playerImportance, type Footballer, type GameState, type JobOffer, type Offer } from '../../engine';
+import { BOARD_INFO, TIERS, coachMarketWage, wageRaiseChance, marketValue, playerImportance, type Footballer, type GameState, type JobOffer, type Offer } from '../../engine';
 import type { Dispatch } from '../App';
 import { Crest } from '../Crest';
 import { money, monthly, num, potLabel } from '../format';
 import { INTENT_LABEL } from './SquadTab';
 
 /** Proposta de emprego: escudo, série, diretoria, projeto e como é o clube por dentro. */
-export function JobOfferCard({ state, offer, onAccept, primary }: { state: GameState; offer: JobOffer; onAccept: () => void; primary?: boolean }) {
+export function JobOfferCard({ state, offer, onAccept, onNegotiate, primary }: { state: GameState; offer: JobOffer; onAccept: () => void; onNegotiate?: () => void; primary?: boolean }) {
   const club = state.clubs.find((c) => c.id === offer.clubId);
   const r = TIERS[offer.tier];
   const info = BOARD_INFO[offer.personality];
@@ -33,6 +33,10 @@ export function JobOfferCard({ state, offer, onAccept, primary }: { state: GameS
           </dd>
         </div>
         <div>
+          <dt>Salário</dt>
+          <dd className={offer.negotiated === 'ok' ? 'good' : ''}>{monthly(offer.wage ?? coachMarketWage(state.career?.reputation ?? 0, offer.tier))}</dd>
+        </div>
+        <div>
           <dt>Contrato</dt>
           <dd>{offer.contract} temporadas</dd>
         </div>
@@ -42,9 +46,18 @@ export function JobOfferCard({ state, offer, onAccept, primary }: { state: GameS
         </div>
       </dl>
       <p className="offer-note">{info.text}</p>
-      <button type="button" className={`btn${primary ? ' btn-primary' : ''} offer-cta`} onClick={onAccept}>
-        Aceitar a proposta
-      </button>
+      {offer.negotiated === 'fail' && <p className="offer-note bad">Pediu mais e a diretoria não topou.</p>}
+      {offer.negotiated === 'ok' && <p className="offer-note good">Salário 25% maior, negociado por você.</p>}
+      <div className="offer-ctas">
+        {onNegotiate && !offer.negotiated && state.career && (
+          <button type="button" className="btn offer-cta" onClick={onNegotiate} title="Uma tentativa só. Empregado, a diretoria pode desistir.">
+            Pedir 25% a mais <small>({Math.round(wageRaiseChance(state, offer) * 100)}% de chance)</small>
+          </button>
+        )}
+        <button type="button" className={`btn${primary ? ' btn-primary' : ''} offer-cta`} onClick={onAccept}>
+          Aceitar a proposta
+        </button>
+      </div>
     </article>
   );
 }

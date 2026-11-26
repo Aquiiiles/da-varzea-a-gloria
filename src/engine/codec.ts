@@ -62,6 +62,7 @@ export function encodeAction(a: Action): string {
     case 'play': return 'j';
     case 'advance': return `D${a.to}`;
     case 'job': return `J${a.idx}`;
+    case 'jobwage': return `G${a.idx}`;
     case 'interview': return `I${a.day}_${a.q}_${a.a}`;
     case 'tactic': return `T${TACTIC_LIST.indexOf(a.v)}`;
     case 'counter': return `X${a.idx}_${a.fee}`;
@@ -119,6 +120,7 @@ export function decodeAction(tok: string): Action | null {
     case 'j': return rest === '' ? { t: 'play' } : null;
     case 'D': return n === 0 || n === 1 || n === 2 || n === 3 ? { t: 'advance', to: n } : null;
     case 'J': return n >= 0 && n < 10 ? { t: 'job', idx: n } : null;
+    case 'G': return n >= 0 && n < 10 ? { t: 'jobwage', idx: n } : null;
     case 'X': {
       const m = /^(\d{1,2})_(\d{1,9})$/.exec(rest);
       return m ? { t: 'counter', idx: Number(m[1]), fee: Number(m[2]) } : null;

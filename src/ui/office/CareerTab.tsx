@@ -6,7 +6,7 @@ import {
   type GameState, type JobOffer, type MeetingKind,
 } from '../../engine';
 import type { Dispatch } from '../App';
-import { money, num } from '../format';
+import { money, monthly, num } from '../format';
 import { Stars } from './CoachTab';
 import type { TabProps } from './Office';
 import { Section } from './common';
@@ -56,7 +56,7 @@ export function JobOffers({ state, dispatch, title }: { state: GameState; dispat
     >
       <div className="offer-grid">
         {c.offers.map((of: JobOffer, idx) => (
-          <JobOfferCard key={of.clubId} state={state} offer={of} primary={c.unemployed} onAccept={() => dispatch({ t: 'job', idx })} />
+          <JobOfferCard key={of.clubId} state={state} offer={of} primary={c.unemployed} onAccept={() => dispatch({ t: 'job', idx })} onNegotiate={() => dispatch({ t: 'jobwage', idx })} />
         ))}
       </div>
     </Section>
@@ -105,6 +105,16 @@ export function CareerTab({ state, dispatch }: TabProps) {
           </div>
         </div>
         <Meter value={c.reputation} label="Reputação" text={reputationText(c.reputation)} />
+        <dl className="cs-numbers">
+          <div>
+            <dt>Salário</dt>
+            <dd>{monthly(c.wage ?? p.coach.wage)}</dd>
+          </div>
+          <div>
+            <dt>Patrimônio</dt>
+            <dd>{money(c.earnings ?? 0)}</dd>
+          </div>
+        </dl>
         <p className="muted">Clubes que costumam te procurar: {TIERS[tierForReputation(c.reputation)].name} e vizinhos.</p>
       </Section>
 

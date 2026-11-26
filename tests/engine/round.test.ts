@@ -217,6 +217,35 @@ describe('mexer no jogo a qualquer momento', () => {
     expect(canApply(t, { t: 'halftime', day, minute: 62, ids: null, tactic: 'ofensivo' })).toBe(false);
     expect(decodeAction(encodeAction({ t: 'halftime', day, minute: 60, ids, tactic: 'pressao' }))).toEqual({ t: 'halftime', day, minute: 60, ids, tactic: 'pressao' });
   });
+
+  it('estatísticas ao vivo: coerentes com os gols, estáveis antes da mexida e a mexida aparece', () => {
+    const s = atMatch(32);
+    const day = s.reveal!;
+    const r = roundOn(s, day)!;
+    expect(r.stats).toHaveLength(18);
+    const m = s.calendar!.matches.find((x) => x.day === day)!;
+    r.stats!.forEach((st, b) => {
+      expect(st.shots[0]).toBeGreaterThanOrEqual(m.blocks![b][0]);
+      expect(st.onTarget[0]).toBeGreaterThanOrEqual(m.blocks![b][0]);
+      expect(st.onTarget[0]).toBeLessThanOrEqual(st.shots[0]);
+      expect(st.poss).toBeGreaterThanOrEqual(30);
+      expect(st.poss).toBeLessThanOrEqual(70);
+    });
+    const xi = s.live!.elevens.find((e) => e.day === day)!.ids;
+    const bench = s.player.squad.filter((f) => !xi.includes(f.id)).sort((a, b) => a.ovr - b.ovr);
+    const ids = xi.slice(0, 8).concat(bench.slice(0, 3).map((f) => f.id));
+    const t = apply(s, { t: 'halftime', day, minute: 60, ids, tactic: 'retranqueiro' });
+    const r2 = roundOn(t, day)!;
+    expect(r2.stats!.slice(0, 12)).toEqual(r.stats!.slice(0, 12));
+    // time pior e retrancado: menos pressão depois dos 60
+    const press = (x: typeof r) => x.stats!.slice(12).reduce((a, st) => a + st.press, 0);
+    expect(press(r2)).toBeLessThan(press(r));
+    expect(r2.changes).toHaveLength(1);
+    expect(r2.changes[0].minute).toBe(60);
+    expect(r2.changes[0].ins).toHaveLength(3);
+    expect(r2.changes[0].outs).toHaveLength(3);
+    expect(r2.changes[0].tactic).toBeTruthy();
+  });
 });
 
 describe('treino e conversa com jogador', () => {

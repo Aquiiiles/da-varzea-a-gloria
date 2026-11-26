@@ -72,6 +72,7 @@ export function App() {
   const dispatch: Dispatch = useCallback((...actions: Action[]) => {
     let s = stateRef.current;
     if (!s) return false;
+    const stateRef0 = s;
     for (const a of actions) {
       try {
         s = apply(s, a);
@@ -91,6 +92,15 @@ export function App() {
     saveCareer(s, slotRef.current);
     // acerto fechado numa negociação: o jogador sai da lista do outro clube, então avisamos aqui
     const last = actions[actions.length - 1];
+    // propostas pelos seus jogadores: o cartão some quando vende ou o clube desiste, então o resultado vira aviso
+    if (last?.t === 'counter' || last?.t === 'offer') {
+      const before = stateRef0?.office.offers[last.idx];
+      const after = s.office.offers[last.idx];
+      const sold = !!before && !s.player.squad.some((f) => f.id === before.playerId);
+      if (sold) setToast({ text: `Negócio fechado! ${s.news.at(-1) ?? ''}`, ok: true });
+      else if (before && !after) setToast({ text: `Negociação encerrada: ${s.news.at(-1) ?? 'o clube desistiu.'}` });
+      else if (after?.message) setToast({ text: after.message });
+    }
     if (last?.t === 'bid') {
       const n = negotiationFor(s, last.club, last.player);
       if (n?.status === 'aceita') setToast({ text: n.message, ok: true });

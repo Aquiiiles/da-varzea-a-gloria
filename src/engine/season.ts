@@ -9,6 +9,7 @@ import { SquadPlan } from './squadplan';
 import { STYLE_TACTIC, TACTICS } from '../data/club';
 import { youthSeason } from './youthcomps';
 import { recordCoachPoints, seasonCoachPoints } from './ranking';
+import { coachCarousel } from './carousel';
 import { computeAwards, myAwards, type AwardsInput, type LeagueInfo } from './awards';
 import { continentalCup, foreignClubs, nationalCup, stateCup, worldCup, type CupEnv, type CupResult } from './cups';
 import { nextId } from './effects';
@@ -661,6 +662,8 @@ export function simulateSeason(state: GameState): SeasonResult {
     strengthOf: (id) => (id === PLAYER ? pStrength : byId.get(id)?.strength ?? 0),
     cupChampions,
   });
+  // dança dos técnicos da IA (depois dos prêmios, que são do técnico que dirigiu a temporada)
+  const carousel = coachCarousel(state, leagues, PLAYER, deriveRng(seed, season, 'danca-tecnicos'));
   const won = myAwards(awards);
   for (const w of won) headlines.push(`PRÊMIO: ${w.name} leva ${w.title.toLowerCase()}${w.scope === 'Temporada' ? '' : ` da ${w.scope}`}`);
   if (won.length > 0) {
@@ -737,7 +740,7 @@ export function simulateSeason(state: GameState): SeasonResult {
   const ids = { next: () => nextId(state), names: allNames(state), season: season + 1 };
   applyMovements(state, nextNat, nextState, leaveState, ids);
   newsInput.transfers = evolveAiClubs(deriveRng(seed, season, 'ai-evolve'), state.clubs, ids);
-  result.worldNews = [...buildWorldNews(deriveRng(seed, season, 'news'), newsInput), ...worldAwardNews];
+  result.worldNews = [...buildWorldNews(deriveRng(seed, season, 'news'), newsInput), ...worldAwardNews, ...carousel.map((t) => `DANÇA DOS TÉCNICOS: ${t}`)];
   result.awards = awards;
   result.youth = youthComps;
   if (bankrupt) state.over = 'falencia';

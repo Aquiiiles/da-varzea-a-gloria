@@ -35,3 +35,4 @@ export { coachRanking, type RankingEntry } from './ranking';
 export { quickMoment } from './live';
 export { MEETING_LABEL } from './career';
 export { roundOn, tableAfter, opponentInfo, myPosition, nextMatchAfter, type RoundView, type RoundGame, type TableMove, type OpponentInfo } from './round';
+export { ultimatumStatus, BOARD_RULES } from './boardwatch';

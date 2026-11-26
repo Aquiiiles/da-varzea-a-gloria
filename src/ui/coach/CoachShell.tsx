@@ -1,5 +1,5 @@
 import { useState, type ReactNode } from 'react';
-import { BOARD_INFO, START_YEAR, julyWindow, myPosition, type GameState } from '../../engine';
+import { BOARD_INFO, START_YEAR, julyWindow, myPosition, ultimatumStatus, type GameState } from '../../engine';
 import type { Dispatch } from '../App';
 import { Crest } from '../Crest';
 import { tierLabel } from '../format';
@@ -56,7 +56,7 @@ export function CoachShell({ state, dispatch, onPlayRound, onFast }: Props) {
   const props: TabProps = { state, dispatch, goTo };
   const running = state.phase === 'season' && !!state.live && state.calendar && state.reveal != null;
   const badges = {
-    jogo: state.career!.offers.length > 0,
+    jogo: state.career!.offers.length > 0 || (!!state.career!.midOffer && !state.career!.midOffer.answered) || !!state.career!.ultimatum,
     elenco: state.office.offers.some(Boolean),
     mercado: false,
     tabela: false,
@@ -155,10 +155,17 @@ function CoachHeader({ state }: { state: GameState }) {
             {pos && pos.pos > 0 ? ` · ${pos.pos}º de ${pos.of}` : ''}
           </small>
         </span>
-        <span className={`ch-conf ${conf <= 35 ? 'bad' : conf >= 70 ? 'good' : ''}`} title={`Diretoria ${BOARD_INFO[c.board.personality].label.toLowerCase()}`}>
-          <small>Confiança</small>
-          <b>{conf}</b>
-        </span>
+        {ultimatumStatus(state)?.need ? (
+          <span className="ch-conf bad ch-ult">
+            <small>Ultimato</small>
+            <b>{ultimatumStatus(state)!.left} j.</b>
+          </span>
+        ) : (
+          <span className={`ch-conf ${conf <= 35 ? 'bad' : conf >= 70 ? 'good' : ''}`} title={`Diretoria ${BOARD_INFO[c.board.personality].label.toLowerCase()}`}>
+            <small>Confiança</small>
+            <b>{conf}</b>
+          </span>
+        )}
       </button>
       {open && <CoachStatusBar state={state} />}
     </header>

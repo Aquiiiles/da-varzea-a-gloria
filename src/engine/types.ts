@@ -421,6 +421,7 @@ export type Action =
   | { t: 'advance'; to: AdvanceTo } // mostra a temporada até o próximo jogo, semana, mês ou fim
   | { t: 'job'; idx: number } // técnico: aceita uma proposta de emprego
   | { t: 'lineup'; ids: number[] | null; rotate: boolean } // técnico: escalação (null = os melhores)
+  | { t: 'precontract'; accept: boolean } // proposta no meio da temporada (pré-contrato)
   | { t: 'halftime'; day: number; ids: number[] | null; tactic?: Tactic } // intervalo: substituições e estratégia do 2º tempo
   | { t: 'interview'; day: number; q: number; a: number } // entrevista pós-jogo ou coletiva (dia do jogo, pergunta, resposta)
   | { t: 'tactic'; v: Tactic } // técnico: estratégia de jogo
@@ -607,6 +608,24 @@ export interface CoachCareer {
   unemployed: boolean;
   offers: JobOffer[];
   stints: CareerStint[];
+  /** ultimato da diretoria em andamento (temporada atual) */
+  ultimatum?: Ultimatum | null;
+  /** índice do jogo a partir do qual a diretoria volta a cobrar (depois de um ultimato cumprido) */
+  calmFrom?: number;
+  /** demitido no meio da temporada (dia) */
+  firedDay?: number;
+  /** proposta recebida no meio da temporada (pré-contrato para o ano seguinte) */
+  midOffer?: { offer: JobOffer; until: number; answered?: boolean } | null;
+  /** pré-contrato assinado: assume esse clube na próxima temporada */
+  agreed?: JobOffer | null;
+}
+
+/** Ultimato: vencer `needWins` dos próximos `games` jogos, contando a partir do jogo `from` (índice no calendário). */
+export interface Ultimatum {
+  from: number;
+  games: number;
+  needWins: number;
+  day: number;
 }
 
 export interface SeasonOffice {
@@ -715,6 +734,10 @@ export interface GameState {
   live?: LiveSeason | null;
   /** temporada do último evento extraordinário */
   lastExtraordinary?: number;
+  /** técnicos da IA sem clube (demitidos), para a dança dos técnicos */
+  freeCoaches?: string[];
+  /** dança dos técnicos: as mudanças das últimas temporadas */
+  coachMoves?: { season: number; text: string }[];
   /** ranking de técnicos: pontos das últimas temporadas por clube (técnico da IA) e "me" (o jogador, modo técnico) */
   coachPoints?: Record<string, number[]>;
 }

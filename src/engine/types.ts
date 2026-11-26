@@ -26,6 +26,8 @@ export interface Club {
   prestige?: number;
   /** elenco do clube (a força é o time titular dele) */
   squad: Footballer[];
+  /** técnico (nome real do pacote; sem ele, um nome gerado) */
+  coachName?: string;
 }
 
 export type CompId = 'varzea' | 'estadual_b' | 'estadual_a' | 'serie_d' | 'serie_c' | 'serie_b' | 'serie_a';
@@ -419,6 +421,7 @@ export type Action =
   | { t: 'advance'; to: AdvanceTo } // mostra a temporada até o próximo jogo, semana, mês ou fim
   | { t: 'job'; idx: number } // técnico: aceita uma proposta de emprego
   | { t: 'lineup'; ids: number[] | null; rotate: boolean } // técnico: escalação (null = os melhores)
+  | { t: 'halftime'; day: number; ids: number[] | null; tactic?: Tactic } // intervalo: substituições e estratégia do 2º tempo
   | { t: 'interview'; day: number; q: number; a: number } // entrevista pós-jogo ou coletiva (dia do jogo, pergunta, resposta)
   | { t: 'tactic'; v: Tactic } // técnico: estratégia de jogo
   | { t: 'counter'; idx: number; fee: number } // pede mais por um jogador seu (proposta idx)
@@ -443,6 +446,8 @@ export interface MatchResult {
   advantage?: boolean;
   /** dia do ano em que o jogo acontece (calendário) */
   day?: number;
+  /** placar do 1º tempo (jogos do técnico, que têm intervalo) */
+  half?: [number, number];
 }
 
 export interface TableRow {
@@ -632,6 +637,14 @@ export interface SeasonOffice {
 }
 
 /** Escalação escolhida a partir de um dia (vale para os jogos depois dele). */
+/** Mudanças no intervalo de um jogo (modo técnico). */
+export interface HalftimeChange {
+  day: number;
+  /** os 11 em campo no 2º tempo (null = os mesmos) */
+  ids: number[] | null;
+  tactic?: Tactic;
+}
+
 export interface LineupEntry {
   day: number;
   /** titulares escolhidos (null = o técnico escolhe os melhores) */
@@ -661,6 +674,11 @@ export interface LiveSeason {
   fatigue: { day: number; fatigue: Record<number, number> }[];
   /** escalação de cada jogo do clube (ids dos titulares) */
   elevens: { day: number; ids: number[] }[];
+  /** mudanças no intervalo (modo técnico): novo time em campo e/ou estratégia para o 2º tempo */
+  halftimes?: HalftimeChange[];
+  /** cartões e suspensões do clube (prévia) */
+  cards?: { day: number; id: number; name: string; kind: 'amarelo' | 'vermelho' }[];
+  suspensions?: { day: number; id: number; name: string; why: 'amarelos' | 'vermelho' }[];
   /** respostas em entrevistas e coletivas (os efeitos entram no fim da temporada) */
   interviews?: { day: number; kind: 'pos' | 'coletiva'; q: number; a: number; quote: string; effect: { mood?: number; board?: number; rep?: number; morale?: number } }[];
 }
@@ -760,6 +778,8 @@ export interface CalendarMatch {
   advantage?: boolean;
   /** mata-mata: passou de fase? (null = não decide) */
   advanced: boolean | null;
+  /** placar do 1º tempo, do ponto de vista do jogador (jogos com intervalo) */
+  half?: [number, number];
 }
 
 export interface SeasonCalendar {

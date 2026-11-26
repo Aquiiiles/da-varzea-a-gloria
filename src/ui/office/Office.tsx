@@ -173,7 +173,7 @@ function StatusBar({ state }: { state: GameState }) {
   );
 }
 
-function CoachStatusBar({ state }: { state: GameState }) {
+export function CoachStatusBar({ state }: { state: GameState }) {
   const p = state.player;
   const c = state.career!;
   const year = START_YEAR + state.season - 1;

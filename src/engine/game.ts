@@ -1,6 +1,6 @@
 import { EVENTS, EVENT_CHANCE } from '../data/events';
 import { OPPORTUNITIES } from '../data/opportunities';
-import { FACILITY_COST, LOAN_AGE_LIMIT, MAX_LOANS, MAX_SEASONS, SQUAD_MAX, SQUAD_MIN, STADIUM_FINANCE, STADIUM_INSTALLMENT_NAME, LOAN_NAME, STAFF_WAGE, TIERS, YOUTH_MAX } from '../data/pyramid';
+import { START_YEAR, FACILITY_COST, LOAN_AGE_LIMIT, MAX_LOANS, MAX_SEASONS, SQUAD_MAX, SQUAD_MIN, STADIUM_FINANCE, STADIUM_INSTALLMENT_NAME, LOAN_NAME, STAFF_WAGE, TIERS, YOUTH_MAX } from '../data/pyramid';
 import { generateWorld, initials } from './clubs';
 import { applyEffects, nextId } from './effects';
 import { bestEleven, foundingSquad, incomingOffers, marketListings, marketWage, round1, tryoutCandidates, tryoutCost, youthIntake } from './footballers';
@@ -17,6 +17,7 @@ import { ActionError } from './util';
 export { ActionError };
 import { effectsCashCost, loanFor, releaseCost, renewalOffer, seatsFor, sellPrice } from './office';
 import { applyNamePack, type NamePack } from './namepack';
+import { injuredAt } from './calendarView';
 import { dayToDate, julyWindow } from './calendar';
 import { answered, currentInterview, interviewEffects } from './interview';
 import { CAREER_END_AGE, CAREER_START_AGE, boardMeeting, careerWindow, refundBudget, settleCareer, spendBudget, takeOver, wageCheck } from './career';
@@ -74,7 +75,8 @@ export function newGame(seed: number, foundation: Foundation, opts: GameOptions 
   const playerNames = new Set<string>();
   let pid = 100;
   const { clubs, serial } = generateWorld(rng, taken, { next: () => pid++, names: playerNames, season: 1 });
-  if (opts.pack) applyNamePack(clubs, opts.pack, taken);
+  // pacote: nomes dos clubes e, quando houver, técnicos e elencos reais (sorteio próprio, ids na sequência)
+  if (opts.pack) applyNamePack(clubs, opts.pack, taken, { rng: deriveRng(seedU, 'pacote'), nextId: () => pid++, year: START_YEAR, names: playerNames });
   const preset = ORIGINS[f.origin];
   const rival = rng.pick(clubs.filter((c) => c.stateDiv === 'V'));
   const squad = foundingSquad(deriveRng(seedU, 'squad'), preset.squadMean, 1, playerNames);
@@ -772,7 +774,7 @@ function previewKey(state: GameState): string {
   const p = state.player;
   return JSON.stringify([
     state.seed, state.season, state.history.length, p.cash, p.squad.map((f) => f.id), p.coach, p.lineup ?? null, p.tactic ?? null,
-    state.live?.lineups, state.live?.changes.map((c) => [c.day, c.remove, c.add?.map((f) => f.id)]),
+    state.live?.lineups, state.live?.changes.map((c) => [c.day, c.remove, c.add?.map((f) => f.id)]), state.live?.halftimes ?? [],
   ]);
 }
 
@@ -787,7 +789,12 @@ function preview(state: GameState): void {
   live.injuries = clone.live!.injuries;
   live.fatigue = clone.live!.fatigue;
   live.elevens = clone.live!.elevens;
+  live.cards = clone.live!.cards;
+  live.suspensions = clone.live!.suspensions;
 }
+
+/** Substituições no intervalo. */
+export const MAX_SUBS = 5;
 
 /** Ações que podem acontecer com a temporada em andamento (na janela do meio do ano). */
 const WINDOW_ACTIONS = new Set<Action['t']>(['buy', 'sell', 'bid', 'release', 'promote', 'lend', 'offer', 'counter', 'reject']);
@@ -810,6 +817,24 @@ function midSeason(state: GameState, a: Action): void {
     (live.interviews ??= []).push({ day: it.day, kind: it.kind, q: a.q, a: a.a, quote: ans.text, effect: ans.effect });
     const who = state.career ? state.career.name : p.coach.name;
     state.news.push(`${who}${it.kind === 'coletiva' ? ' na coletiva' : ''}: "${ans.text}"`);
+    return;
+  }
+  if (a.t === 'halftime') {
+    if (!state.career) fail('o intervalo é com o técnico');
+    if (a.day !== day || !cal.matches.some((m) => m.day === day)) fail('só no intervalo do jogo de hoje');
+    if ((live.halftimes ?? []).some((h) => h.day === day)) fail('as mudanças do intervalo já foram feitas');
+    if (!a.ids && !a.tactic) fail('nenhuma mudança');
+    if (a.ids) {
+      const ids = [...new Set(a.ids)];
+      if (ids.length !== 11 || a.ids.length !== 11) fail('o time precisa de 11 jogadores');
+      const out = new Set([...injuredAt(live, day).map((i) => i.id), ...(live.suspensions ?? []).filter((s) => s.day === day).map((s) => s.id)]);
+      if (!ids.every((id) => p.squad.some((f) => f.id === id) && !out.has(id))) fail('jogador indisponível');
+      const first = new Set(live.elevens.find((e) => e.day === day)?.ids ?? []);
+      const subs = ids.filter((id) => !first.has(id)).length;
+      if (subs > MAX_SUBS) fail(`no máximo ${MAX_SUBS} substituições`);
+    }
+    (live.halftimes ??= []).push({ day, ids: a.ids ? [...a.ids] : null, ...(a.tactic ? { tactic: a.tactic } : {}) });
+    preview(state);
     return;
   }
   if (a.t === 'lineup' || a.t === 'formation' || a.t === 'tactic') {

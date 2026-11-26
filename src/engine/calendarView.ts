@@ -62,3 +62,20 @@ export function fatigueAt(live: LiveSeason, day: number): Record<number, number>
   for (const [id, v] of Object.entries(last.fatigue)) out[Number(id)] = Math.max(0, Math.round(v - rest));
   return out;
 }
+
+/** Suspensos no jogo do dia `day`. */
+export function suspendedOn(live: LiveSeason, day: number): NonNullable<LiveSeason['suspensions']> {
+  return (live.suspensions ?? []).filter((s) => s.day === day);
+}
+
+/** Pendurados até o dia `day`: jogadores com 2 amarelos (o 3º suspende). */
+export function hangingAt(live: LiveSeason, day: number): { id: number; name: string }[] {
+  const count = new Map<number, { name: string; n: number }>();
+  for (const c of live.cards ?? []) {
+    if (c.day > day || c.kind !== 'amarelo') continue;
+    const cur = count.get(c.id) ?? { name: c.name, n: 0 };
+    cur.n = (cur.n + 1) % 3;
+    count.set(c.id, cur);
+  }
+  return [...count.entries()].filter(([, v]) => v.n === 2).map(([id, v]) => ({ id, name: v.name }));
+}

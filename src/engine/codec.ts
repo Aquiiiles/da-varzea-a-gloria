@@ -66,6 +66,7 @@ export function encodeAction(a: Action): string {
     case 'project': return `P${a.which[0]}`;
     case 'meeting': return `M${a.kind}`;
     case 'lineup': return `L${a.rotate ? 1 : 0}${a.ids ? a.ids.map((id) => `_${id}`).join('') : ''}`;
+    case 'halftime': return `H${a.day}_${a.tactic ? TACTIC_LIST.indexOf(a.tactic) : 'n'}${a.ids ? a.ids.map((id) => `_${id}`).join('') : ''}`;
     case 'next': return 'z';
   }
 }
@@ -122,6 +123,14 @@ export function decodeAction(tok: string): Action | null {
     case 'I': {
       const m = /^(\d{1,3})_(\d)_([012])$/.exec(rest);
       return m ? { t: 'interview', day: Number(m[1]), q: Number(m[2]), a: Number(m[3]) } : null;
+    }
+    case 'H': {
+      const [day, tac, ...ids] = rest.split('_');
+      if (!/^\d{1,3}$/.test(day ?? '') || !(tac === 'n' || /^\d$/.test(tac ?? ''))) return null;
+      if (ids.length > 11 || !ids.every((x) => /^\d{1,7}$/.test(x))) return null;
+      const t = tac === 'n' ? undefined : TACTIC_LIST[Number(tac)];
+      if (tac !== 'n' && !t) return null;
+      return { t: 'halftime', day: Number(day), ids: ids.length > 0 ? ids.map(Number) : null, ...(t ? { tactic: t } : {}) };
     }
     case 'L': {
       const [flag, ...ids] = rest.split('_');

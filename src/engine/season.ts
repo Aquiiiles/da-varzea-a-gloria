@@ -16,11 +16,12 @@ import { TICKET_POLICY, attendance, seasonFinance } from './finance';
 import { bestEleven, develop, makeFootballer, marketValue, marketWage, retires, round1, squadStrength } from './footballers';
 import { applyResult, emptyRow, sortTable, type LeagueContext } from './league';
 import { moment } from './live';
-import { BASE_HOME_ADVANTAGE, type GoalMult } from './match';
+import { BASE_HOME_ADVANTAGE, withHalves, type GoalMult, type SecondHalf } from './match';
 import { renewTarget, renewWage } from './office';
 import { deriveRng, type Rng } from './rng';
 import { clamp } from './util';
 import type {
+  Tactic,
   CalendarMatch, CalendarStage, Club, CoachStyle, CompId, CompResult, CompetitionId, CupMatch, CupRun, Footballer, GameState, LiveMoment, MatchResult, NationalDiv,
   Outcome, SeasonResult, StateDiv, TableRow, Tier,
 } from './types';
@@ -154,17 +155,37 @@ export function simulateSeason(state: GameState): SeasonResult {
       // modo técnico: a estratégia escolhida (valendo no dia do jogo); presidente: o estilo do técnico
       // só a estratégia registrada para o dia (nunca a atual: senão uma troca mudaria jogos passados)
       const tactic = plan.lineupAt(clock.day).tactic ?? (state.career ? STYLE_TACTIC[p.coach.style] : null);
-      let [forMe, againstMe] = tactic ? TACTICS[tactic].goals : STYLE_GOALS[p.coach.style];
-      if (tactic === 'contra_ataque') {
-        const opp = h === PLAYER ? a : h;
-        if (ctx.strength(opp, PLAYER) > playerStrength()) forMe *= 1.1;
-      }
-      return h === PLAYER ? [forMe, againstMe] : [againstMe, forMe];
+      return multFor(tactic, h, a, playerStrength());
     },
     knockoutBonus(id) {
       return id === PLAYER && p.coach.style === 'estrategista' ? 0.4 : 0;
     },
   };
+
+  /** multiplicadores de gol de uma estratégia (do ponto de vista dos jogos do jogador) */
+  function multFor(tactic: Tactic | null, h: string, a: string, mine: number): GoalMult {
+    let [forMe, againstMe] = tactic ? TACTICS[tactic].goals : STYLE_GOALS[p.coach.style];
+    if (tactic === 'contra_ataque') {
+      const opp = h === PLAYER ? a : h;
+      if (ctx.strength(opp, PLAYER) > mine) forMe *= 1.1;
+    }
+    return h === PLAYER ? [forMe, againstMe] : [againstMe, forMe];
+  }
+  // modo técnico: os jogos do jogador têm intervalo (o 2º tempo pode ter outro time e outra estratégia)
+  const halftimes = state.career ? live?.halftimes ?? [] : null;
+  const secondHalf = (h: string, a: string): SecondHalf | null => {
+    if (!halftimes || (h !== PLAYER && a !== PLAYER)) return null;
+    const first = ctx.goalMult!(h, a);
+    const ht = halftimes.find((x) => x.day === clock.day);
+    if (!ht) return { delta: [0, 0], mult: first };
+    const before = playerStrength();
+    const after = ht.ids ? plan.strengthWith(clock.day, ht.ids) + coachBonus : before;
+    const d = after - before;
+    const mult = ht.tactic ? multFor(ht.tactic, h, a, after) : first;
+    return { delta: h === PLAYER ? [d, 0] : [0, d], mult };
+  };
+  /** placar do 1º tempo dos jogos do jogador, por dia (do ponto de vista dele) */
+  const halves = new Map<number, [number, number]>();
 
   const capacityAtInspection = p.capacity + p.capacityBuilding;
   const nameOf = (id: string) => (id === PLAYER ? p.name : foreign.get(id)?.name ?? byId.get(id)?.name ?? id);
@@ -197,7 +218,10 @@ export function simulateSeason(state: GameState): SeasonResult {
           ? (m) => {
               if (m.home === PLAYER || m.away === PLAYER) pass1Days.push(m.day ?? 0);
             }
-          : (m, rng) => stats.record(label, m, rng),
+          : (m, rng) => {
+              if (m.half && (m.home === PLAYER || m.away === PLAYER)) halves.set(m.day ?? 0, m.home === PLAYER ? m.half : [m.half[1], m.half[0]]);
+              stats.record(label, m, rng);
+            },
       rng: deriveRng(seed, season, label),
       matchRng: () => deriveRng(seed, season, label, 'jogo', n++),
       dayOf: (k, total) => (clock.day = matchDay(label, year, k, total)),
@@ -297,10 +321,10 @@ export function simulateSeason(state: GameState): SeasonResult {
     return { estA, estB, varzea, serA, serB, serC, serD, stateOut, natOut, cupRuns, cupMatches, copaEstado, copa, ccChampion, cupChampions, continental };
   };
   pass = 1;
-  runAll();
+  withHalves(secondHalf, runAll);
   plan.build(pass1Days);
   pass = 2;
-  const { estA, estB, varzea, serA, serB, serC, serD, stateOut, natOut, cupRuns, cupMatches, copaEstado, copa, ccChampion, cupChampions, continental } = runAll();
+  const { estA, estB, varzea, serA, serB, serC, serD, stateOut, natOut, cupRuns, cupMatches, copaEstado, copa, ccChampion, cupChampions, continental } = withHalves(secondHalf, runAll);
   const cupPrizes = cupRuns.reduce((sum, c) => sum + c.prize, 0);
 
   // ---------------------- movimentos e vagas ----------------------
@@ -432,11 +456,17 @@ export function simulateSeason(state: GameState): SeasonResult {
 
   // ---------------------- calendário (para mostrar a temporada aos poucos) ----------------------
   state.calendar = buildCalendar(season, year, stages, comps, cupRuns, nameOf, tierOf);
+  for (const m of state.calendar!.matches) {
+    const h = halves.get(m.day);
+    if (h) m.half = h;
+  }
   if (state.live) {
     // para a tela da temporada: lesões, cansaço e quem jogou cada partida
     state.live.injuries = plan.injuries.map((i) => ({ ...i }));
     state.live.fatigue = plan.fatigueLog;
     state.live.elevens = [...new Set(state.calendar!.matches.map((m) => m.day))].map((d) => ({ day: d, ids: plan.at(d).xi.map((f) => f.id) }));
+    state.live.cards = plan.cards.map((c) => ({ ...c }));
+    state.live.suspensions = plan.suspensions.map((x) => ({ ...x }));
   }
 
   // ---------------------- finanças ----------------------

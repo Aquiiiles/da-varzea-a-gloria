@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import {
-  START_YEAR, STYLE_TACTIC, TACTICS, injuredAt, julyWindow, nextMatchAfter, offerOpen, opponentInfo, outcomeOf, playedMatches, teamStrength, weekdayOf,
+  START_YEAR, STYLE_TACTIC, TACTICS, hangingAt, injuredAt, suspendedOn, julyWindow, nextMatchAfter, offerOpen, opponentInfo, outcomeOf, playedMatches, teamStrength, weekdayOf,
   type GameState, type Tactic,
 } from '../../engine';
 import type { Dispatch } from '../App';
@@ -75,7 +75,8 @@ function Matchday({ state, dispatch, goTo, onPlayRound }: Props) {
 
   const opp = next ? opponentInfo(state, next) : null;
   const mine = teamStrength(state);
-  const out = next ? injuredAt(live, next.day) : [];
+  const out = next ? [...injuredAt(live, next.day), ...suspendedOn(live, next.day).map((s) => ({ ...s, susp: true }))] : [];
+  const hanging = next ? hangingAt(live, day).filter((h) => !out.some((o) => o.id === h.id)) : [];
   const tactic: Tactic = p.tactic ?? STYLE_TACTIC[p.coach.style];
   const myForm = played.slice(-5).map(outcomeOf);
   // a janela de julho para antes do próximo jogo
@@ -124,8 +125,16 @@ function Matchday({ state, dispatch, goTo, onPlayRound }: Props) {
             )}
             <div>
               <dt>Desfalques</dt>
-              <dd className={out.length > 0 ? 'bad' : ''}>{out.length > 0 ? out.map((i) => i.name.split(' ').slice(-1)[0]).join(', ') : 'nenhum'}</dd>
+              <dd className={out.length > 0 ? 'bad' : ''}>
+                {out.length > 0 ? out.map((i) => `${i.name.split(' ').slice(-1)[0]}${'susp' in i ? ' (suspenso)' : ''}`).join(', ') : 'nenhum'}
+              </dd>
             </div>
+            {hanging.length > 0 && (
+              <div>
+                <dt>Pendurados</dt>
+                <dd className="warnc">{hanging.map((h) => h.name.split(' ').slice(-1)[0]).join(', ')}</dd>
+              </div>
+            )}
           </dl>
           <div className="pm-tactic">
             <span className="muted">Estratégia</span>

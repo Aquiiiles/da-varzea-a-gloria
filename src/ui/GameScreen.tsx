@@ -110,7 +110,7 @@ export function GameScreen({ state, dispatch, onRestart, fromLink }: Props) {
           if (special) setSeen(new Set([...seen, keyOf(state.season, special)]));
           setNarrateDay(null);
         };
-        return <RoundLive key={`rodada-${narrateDay}`} state={state} round={round} onDone={done} />;
+        return <RoundLive key={`rodada-${narrateDay}`} state={state} round={round} dispatch={dispatch} onDone={done} />;
       }
     }
     return <CoachShell state={state} dispatch={dispatch} onPlayRound={playRound} onFast={() => setFast(true)} />;

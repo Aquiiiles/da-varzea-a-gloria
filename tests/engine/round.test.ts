@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { apply, newGame } from '../../src/engine/game';
+import { apply, canApply, newGame } from '../../src/engine/game';
+import { decodeAction, encodeAction } from '../../src/engine/codec';
 import { myPosition, opponentInfo, roundOn, tableAfter } from '../../src/engine/round';
 import { PLAYER_ID } from '../../src/engine/season';
 import type { Foundation, GameState } from '../../src/engine/types';
@@ -79,5 +80,63 @@ describe('elencos e técnicos reais (pacote)', () => {
     const c = (pack as Exclude<typeof pack, string>).divisions[1]![0];
     expect(c.coach).toBe('Fulano');
     expect(c.squad).toHaveLength(2);
+  });
+});
+
+describe('partida interativa (intervalo, cartões, suspensão)', () => {
+  /** avança até um jogo que já esteja no dia mostrado */
+  function atMatch(seed: number, rounds: number): GameState {
+    let s = season(seed);
+    for (let i = 0; i < rounds; i++) s = apply(s, { t: 'advance', to: 0 });
+    while (!s.calendar!.matches.some((m) => m.day === s.reveal)) s = apply(s, { t: 'advance', to: 0 });
+    return s;
+  }
+
+  it('jogos do técnico têm placar do intervalo, coerente com o final', () => {
+    const s = atMatch(7, 3);
+    const played = s.calendar!.matches.filter((m) => m.day <= s.reveal!);
+    expect(played.every((m) => m.half !== undefined)).toBe(true);
+    for (const m of played) {
+      expect(m.half![0]).toBeLessThanOrEqual(m.gf);
+      expect(m.half![1]).toBeLessThanOrEqual(m.ga);
+    }
+  });
+
+  it('mudar no intervalo não muda o 1º tempo nem os jogos anteriores; uma vez por jogo', () => {
+    const s = atMatch(9, 4);
+    const day = s.reveal!;
+    const before = s.calendar!.matches.find((m) => m.day === day)!;
+    const earlier = JSON.stringify(s.calendar!.matches.filter((m) => m.day < day));
+    const xi = s.live!.elevens.find((e) => e.day === day)!.ids;
+    const bench = s.player.squad.filter((f) => !xi.includes(f.id)).sort((a, b) => a.ovr - b.ovr);
+    // tira os 3 melhores e põe os 3 piores do banco, e vai para a retranca
+    const best = s.player.squad.filter((f) => xi.includes(f.id)).sort((a, b) => b.ovr - a.ovr).slice(0, 3).map((f) => f.id);
+    const ids = xi.filter((id) => !best.includes(id)).concat(bench.slice(0, 3).map((f) => f.id));
+    const t = apply(s, { t: 'halftime', day, ids, tactic: 'retranqueiro' });
+    const after = t.calendar!.matches.find((m) => m.day === day)!;
+    expect(after.half).toEqual(before.half);
+    expect(JSON.stringify(t.calendar!.matches.filter((m) => m.day < day))).toBe(earlier);
+    expect(canApply(t, { t: 'halftime', day, ids: null, tactic: 'ofensivo' })).toBe(false);
+    // mais de 5 trocas não pode
+    if (bench.length >= 6) expect(canApply(s, { t: 'halftime', day, ids: xi.slice(0, 5).concat(bench.slice(0, 6).map((f) => f.id)) })).toBe(false);
+    // codec
+    expect(decodeAction(encodeAction({ t: 'halftime', day, ids, tactic: 'retranqueiro' }))).toEqual({ t: 'halftime', day, ids, tactic: 'retranqueiro' });
+    expect(decodeAction(encodeAction({ t: 'halftime', day, ids: null, tactic: 'pressao' }))).toEqual({ t: 'halftime', day, ids: null, tactic: 'pressao' });
+  });
+
+  it('cartões: 3 amarelos suspendem o jogo seguinte e o suspenso não joga', () => {
+    let found = false;
+    for (let seed = 1; seed < 12 && !found; seed++) {
+      const t = season(seed);
+      const live = t.live!;
+      for (const susp of live.suspensions ?? []) {
+        const eleven = live.elevens.find((e) => e.day === susp.day);
+        if (eleven) {
+          expect(eleven.ids).not.toContain(susp.id);
+          found = true;
+        }
+      }
+    }
+    expect(found).toBe(true);
   });
 });

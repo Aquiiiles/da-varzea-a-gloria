@@ -1,6 +1,6 @@
 import { useRef, useState, type PointerEvent as ReactPointerEvent } from 'react';
 import {
-  FATIGUE_FREE, FATIGUE_REST, FORMATIONS, STYLE_TACTIC, TACTICS, bestEleven, fatigueAt, injuredAt,
+  FATIGUE_FREE, FATIGUE_REST, FORMATIONS, STYLE_TACTIC, TACTICS, bestEleven, fatigueAt, injuredAt, suspendedOn,
   type Footballer, type Formation, type GameState, type Position, type Tactic,
 } from '../engine';
 import type { Dispatch } from './App';
@@ -42,6 +42,9 @@ export function LineupEditor({ state, dispatch }: { state: GameState; dispatch: 
   const live = state.live;
   const day = state.reveal ?? -1;
   const injured = new Set(live ? injuredAt(live, day).map((i) => i.id) : []);
+  // suspensos no próximo jogo
+  const nextDay = state.calendar?.matches.find((m) => m.day > day)?.day;
+  const suspended = new Set(live && nextDay !== undefined ? suspendedOn(live, nextDay).map((s) => s.id) : []);
   const fatigue = live ? fatigueAt(live, day) : {};
   const formation = p.coach.formation;
   const slotPos = slotsOf(formation);
@@ -110,7 +113,8 @@ export function LineupEditor({ state, dispatch }: { state: GameState; dispatch: 
 
   const Card = ({ f, spot, slot }: { f: Footballer; spot: Spot; slot?: Position }) => {
     const tired = fatigue[f.id] ?? 0;
-    const out = injured.has(f.id);
+    const susp = suspended.has(f.id);
+    const out = injured.has(f.id) || susp;
     const offPos = slot && slot !== f.pos;
     return (
       <button
@@ -125,7 +129,7 @@ export function LineupEditor({ state, dispatch }: { state: GameState; dispatch: 
         <span className={`pc-pos${offPos ? ' bad' : ''}`}>{f.pos}</span>
         <span className="pc-name">{f.name.split(' ').slice(-1)[0]}</span>
         <b className="pc-ovr">{f.ovr}</b>
-        {out ? <i className="pc-flag">lesionado</i> : tired > FATIGUE_FREE ? <i className="pc-tired" style={{ width: `${tired}%`, background: tired >= FATIGUE_REST ? 'var(--bad)' : 'var(--warn)' }} /> : null}
+        {out ? <i className="pc-flag">{susp ? 'suspenso' : 'lesionado'}</i> : tired > FATIGUE_FREE ? <i className="pc-tired" style={{ width: `${tired}%`, background: tired >= FATIGUE_REST ? 'var(--bad)' : 'var(--warn)' }} /> : null}
       </button>
     );
   };

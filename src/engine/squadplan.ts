@@ -32,6 +32,28 @@ export interface MatchPlan {
   xi: Footballer[];
   /** força do elenco naquele jogo (antes de técnico, moral e forma) */
   strength: number;
+  /** quem estava disponível (com o cansaço do dia já descontado) */
+  pool: Footballer[];
+}
+
+/** Cartões: chance por titular por jogo; 3 amarelos ou um vermelho = suspenso no jogo seguinte. */
+export const YELLOW_CHANCE = 0.11;
+export const RED_CHANCE = 0.007;
+export const YELLOWS_FOR_SUSPENSION = 3;
+
+export interface CardEvent {
+  day: number;
+  id: number;
+  name: string;
+  kind: 'amarelo' | 'vermelho';
+}
+
+export interface Suspension {
+  /** dia do jogo em que cumpre a suspensão */
+  day: number;
+  id: number;
+  name: string;
+  why: 'amarelos' | 'vermelho';
 }
 
 export interface PlanOptions {
@@ -62,6 +84,8 @@ function pickXI(roster: Footballer[], formation: Formation, preferred: Set<numbe
 
 export class SquadPlan {
   readonly injuries: Injury[] = [];
+  readonly cards: CardEvent[] = [];
+  readonly suspensions: Suspension[] = [];
   /** cansaço de cada jogador depois de cada jogo (para a interface) */
   readonly fatigueLog: { day: number; fatigue: Record<number, number> }[] = [];
   private readonly plans = new Map<number, MatchPlan>();
@@ -94,7 +118,9 @@ export class SquadPlan {
   }
 
   private injuredOn(day: number): Set<number> {
-    return new Set(this.injuries.filter((i) => i.from < day && i.to > day).map((i) => i.id));
+    const out = new Set(this.injuries.filter((i) => i.from < day && i.to > day).map((i) => i.id));
+    for (const s of this.suspensions) if (s.day === day) out.add(s.id);
+    return out;
   }
 
   private recover(day: number): void {
@@ -120,7 +146,15 @@ export class SquadPlan {
     }
     const preferred = lineup.ids ? new Set<number>(lineup.ids) : null;
     const { xi, strength } = pickXI(pool, lineup.formation, preferred);
-    return { day, xi, strength };
+    return { day, xi, strength, pool: eff };
+  }
+
+  /** Força com outro time em campo (mudanças no intervalo), com o cansaço e os desfalques do dia. */
+  strengthWith(day: number, ids: number[]): number {
+    const plan = this.at(day);
+    const want = new Set(ids);
+    const pool = plan.pool.filter((f) => want.has(f.id) || !plan.xi.some((x) => x.id === f.id));
+    return pickXI(pool, this.lineupAt(day).formation, want).strength;
   }
 
   /**
@@ -129,10 +163,33 @@ export class SquadPlan {
    */
   build(matchDays: number[]): void {
     const days = [...new Set(matchDays)].sort((a, b) => a - b);
+    const yellows = new Map<number, number>();
+    let pending: Omit<Suspension, 'day'>[] = [];
     for (const day of days) {
       this.recover(day);
+      // suspensos do jogo anterior cumprem neste
+      for (const s of pending) this.suspensions.push({ ...s, day });
+      pending = [];
       const plan = this.compute(day);
       this.plans.set(day, plan);
+      // cartões (sorteio próprio do dia; não muda resultado, lesões nem cansaço)
+      const crng = deriveRng(this.opts.seed, this.opts.season, 'cartao', day);
+      const aggressive = this.lineupAt(day).tactic === 'pressao' ? 1.3 : 1;
+      for (const f of plan.xi) {
+        if (crng.chance(RED_CHANCE * aggressive)) {
+          this.cards.push({ day, id: f.id, name: f.name, kind: 'vermelho' });
+          pending.push({ id: f.id, name: f.name, why: 'vermelho' });
+          continue;
+        }
+        if (crng.chance(YELLOW_CHANCE * aggressive)) {
+          this.cards.push({ day, id: f.id, name: f.name, kind: 'amarelo' });
+          const n = (yellows.get(f.id) ?? 0) + 1;
+          if (n >= YELLOWS_FOR_SUSPENSION) {
+            yellows.set(f.id, 0);
+            pending.push({ id: f.id, name: f.name, why: 'amarelos' });
+          } else yellows.set(f.id, n);
+        }
+      }
       const rng = deriveRng(this.opts.seed, this.opts.season, 'lesao', day);
       for (const f of plan.xi) {
         const before = this.fatigue.get(f.id) ?? 0;

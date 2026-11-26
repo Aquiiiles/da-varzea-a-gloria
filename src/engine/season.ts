@@ -119,8 +119,8 @@ export function simulateSeason(state: GameState): SeasonResult {
   const plan = new SquadPlan(
     live?.startSquad ?? p.squad,
     live?.changes ?? [],
-    live?.lineups ?? [{ day: -1, ids: p.lineup?.ids ?? null, rotate: p.lineup?.rotate ?? true, formation: p.coach.formation, tactic: p.tactic }],
-    { seed, season, formation: p.coach.formation, medical: p.facilities.medical, fitness: p.staff.fitness, coach: !!state.career },
+    live?.lineups ?? [{ day: -1, ids: p.lineup?.ids ?? null, rotate: p.lineup?.rotate ?? true, formation: p.coach.formation, tactic: p.tactic, training: p.training }],
+    { seed, season, formation: p.coach.formation, medical: p.facilities.medical, fitness: p.staff.fitness, coach: !!state.career, talks: live?.talks },
   );
   const coachBonus = coachEdge(p.coach.rating, p.tier) + moraleEdge(p.coach.morale) + p.formMod + form;
   /** dia do jogo sendo simulado (as competições avisam pela data da rodada) */
@@ -166,6 +166,15 @@ export function simulateSeason(state: GameState): SeasonResult {
   /** multiplicadores de gol de uma estratégia (do ponto de vista dos jogos do jogador) */
   function multFor(tactic: Tactic | null, h: string, a: string, mine: number): GoalMult {
     let [forMe, againstMe] = tactic ? TACTICS[tactic].goals : STYLE_GOALS[p.coach.style];
+    // treino da semana (modo técnico)
+    const training = state.career ? plan.lineupAt(clock.day).training : undefined;
+    if (training === 'tatico') {
+      forMe *= 1.04;
+      againstMe *= 0.97;
+    } else if (training === 'finalizacao') {
+      forMe *= 1.06;
+      againstMe *= 1.02;
+    }
     if (tactic === 'contra_ataque') {
       const opp = h === PLAYER ? a : h;
       if (ctx.strength(opp, PLAYER) > mine) forMe *= 1.1;
@@ -505,6 +514,7 @@ export function simulateSeason(state: GameState): SeasonResult {
     state.live.elevens = [...new Set(state.calendar!.matches.map((m) => m.day))].map((d) => ({ day: d, ids: plan.at(d).xi.map((f) => f.id) }));
     state.live.cards = plan.cards.map((c) => ({ ...c }));
     state.live.status = plan.statusLog;
+    state.live.broken = plan.broken.map((b) => ({ ...b }));
     const people: Record<number, [string, string]> = {};
     for (const [, , id] of stats.log) {
       if (people[id]) continue;

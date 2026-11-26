@@ -1,5 +1,5 @@
 import type { Action, BusinessId, DelegateArea, Facility, Formation, Foundation, GameState, Origin, StaffRole } from './types';
-import type { CoachStyle, Tactic } from './types';
+import type { CoachStyle, Tactic, TalkKind, TrainingFocus } from './types';
 
 const STYLES: CoachStyle[] = ['ofensivo', 'retranqueiro', 'formador', 'motivador', 'estrategista'];
 const TACTIC_LIST: Tactic[] = ['equilibrado', 'ofensivo', 'retranqueiro', 'contra_ataque', 'pressao'];
@@ -29,6 +29,9 @@ export interface RunCode {
   foundation: Foundation;
   actions: Action[];
 }
+
+const TRAININGS: TrainingFocus[] = ['equilibrado', 'fisico', 'tatico', 'finalizacao', 'recuperacao'];
+const TALKS: TalkKind[] = ['elogiar', 'cobrar', 'prometer'];
 
 export function encodeAction(a: Action): string {
   switch (a.t) {
@@ -67,6 +70,8 @@ export function encodeAction(a: Action): string {
     case 'meeting': return `M${a.kind}`;
     case 'lineup': return `L${a.rotate ? 1 : 0}${a.ids ? a.ids.map((id) => `_${id}`).join('') : ''}`;
     case 'precontract': return `Q${a.accept ? 1 : 0}`;
+    case 'training': return `N${TRAININGS.indexOf(a.focus)}`;
+    case 'talk': return `K${a.id}_${TALKS.indexOf(a.kind)}`;
     case 'halftime': return `H${a.day}${a.minute !== undefined && a.minute !== 45 ? `m${a.minute}` : ''}_${a.tactic ? TACTIC_LIST.indexOf(a.tactic) : 'n'}${a.ids ? a.ids.map((id) => `_${id}`).join('') : ''}`;
     case 'next': return 'z';
   }
@@ -124,6 +129,11 @@ export function decodeAction(tok: string): Action | null {
     case 'I': {
       const m = /^(\d{1,3})_(\d)_([012])$/.exec(rest);
       return m ? { t: 'interview', day: Number(m[1]), q: Number(m[2]), a: Number(m[3]) } : null;
+    }
+    case 'N': return n >= 0 && n < TRAININGS.length ? { t: 'training', focus: TRAININGS[n] } : null;
+    case 'K': {
+      const m = /^(\d{1,7})_([012])$/.exec(rest);
+      return m ? { t: 'talk', id: Number(m[1]), kind: TALKS[Number(m[2])] } : null;
     }
     case 'Q': return rest === '0' || rest === '1' ? { t: 'precontract', accept: rest === '1' } : null;
     case 'H': {

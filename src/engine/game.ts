@@ -17,7 +17,7 @@ import { ActionError } from './util';
 export { ActionError };
 import { effectsCashCost, loanFor, releaseCost, renewalOffer, seatsFor, sellPrice } from './office';
 import { applyNamePack, type NamePack } from './namepack';
-import { injuredAt } from './calendarView';
+import { injuredAt, statusAt } from './calendarView';
 import { answerMidOffer, boardWatch, midSeasonOffer } from './boardwatch';
 import { dayToDate, julyWindow } from './calendar';
 import { answered, currentInterview, interviewEffects } from './interview';
@@ -380,6 +380,14 @@ function applyAction(state: GameState, a: Action): void {
       p.tactic = a.v;
       return;
     }
+    case 'training': {
+      if (!career) fail('o treino é com o técnico');
+      p.training = a.focus;
+      return;
+    }
+    case 'talk':
+      fail('as conversas com o elenco são durante a temporada');
+      return;
     case 'job': {
       if (!career) fail('só no modo técnico');
       const offer = career.offers[a.idx];
@@ -747,7 +755,7 @@ function applyAction(state: GameState, a: Action): void {
       state.live = {
         startSquad: structuredClone(p.squad),
         changes: [],
-        lineups: [{ day: -1, ids: p.lineup?.ids ?? null, rotate: p.lineup?.rotate ?? true, formation: p.coach.formation, tactic: p.tactic }],
+        lineups: [{ day: -1, ids: p.lineup?.ids ?? null, rotate: p.lineup?.rotate ?? true, formation: p.coach.formation, tactic: p.tactic, training: p.training }],
         moments: [],
         injuries: [],
         fatigue: [],
@@ -804,7 +812,7 @@ function previewKey(state: GameState): string {
   const p = state.player;
   return JSON.stringify([
     state.seed, state.season, state.history.length, p.cash, p.squad.map((f) => f.id), p.coach, p.lineup ?? null, p.tactic ?? null,
-    state.live?.lineups, state.live?.changes.map((c) => [c.day, c.remove, c.add?.map((f) => f.id)]), state.live?.halftimes ?? [],
+    state.live?.lineups, state.live?.changes.map((c) => [c.day, c.remove, c.add?.map((f) => f.id)]), state.live?.halftimes ?? [], state.live?.talks ?? [],
   ]);
 }
 
@@ -821,9 +829,13 @@ function preview(state: GameState): void {
   live.elevens = clone.live!.elevens;
   live.cards = clone.live!.cards;
   live.status = clone.live!.status;
+  live.broken = clone.live!.broken;
   live.stats = clone.live!.stats;
   live.suspensions = clone.live!.suspensions;
 }
+
+/** Dias entre duas conversas com o mesmo jogador. */
+export const TALK_COOLDOWN = 14;
 
 /** Substituições no intervalo. */
 export const MAX_SUBS = 5;
@@ -892,17 +904,41 @@ function midSeason(state: GameState, a: Action): void {
     preview(state);
     return;
   }
-  if (a.t === 'lineup' || a.t === 'formation' || a.t === 'tactic') {
+  if (a.t === 'talk') {
+    if (!state.career) fail('conversar com o elenco é com o técnico');
+    const f = p.squad.find((x) => x.id === a.id);
+    if (!f) fail('jogador não encontrado');
+    const talks = (live.talks ??= []);
+    if (talks.some((t) => t.id === a.id && day - t.day < TALK_COOLDOWN)) fail(`já conversou com ${f.name} há pouco tempo`);
+    // a reação depende da moral de agora
+    const morale = statusAt(live, day).morale[f.id] ?? f.morale ?? 60;
+    const ok = a.kind === 'elogiar' ? morale < 85 : a.kind === 'cobrar' ? morale >= 45 : true;
+    talks.push({ day, id: f.id, kind: a.kind, ok });
+    const who = state.career.name;
+    state.news.push(
+      a.kind === 'elogiar'
+        ? ok ? `${who} elogia ${f.name} em público; o jogador agradece` : `${who} elogia ${f.name}, que já anda nas nuvens`
+        : a.kind === 'cobrar'
+          ? ok ? `${who} cobra ${f.name}, que promete mais empenho` : `${who} cobra ${f.name}; o jogador não gosta e se fecha`
+          : `${who} promete vaga de titular a ${f.name}`,
+    );
+    preview(state);
+    return;
+  }
+  if (a.t === 'lineup' || a.t === 'formation' || a.t === 'tactic' || a.t === 'training') {
     if (!state.career) fail('a escalação é com o técnico');
     if (a.t === 'lineup') setLineup(p, a);
-    else if (a.t === 'tactic') {
+    else if (a.t === 'training') {
+      if ((p.training ?? 'equilibrado') === a.focus) fail('já é o treino atual');
+      p.training = a.focus;
+    } else if (a.t === 'tactic') {
       if (p.tactic === a.v) fail('já é a estratégia atual');
       p.tactic = a.v;
     } else {
       if (p.coach.formation === a.f) fail('já é o esquema atual');
       p.coach.formation = a.f;
     }
-    live.lineups.push({ day, ids: p.lineup?.ids ?? null, rotate: p.lineup?.rotate ?? true, formation: p.coach.formation, tactic: p.tactic });
+    live.lineups.push({ day, ids: p.lineup?.ids ?? null, rotate: p.lineup?.rotate ?? true, formation: p.coach.formation, tactic: p.tactic, training: p.training });
     preview(state);
     return;
   }

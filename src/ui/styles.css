@@ -895,3 +895,5 @@ h3 { font: 700 14px/1.2 var(--font-display); text-transform: uppercase; letter-s
 .prematch.is-derby, .live.is-derby { border-color: var(--live); box-shadow: 0 0 0 1px var(--live), 0 0 24px #e6394633; }
 .prematch.is-final, .live.is-final { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent), 0 0 24px #ffd23f22; }
 .ev-lesao { border-left: 3px solid var(--bad); }
+.talk { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 0 0 8px; }
+.talk small { flex-basis: 100%; }

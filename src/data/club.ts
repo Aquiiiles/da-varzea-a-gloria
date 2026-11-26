@@ -1,4 +1,4 @@
-import type { BusinessId, CoachStyle, DelegateArea, Tactic } from '../engine/types';
+import type { BusinessId, CoachStyle, DelegateArea, Tactic, TrainingFocus } from '../engine/types';
 
 export const COACH_STYLES: Record<CoachStyle, { label: string; effect: string }> = {
   ofensivo: { label: 'Ofensivo', effect: 'Time faz mais gols (+15%), mas também sofre mais (+10%).' },
@@ -46,6 +46,15 @@ export const TACTICS: Record<Tactic, { label: string; effect: string; goals: [nu
   retranqueiro: { label: 'Retranca', effect: 'Sofre bem menos (-18%), marca menos (-10%).', goals: [0.9, 0.82] },
   contra_ataque: { label: 'Contra-ataque', effect: 'Fecha a casinha e sai rápido: rende mais contra times mais fortes.', goals: [0.95, 0.9] },
   pressao: { label: 'Pressão alta', effect: 'Sufoca o adversário (+10% gols, -5% contra), mas cansa mais o elenco.', goals: [1.1, 0.95] },
+};
+
+/** Foco do treino semanal (modo técnico). */
+export const TRAINING: Record<TrainingFocus, { label: string; effect: string }> = {
+  equilibrado: { label: 'Equilibrado', effect: 'Um pouco de tudo, sem efeito especial.' },
+  fisico: { label: 'Físico', effect: 'O elenco cansa menos a cada jogo (-20%).' },
+  tatico: { label: 'Tático', effect: 'A estratégia escolhida rende mais (+4% gols, -3% sofridos).' },
+  finalizacao: { label: 'Finalização', effect: 'Mais gols a favor (+6%), um pouco mais exposto atrás (+2%).' },
+  recuperacao: { label: 'Recuperação', effect: 'Recupera mais rápido e machuca menos (-30%), mas a forma cai um pouco.' },
 };
 
 /** Estratégia padrão de cada estilo de técnico. */

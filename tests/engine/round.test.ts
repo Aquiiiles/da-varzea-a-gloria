@@ -218,3 +218,29 @@ describe('mexer no jogo a qualquer momento', () => {
     expect(decodeAction(encodeAction({ t: 'halftime', day, minute: 60, ids, tactic: 'pressao' }))).toEqual({ t: 'halftime', day, minute: 60, ids, tactic: 'pressao' });
   });
 });
+
+describe('treino e conversa com jogador', () => {
+  it('treino físico cansa menos que o equilibrado', () => {
+    const a = season(41);
+    const b = apply(a, { t: 'training', focus: 'fisico' });
+    const sum = (s: GameState) => s.live!.fatigue.reduce((x, f) => x + Object.values(f.fatigue).reduce((y, v) => y + v, 0), 0);
+    expect(sum(b)).toBeLessThan(sum(a));
+    expect(decodeAction(encodeAction({ t: 'training', focus: 'recuperacao' }))).toEqual({ t: 'training', focus: 'recuperacao' });
+  });
+
+  it('conversa: uma a cada 14 dias por jogador; elogio sobe a moral', () => {
+    let s = season(42);
+    s = apply(s, { t: 'advance', to: 0 });
+    const f = s.player.squad[5];
+    const before = s.live!.status!.at(-1)!.morale[f.id];
+    const t = apply(s, { t: 'talk', id: f.id, kind: 'elogiar' });
+    expect(canApply(t, { t: 'talk', id: f.id, kind: 'cobrar' })).toBe(false);
+    expect(t.news.at(-1)).toContain(f.name);
+    const next = t.calendar!.matches.find((m) => m.day > t.reveal!)!;
+    const after = t.live!.status!.find((x) => x.day === next.day)!.morale[f.id];
+    const base = s.live!.status!.find((x) => x.day === next.day)!.morale[f.id];
+    expect(after).toBeGreaterThan(base);
+    expect(before).toBeDefined();
+    expect(decodeAction(encodeAction({ t: 'talk', id: f.id, kind: 'prometer' }))).toEqual({ t: 'talk', id: f.id, kind: 'prometer' });
+  });
+});

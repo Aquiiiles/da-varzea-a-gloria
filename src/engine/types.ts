@@ -345,6 +345,21 @@ export interface PlayerClub extends Club {
   naming?: boolean;
   /** estratégia de jogo (modo técnico; ausente = a do estilo do técnico) */
   tactic?: Tactic;
+  /** foco do treino (modo técnico; ausente = equilibrado) */
+  training?: TrainingFocus;
+}
+
+/** Foco do treino semanal (modo técnico). */
+export type TrainingFocus = 'equilibrado' | 'fisico' | 'tatico' | 'finalizacao' | 'recuperacao';
+export type TalkKind = 'elogiar' | 'cobrar' | 'prometer';
+
+/** Conversa do técnico com um jogador (vale a partir do dia). */
+export interface Talk {
+  day: number;
+  id: number;
+  kind: TalkKind;
+  /** como o jogador reagiu (decidido na hora, pela moral) */
+  ok: boolean;
 }
 
 /* ---------------------------- Efeitos (dados) ---------------------------- */
@@ -425,6 +440,8 @@ export type Action =
   | { t: 'advance'; to: AdvanceTo } // mostra a temporada até o próximo jogo, semana, mês ou fim
   | { t: 'job'; idx: number } // técnico: aceita uma proposta de emprego
   | { t: 'lineup'; ids: number[] | null; rotate: boolean } // técnico: escalação (null = os melhores)
+  | { t: 'training'; focus: TrainingFocus } // foco do treino (modo técnico)
+  | { t: 'talk'; id: number; kind: TalkKind } // conversa com um jogador (modo técnico)
   | { t: 'precontract'; accept: boolean } // proposta no meio da temporada (pré-contrato)
   | { t: 'halftime'; day: number; minute?: number; ids: number[] | null; tactic?: Tactic } // durante o jogo: substituições e estratégia a partir do minuto
   | { t: 'interview'; day: number; q: number; a: number } // entrevista pós-jogo ou coletiva (dia do jogo, pergunta, resposta)
@@ -702,6 +719,8 @@ export interface LineupEntry {
   formation: Formation;
   /** estratégia de jogo valendo a partir deste dia */
   tactic?: Tactic;
+  /** foco do treino valendo a partir deste dia */
+  training?: TrainingFocus;
 }
 
 /** Mudança no elenco durante a temporada (janela do meio do ano). */
@@ -722,6 +741,10 @@ export interface LiveSeason {
   fatigue: { day: number; fatigue: Record<number, number> }[];
   /** escalação de cada jogo do clube (ids dos titulares) */
   elevens: { day: number; ids: number[] }[];
+  /** conversas do técnico com jogadores */
+  talks?: Talk[];
+  /** promessas de vaga não cumpridas (prévia) */
+  broken?: { day: number; id: number; name: string }[];
   /** mudanças no intervalo (modo técnico): novo time em campo e/ou estratégia para o 2º tempo */
   halftimes?: HalftimeChange[];
   /** estatísticas por jogo (artilharia, assistências e notas durante a temporada) */

@@ -28,12 +28,13 @@ export { BOARD_INFO, CAREER_END_AGE, CAREER_START_AGE, isCoachMode, starsFor, ti
 export { COACH_LEVELS } from './score';
 export { injuredAt, fatigueAt, suspendedOn, hangingAt, statusAt, statsUpTo, COMP_STATS_KEY, type StatLine } from './calendarView';
 export { MORALE_LOW, MORALE_HIGH, MORALE_START } from './squadplan';
-export { MAX_SUBS, MAX_STOPS, TALK_COOLDOWN, MAX_WATCH } from './game';
+export { MAX_SUBS, MAX_STOPS, TALK_COOLDOWN, MAX_WATCH, subbedOut } from './game';
 export { julyWindow } from './calendar';
 export { FATIGUE_FREE, FATIGUE_REST } from './squadplan';
 export { currentInterview, answered, interviewEffects, type Interview, type InterviewQuestion, type InterviewAnswer } from './interview';
 export { coachRanking, type RankingEntry } from './ranking';
 export { quickMoment } from './live';
-export { MEETING_LABEL } from './career';
+export { MEETING_LABEL, MEETING_INFO, meetingChance } from './career';
 export { roundOn, tableAfter, opponentInfo, myPosition, nextMatchAfter, type RoundView, type RoundGame, type TableMove, type OpponentInfo } from './round';
 export { ultimatumStatus, BOARD_RULES, rivalName, isDecisive } from './boardwatch';
+export { formationSlots, positionPenalty, lineupStrength } from './footballers';

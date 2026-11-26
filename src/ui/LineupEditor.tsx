@@ -1,12 +1,14 @@
 import { useRef, useState, type PointerEvent as ReactPointerEvent } from 'react';
 import {
-  FATIGUE_FREE, FATIGUE_REST, FORMATIONS, statusAt, STYLE_TACTIC, TACTICS, bestEleven, fatigueAt, injuredAt, suspendedOn,
+  FATIGUE_FREE, FATIGUE_REST, FORMATIONS, statusAt, STYLE_TACTIC, TACTICS, bestEleven, fatigueAt, injuredAt, lineupStrength, positionPenalty, squadStrength, suspendedOn,
   type Footballer, type Formation, type GameState, type Position, type Tactic,
 } from '../engine';
 import type { Dispatch } from './App';
 
 const ORDER: Position[] = ['GOL', 'DEF', 'MEI', 'ATA'];
 const FORMATION_LIST: Formation[] = ['4-4-2', '4-3-3', '3-5-2', '4-5-1'];
+const POS_SHORT: Record<Position, string> = { GOL: 'GOL', DEF: 'ZAG', MEI: 'MEI', ATA: 'ATA' };
+const POS_GROUP: Record<Position, string> = { GOL: 'Goleiros', DEF: 'Defensores', MEI: 'Meio-campo', ATA: 'Ataque' };
 
 /** Vagas do esquema, do goleiro ao ataque. */
 function slotsOf(formation: Formation): Position[] {
@@ -46,6 +48,8 @@ export interface HalftimeMode {
   tactic: Tactic;
   /** jogadores em campo (11 menos os expulsos) */
   size?: number;
+  /** por que cada um de `out` não pode entrar (saiu, expulso, lesionado, suspenso) */
+  reasons?: Map<number, string>;
   onConfirm: (ids: number[] | null, tactic: Tactic) => void;
 }
 
@@ -62,7 +66,11 @@ export function LineupEditor({ state, dispatch, halftime, bare }: { state: GameS
   const formation = p.coach.formation;
   const slotPos = slotsOf(formation);
   const current = p.lineup?.ids ?? null;
-  const [slots, setSlots] = useState<(number | null)[]>(() => arrange(p.squad, halftime ? halftime.firstIds : current ?? [...bestEleven(p.squad, formation).ids], formation));
+  const [slots, setSlots] = useState<(number | null)[]>(() => {
+    // escalação salva com os 11 nas vagas: abre exatamente como foi montada
+    if (!halftime && current && current.length === slotPos.length && current.every((id) => p.squad.some((f) => f.id === id))) return current.slice();
+    return arrange(p.squad, halftime ? halftime.firstIds : current ?? [...bestEleven(p.squad, formation).ids], formation);
+  });
   const [htTactic, setHtTactic] = useState<Tactic | null>(halftime?.tactic ?? null);
   const [rotate, setRotate] = useState(p.lineup?.rotate ?? true);
   const [selected, setSelected] = useState<Spot | null>(null);
@@ -73,7 +81,11 @@ export function LineupEditor({ state, dispatch, halftime, bare }: { state: GameS
   const onPitch = new Set(slots.filter((x): x is number => x !== null));
   const bench = p.squad.filter((f) => !onPitch.has(f.id)).sort((a, b) => ORDER.indexOf(a.pos) - ORDER.indexOf(b.pos) || b.ovr - a.ovr);
   const filled = slots.filter((x) => x !== null).length;
-  const sameAsSaved = !!current && current.length === filled && current.every((id) => onPitch.has(id)) && rotate === (p.lineup?.rotate ?? true);
+  const sameAsSaved = !!current && current.join(',') === slots.join(',') && rotate === (p.lineup?.rotate ?? true);
+  // força ao vivo: cada um na vaga em que está (fora de posição rende menos) x o time ideal
+  const ids11 = filled === slotPos.length ? slots.map((x) => x!) : null;
+  const strength = ids11 ? lineupStrength(p.squad, formation, ids11) : null;
+  const ideal = squadStrength(p.squad, formation);
 
   /** troca o conteúdo de dois lugares (vaga ↔ vaga, vaga ↔ banco) */
   const swap = (a: Spot, b: Spot) => {
@@ -135,27 +147,50 @@ export function LineupEditor({ state, dispatch, halftime, bare }: { state: GameS
     const susp = suspended.has(f.id);
     const out = injured.has(f.id) || susp;
     const offPos = slot && slot !== f.pos;
+    const penalty = slot ? positionPenalty(slot, f.pos) : 0;
     return (
       <button
         type="button"
-        className={`pcard${same(selected, spot) ? ' is-sel' : ''}${out ? ' is-out' : ''}${drag && same(drag.from, spot) ? ' is-ghost' : ''}`}
+        className={`pcard pcard-${f.pos}${same(selected, spot) ? ' is-sel' : ''}${out ? ' is-out' : ''}${drag && same(drag.from, spot) ? ' is-ghost' : ''}${fitClass(spot, f)}`}
         data-spot={spot.kind === 'slot' ? `slot:${spot.i}` : `bench:${f.id}`}
         onPointerDown={(e) => down(e, spot, f.id)}
         onPointerMove={move}
         onPointerUp={up}
         onPointerCancel={() => ((start.current = null), setDrag(null))}
       >
-        <span className={`pc-pos${offPos ? ' bad' : ''}`}>{f.pos}</span>
+        <span className={`pc-pos pos-${f.pos}${offPos ? ' is-off' : ''}`}>
+          {f.pos}
+          {penalty > 0 && <em className="pc-pen">-{penalty}</em>}
+        </span>
         <span className="pc-name">{f.name.split(' ').slice(-1)[0]}</span>
         <b className="pc-ovr">
           {f.ovr}
           {Math.abs(form[f.id] ?? 0) >= 0.5 && <i className={`pc-form ${(form[f.id] ?? 0) > 0 ? 'good' : 'bad'}`}>{(form[f.id] ?? 0) > 0 ? '▲' : '▼'}</i>}
         </b>
-        {out ? <i className="pc-flag">{susp ? 'suspenso' : 'lesionado'}</i> : tired > FATIGUE_FREE ? <i className="pc-tired" style={{ width: `${tired}%`, background: tired >= FATIGUE_REST ? 'var(--bad)' : 'var(--warn)' }} /> : null}
+        {out ? (
+          <i className="pc-flag">{halftime?.reasons?.get(f.id) ?? (susp ? 'suspenso' : 'lesionado')}</i>
+        ) : (
+          <span className="pc-fat" title={`cansaço ${tired}`}>
+            <span className="pc-track">
+              <i style={{ width: `${Math.max(4, tired)}%`, background: tired >= FATIGUE_REST ? 'var(--bad)' : tired > FATIGUE_FREE ? 'var(--warn)' : 'var(--good)' }} />
+            </span>
+            <small>{tired}%</small>
+          </span>
+        )}
       </button>
     );
   };
 
+  /** vaga escolhida (tocada ou arrastada): o banco destaca quem é da posição dela */
+  const wantPos: Position | null = (() => {
+    const s = drag?.from ?? selected;
+    if (s?.kind === 'slot') return slotPos[s.i];
+    return null;
+  })();
+  function fitClass(spot: Spot, f: Footballer): string {
+    if (spot.kind !== 'bench' || !wantPos) return '';
+    return f.pos === wantPos ? ' is-fit' : ' is-dim';
+  }
   const tactic: Tactic = htTactic ?? p.tactic ?? STYLE_TACTIC[p.coach.style];
   const htSubs = halftime ? slots.filter((id) => id !== null && !halftime.firstIds.includes(id)).length : 0;
   // linhas do campo, do ataque (em cima) ao goleiro (embaixo)
@@ -195,9 +230,18 @@ export function LineupEditor({ state, dispatch, halftime, bare }: { state: GameS
         <p className="muted">Arraste para a vaga ou toque em dois para trocar · {current ? 'escalação sua' : 'automática'}</p>
       )}
 
+      <div className="lineup-strength">
+        <span>
+          Força do time <b className={strength !== null && strength < ideal - 0.5 ? 'bad' : 'good'}>{strength !== null ? strength.toFixed(1) : '—'}</b>
+        </span>
+        <small className="muted">
+          {strength === null ? `faltam ${slotPos.length - filled}` : strength >= ideal - 0.05 ? 'o melhor time possível' : `ideal: ${ideal.toFixed(1)} (${(strength - ideal).toFixed(1)})`}
+        </small>
+      </div>
+
       <div className="pitch">
         {rows.map((r) => (
-          <div key={r.pos} className="pitch-row">
+          <div key={r.pos} className="pitch-row" data-label={POS_SHORT[r.pos]}>
             {r.idx.map((i) => {
               const id = slots[i];
               const f = id !== null ? byId.get(id) : undefined;
@@ -215,12 +259,21 @@ export function LineupEditor({ state, dispatch, halftime, bare }: { state: GameS
         ))}
       </div>
 
-      <p className="lineup-pos">Banco e reservas</p>
-      <div className="bench">
-        {bench.map((f) => (
-          <Card key={f.id} f={f} spot={{ kind: 'bench', id: f.id }} />
-        ))}
-      </div>
+      <p className="lineup-pos">Banco</p>
+      {ORDER.map((pos) => {
+        const group = bench.filter((f) => f.pos === pos);
+        if (group.length === 0) return null;
+        return (
+          <div key={pos} className="bench-group">
+            <span className={`bench-label pos-${pos}`}>{POS_GROUP[pos]}</span>
+            <div className="bench">
+              {group.map((f) => (
+                <Card key={f.id} f={f} spot={{ kind: 'bench', id: f.id }} />
+              ))}
+            </div>
+          </div>
+        );
+      })}
 
       {drag && dragged && (
         <div className="pcard pc-drag" style={{ left: drag.x, top: drag.y }} aria-hidden="true">
@@ -257,7 +310,7 @@ export function LineupEditor({ state, dispatch, halftime, bare }: { state: GameS
           Salvar escalação
         </button>
         <button type="button" className="btn" disabled={current === null && rotate === (p.lineup?.rotate ?? true)} onClick={() => dispatch({ t: 'lineup', ids: null, rotate })}>
-          Automático
+          Time ideal (automático)
         </button>
       </div>
         </>

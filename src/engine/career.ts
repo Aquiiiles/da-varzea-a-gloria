@@ -9,7 +9,7 @@ import { deriveRng, type Rng } from './rng';
 import { clamp } from './util';
 import { aiCoachName } from './stats';
 import { personName } from './names';
-import type { Footballer,
+import type { Footballer, MeetingKind,
   BoardPersonality, Club, CoachCareer, CoachStyle, GameState, JobOffer, PlayerClub, SeasonResult, Tier,
 } from './types';
 
@@ -394,23 +394,43 @@ export function careerWindow(state: GameState, withOffers: boolean): void {
 /* ------------------------------ Reunião com a diretoria ------------------------------ */
 
 /** Chance base de a diretoria topar cada pedido (verba, reforço, estrutura), pela personalidade. */
-const MEETING_BASE: Record<BoardPersonality, [number, number, number]> = {
-  paciente: [0.4, 0.45, 0.55],
-  imediatista: [0.6, 0.6, 0.35],
-  mao_de_vaca: [0.15, 0.25, 0.3],
+const MEETING_BASE: Record<BoardPersonality, [number, number, number, number]> = {
+  paciente: [0.4, 0.45, 0.55, 0.7],
+  imediatista: [0.6, 0.6, 0.35, 0.3],
+  mao_de_vaca: [0.15, 0.25, 0.3, 0.55],
 };
-export const MEETING_LABEL = ['Pedir mais verba', 'Pedir um reforço', 'Pedir melhoria na estrutura'] as const;
+
+/** As opções da reunião: o que pede, o que ganha e quanto de confiança custa (sim / não). */
+export const MEETING_INFO: { label: string; gain: string; cost: [number, number] }[] = [
+  { label: 'Pedir mais verba', gain: 'Mais 50% de verba para contratações e um teto de folha um pouco maior.', cost: [4, 7] },
+  { label: 'Pedir um reforço', gain: 'A diretoria traz um jogador acima da média da série, sem taxa.', cost: [5, 7] },
+  { label: 'Pedir melhoria na estrutura', gain: 'Sobe a estrutura mais fraca (CT, base ou departamento médico).', cost: [3, 5] },
+  { label: 'Pedir tempo', gain: 'A diretoria não dá ultimato até a metade da temporada.', cost: [2, 4] },
+  { label: 'Não pedir nada', gain: 'A diretoria gosta de técnico que trabalha com o que tem.', cost: [-2, -2] },
+];
+/** compatível com a interface antiga */
+export const MEETING_LABEL = MEETING_INFO.map((m) => m.label);
+
+/** Chance de a diretoria topar o pedido agora (personalidade e confiança). */
+export function meetingChance(state: GameState, kind: MeetingKind): number {
+  if (kind === 4) return 1;
+  const c = state.career!;
+  return clamp(MEETING_BASE[c.board.personality][kind] + (c.board.confidence - 50) / 150, 0.05, 0.9);
+}
 
 /**
- * Reunião com a diretoria (uma por janela): pedir verba, um reforço pago pela diretoria ou uma obra de estrutura.
+ * Reunião com a diretoria (uma por janela): pedir verba, um reforço, uma obra, tempo, ou não pedir nada.
  * A chance depende da personalidade e da confiança; pedir gasta confiança, e um "não" gasta mais.
  */
-export function boardMeeting(state: GameState, kind: 0 | 1 | 2): { kind: 0 | 1 | 2; ok: boolean; text: string } {
+export function boardMeeting(state: GameState, kind: MeetingKind): { kind: MeetingKind; ok: boolean; text: string } {
   const c = state.career!;
   const p = state.player;
+  if (kind === 4) {
+    c.board.confidence = clamp(c.board.confidence + 2, 0, 100);
+    return { kind, ok: true, text: 'Você não pede nada. A diretoria gosta: o técnico trabalha com o que tem.' };
+  }
   const rng = deriveRng(state.seed, state.season, 'reuniao', kind);
-  const chance = clamp(MEETING_BASE[c.board.personality][kind] + (c.board.confidence - 50) / 150, 0.05, 0.9);
-  let ok = rng.chance(chance);
+  let ok = rng.chance(meetingChance(state, kind));
   let text: string;
   if (ok && kind === 0) {
     const extra = Math.max(Math.round(c.board.budget * 0.5), Math.round(TIERS[p.tier].moneyScale * 15));
@@ -434,10 +454,15 @@ export function boardMeeting(state: GameState, kind: 0 | 1 | 2): { kind: 0 | 1 |
       ok = false;
       text = 'A diretoria até gostou da ideia, mas não tem caixa para a obra agora.';
     }
+  } else if (ok && kind === 3) {
+    // sem ultimato até a metade dos jogos da temporada
+    c.calmFrom = Math.max(c.calmFrom ?? 0, 20);
+    text = 'A diretoria dá tempo ao trabalho: sem ultimato até a metade da temporada.';
   } else {
-    text = ['A diretoria diz que não há dinheiro e que é para trabalhar com o que tem.', 'A diretoria recusa o reforço: "o elenco é bom o suficiente".', 'A diretoria nega a obra nesta temporada.'][kind];
+    text = ['A diretoria diz que não há dinheiro e que é para trabalhar com o que tem.', 'A diretoria recusa o reforço: "o elenco é bom o suficiente".', 'A diretoria nega a obra nesta temporada.', 'A diretoria responde que tempo se conquista com resultado.'][kind];
   }
-  c.board.confidence = clamp(c.board.confidence - (ok ? [4, 5, 3][kind] : [7, 7, 5][kind]), 0, 100);
+  const [yes, no] = MEETING_INFO[kind].cost;
+  c.board.confidence = clamp(c.board.confidence - (ok ? yes : no), 0, 100);
   state.news.push(`Reunião com a diretoria do ${p.name}: ${ok ? 'pedido atendido' : 'pedido negado'}`);
   return { kind, ok, text };
 }

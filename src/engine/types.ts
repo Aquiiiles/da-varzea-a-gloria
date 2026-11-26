@@ -352,6 +352,8 @@ export interface PlayerClub extends Club {
 /** Foco do treino semanal (modo técnico). */
 export type TrainingFocus = 'equilibrado' | 'fisico' | 'tatico' | 'finalizacao' | 'recuperacao';
 export type TalkKind = 'elogiar' | 'cobrar' | 'prometer';
+/** Reunião com a diretoria: 0 verba, 1 reforço, 2 estrutura, 3 pedir tempo, 4 não pedir nada. */
+export type MeetingKind = 0 | 1 | 2 | 3 | 4;
 
 /** Conversa do técnico com um jogador (vale a partir do dia). */
 export interface Talk {
@@ -449,7 +451,7 @@ export type Action =
   | { t: 'tactic'; v: Tactic } // técnico: estratégia de jogo
   | { t: 'counter'; idx: number; fee: number } // pede mais por um jogador seu (proposta idx)
   | { t: 'project'; which: BigProject } // grande projeto (arena, multiuso, naming rights)
-  | { t: 'meeting'; kind: 0 | 1 | 2 } // técnico: reunião com a diretoria (verba, reforço, estrutura)
+  | { t: 'meeting'; kind: MeetingKind } // técnico: reunião com a diretoria (verba, reforço, estrutura, tempo ou nada)
   | { t: 'reject'; idx: number } // recusa a proposta idx
   | { t: 'next' }; // sai do resumo para a próxima temporada
 
@@ -696,7 +698,7 @@ export interface SeasonOffice {
   signings: number;
   soldHomegrown: number;
   /** técnico: reunião com a diretoria nesta janela (uma por janela) */
-  meeting?: { kind: 0 | 1 | 2; ok: boolean; text: string };
+  meeting?: { kind: MeetingKind; ok: boolean; text: string };
   /** evento extraordinário desta temporada (já aplicado) */
   extraordinary?: { title: string; text: string; good: boolean };
 }

@@ -1,4 +1,4 @@
-import { bestEleven, round1 } from './footballers';
+import { bestEleven, lineupStrength, round1 } from './footballers';
 import { deriveRng } from './rng';
 import { clamp } from './util';
 import type { Footballer, Formation, LineupEntry, RosterChange, Talk } from './types';
@@ -77,8 +77,16 @@ export function fatiguePenalty(fatigue: number): number {
 }
 
 /** Força de um XI: média (com improviso fora de posição) + profundidade do banco, como `squadStrength`. */
-function pickXI(roster: Footballer[], formation: Formation, preferred: Set<number> | null): { xi: Footballer[]; strength: number } {
+function pickXI(roster: Footballer[], formation: Formation, preferred: Set<number> | null, order?: readonly number[] | null): { xi: Footballer[]; strength: number } {
   if (roster.length === 0) return { xi: [], strength: 30 };
+  // escalação completa com as vagas escolhidas: cada um joga onde o técnico pôs
+  if (order && order.length === 11) {
+    const s = lineupStrength(roster, formation, order);
+    if (s !== null) {
+      const set = new Set(order);
+      return { xi: roster.filter((f) => set.has(f.id)), strength: s };
+    }
+  }
   const boosted = roster.map((f) => (preferred?.has(f.id) ? { ...f, ovr: f.ovr + BOOST } : f));
   const { ids, ratings } = bestEleven(boosted, formation);
   const real = ratings.map((r) => (r > BOOST ? r - BOOST : r));
@@ -175,7 +183,7 @@ export class SquadPlan {
       if (fresh.length >= 14) pool = fresh;
     }
     const preferred = lineup.ids ? new Set<number>(lineup.ids) : null;
-    const { xi, strength } = pickXI(pool, lineup.formation, preferred);
+    const { xi, strength } = pickXI(pool, lineup.formation, preferred, lineup.ids);
     return { day, xi, strength, pool: eff };
   }
 
@@ -202,7 +210,7 @@ export class SquadPlan {
     const plan = this.at(day);
     const want = new Set(ids);
     const pool = plan.pool.filter((f) => want.has(f.id) || !plan.xi.some((x) => x.id === f.id));
-    return pickXI(pool, this.lineupAt(day).formation, want).strength;
+    return pickXI(pool, this.lineupAt(day).formation, want, ids).strength;
   }
 
   /**

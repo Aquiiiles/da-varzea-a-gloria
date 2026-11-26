@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { MAX_STOPS, MAX_SUBS, PLAYER_ID, isDecisive, rivalName, STYLE_TACTIC, injuredAt, suspendedOn, tableAfter, type GameState, type RoundGame, type RoundView, type Tactic } from '../../engine';
+import { MAX_STOPS, MAX_SUBS, PLAYER_ID, subbedOut, isDecisive, rivalName, STYLE_TACTIC, injuredAt, suspendedOn, tableAfter, type GameState, type RoundGame, type RoundView, type Tactic } from '../../engine';
 import type { Dispatch } from '../App';
 import { LineupEditor } from '../LineupEditor';
 import { StandingsTable } from './TableTab';
@@ -241,7 +241,14 @@ function HalftimePanel({ state, day, minute, reason, dispatch, onClose }: { stat
     ...(live.cards ?? []).filter((c) => c.day === day && c.kind === 'vermelho' && (c.minute ?? 60) < minute).map((c) => c.id),
   ];
   const reds = (live.cards ?? []).filter((c) => c.day === day && c.kind === 'vermelho' && (c.minute ?? 60) < minute).length;
-  const out = new Set([...injuredAt(live, day).filter((i) => i.from < day).map((i) => i.id), ...suspendedOn(live, day).map((s) => s.id), ...gone]);
+  const left = subbedOut(live, day, minute);
+  const reasons = new Map<number, string>();
+  for (const i of injuredAt(live, day).filter((x) => x.from < day)) reasons.set(i.id, 'lesionado');
+  for (const s of suspendedOn(live, day)) reasons.set(s.id, 'suspenso');
+  for (const id of left) reasons.set(id, 'saiu');
+  for (const i of live.injuries.filter((x) => x.from === day && (x.minute ?? 60) < minute)) reasons.set(i.id, 'machucou');
+  for (const c of (live.cards ?? []).filter((x) => x.day === day && x.kind === 'vermelho' && (x.minute ?? 60) < minute)) reasons.set(c.id, 'expulso');
+  const out = new Set([...injuredAt(live, day).filter((i) => i.from < day).map((i) => i.id), ...suspendedOn(live, day).map((s) => s.id), ...gone, ...left]);
   const field = (lastIds ?? original).filter((id) => !out.has(id));
   const used = field.filter((id) => !original.includes(id)).length;
   const lastTactic = before.reduce<Tactic | null>((t, h) => h.tactic ?? t, null);
@@ -259,7 +266,7 @@ function HalftimePanel({ state, day, minute, reason, dispatch, onClose }: { stat
         key={`${minute}-${field.join(',')}`}
         state={state}
         dispatch={dispatch}
-        halftime={{ firstIds: field, out, maxSubs: MAX_SUBS - used, tactic: current, size: 11 - reds, onConfirm: confirm }}
+        halftime={{ firstIds: field, out, reasons, maxSubs: MAX_SUBS - used, tactic: current, size: 11 - reds, onConfirm: confirm }}
       />
     </section>
   );

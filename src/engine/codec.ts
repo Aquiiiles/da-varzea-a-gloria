@@ -125,7 +125,7 @@ export function decodeAction(tok: string): Action | null {
     }
     case 'R': return Number.isNaN(n) ? null : { t: 'reject', idx: n };
     case 'P': return rest === 'a' ? { t: 'project', which: 'arena' } : rest === 'm' ? { t: 'project', which: 'multiuso' } : rest === 'n' ? { t: 'project', which: 'naming' } : null;
-    case 'M': return n === 0 || n === 1 || n === 2 ? { t: 'meeting', kind: n } : null;
+    case 'M': return n >= 0 && n <= 4 ? { t: 'meeting', kind: n as 0 | 1 | 2 | 3 | 4 } : null;
     case 'T': return n >= 0 && n < TACTIC_LIST.length ? { t: 'tactic', v: TACTIC_LIST[n] } : null;
     case 'I': {
       const m = /^(\d{1,3})_(\d)_([012])$/.exec(rest);

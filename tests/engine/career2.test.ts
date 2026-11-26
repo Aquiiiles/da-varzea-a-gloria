@@ -153,3 +153,44 @@ describe('base e lista de observação (técnico)', () => {
     expect(t.player.squad.some((f) => f.id === y.id)).toBe(true);
   });
 });
+
+describe('escalação que conta e reunião repensada', () => {
+  it('a posição no campinho muda a força: zagueiro no gol rende muito menos', async () => {
+    const { formationSlots, lineupStrength, squadStrength } = await import('../../src/engine/footballers');
+    const s = apply(newGame(12, COACH), { t: 'job', idx: 0 });
+    const p = s.player;
+    const slots = formationSlots(p.coach.formation);
+    const used = new Set<number>();
+    const ids = slots.map((pos) => {
+      const f = p.squad.filter((x) => x.pos === pos && !used.has(x.id)).sort((a, b) => b.ovr - a.ovr)[0] ?? p.squad.find((x) => !used.has(x.id))!;
+      used.add(f.id);
+      return f.id;
+    });
+    const right = lineupStrength(p.squad, p.coach.formation, ids)!;
+    expect(Math.abs(right - squadStrength(p.squad, p.coach.formation))).toBeLessThan(1.5);
+    // troca o goleiro com um zagueiro
+    const wrong = ids.slice();
+    [wrong[0], wrong[1]] = [wrong[1], wrong[0]];
+    expect(lineupStrength(p.squad, p.coach.formation, wrong)!).toBeLessThan(right - 2);
+    // e isso chega na simulação: a escalação salva vale no jogo
+    const a = apply(apply(s, { t: 'lineup', ids, rotate: false }), { t: 'play' });
+    const b = apply(apply(s, { t: 'lineup', ids: wrong, rotate: false }), { t: 'play' });
+    const firstDay = a.calendar!.matches[0].day;
+    expect(a.live!.elevens.find((e) => e.day === firstDay)!.ids.sort()).toEqual(b.live!.elevens.find((e) => e.day === firstDay)!.ids.sort());
+    const gfA = a.calendar!.matches.reduce((x, m) => x + m.gf - m.ga, 0);
+    const gfB = b.calendar!.matches.reduce((x, m) => x + m.gf - m.ga, 0);
+    expect(gfA).not.toBe(gfB);
+  });
+
+  it('reunião: pedir tempo e não pedir nada; código M4', () => {
+    const s = apply(newGame(4, COACH), { t: 'job', idx: 0 });
+    const conf = s.career!.board.confidence;
+    const n = apply(s, { t: 'meeting', kind: 4 });
+    expect(n.career!.board.confidence).toBe(Math.min(100, conf + 2));
+    expect(n.office.meeting?.kind).toBe(4);
+    expect(canApply(n, { t: 'meeting', kind: 0 })).toBe(false);
+    const t = apply(s, { t: 'meeting', kind: 3 });
+    expect(t.career!.board.confidence).toBeLessThan(conf);
+    expect(decodeAction(encodeAction({ t: 'meeting', kind: 4 }))).toEqual({ t: 'meeting', kind: 4 });
+  });
+});

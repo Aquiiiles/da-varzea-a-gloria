@@ -159,6 +159,39 @@ export function bestEleven(squad: readonly Footballer[], formation: Formation = 
   return { ids: used, ratings };
 }
 
+/** Vagas de um esquema, na ordem do goleiro ao ataque (a mesma do campinho). */
+export function formationSlots(formation: Formation): Position[] {
+  const f = FORMATIONS[formation];
+  return (['GOL', 'DEF', 'MEI', 'ATA'] as Position[]).flatMap((pos) => Array(f[pos]).fill(pos) as Position[]);
+}
+
+/** Quanto um jogador perde jogando fora da posição de origem. */
+export function positionPenalty(slot: Position, pos: Position): number {
+  if (slot === pos) return 0;
+  if (slot === 'GOL' || pos === 'GOL') return 20;
+  if ((slot === 'DEF' && pos === 'ATA') || (slot === 'ATA' && pos === 'DEF')) return 8;
+  return 4;
+}
+
+/**
+ * Força de uma escalação com cada um na vaga escolhida (ids na ordem das vagas do esquema).
+ * Quem joga fora de posição rende menos. Devolve null se a escalação não tiver os 11.
+ */
+export function lineupStrength(squad: readonly Footballer[], formation: Formation, ids: readonly number[]): number | null {
+  const slots = formationSlots(formation);
+  if (ids.length !== slots.length) return null;
+  const byId = new Map(squad.map((f) => [f.id, f]));
+  const xi = ids.map((id) => byId.get(id));
+  if (xi.some((f) => !f)) return null;
+  const ratings = xi.map((f, i) => f!.ovr - positionPenalty(slots[i], f!.pos));
+  const mean = ratings.reduce((s, r) => s + r, 0) / ratings.length;
+  const used = new Set(ids);
+  const bench = squad.filter((f) => !used.has(f.id)).sort((a, b) => b.ovr - a.ovr).slice(0, 7);
+  const benchAvg = bench.length > 0 ? bench.reduce((s, f) => s + f.ovr, 0) / bench.length : mean - 15;
+  const depth = clamp((benchAvg - (mean - 6)) / 6, -1, 0.5);
+  return round1(mean + depth);
+}
+
 /** Força do time = média do XI + profundidade do banco (até ±1). */
 export function squadStrength(squad: readonly Footballer[], formation: Formation = '4-4-2'): number {
   if (squad.length === 0) return 30;

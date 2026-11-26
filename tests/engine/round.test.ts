@@ -244,3 +244,20 @@ describe('treino e conversa com jogador', () => {
     expect(decodeAction(encodeAction({ t: 'talk', id: f.id, kind: 'prometer' }))).toEqual({ t: 'talk', id: f.id, kind: 'prometer' });
   });
 });
+
+describe('substituído não volta', () => {
+  it('quem saiu numa parada não pode voltar numa parada seguinte', () => {
+    let s = season(51);
+    s.career!.board.confidence = 100;
+    for (let i = 0; i < 2; i++) s = apply(s, { t: 'advance', to: 0 });
+    while (!s.calendar!.matches.some((m) => m.day === s.reveal)) s = apply(s, { t: 'advance', to: 0 });
+    const day = s.reveal!;
+    const xi = s.live!.elevens.find((e) => e.day === day)!.ids;
+    const bench = s.player.squad.filter((f) => !xi.includes(f.id) && f.pos === s.player.squad.find((x) => x.id === xi[5])!.pos);
+    const sub = bench[0] ?? s.player.squad.find((f) => !xi.includes(f.id))!;
+    const first = xi.map((id, i) => (i === 5 ? sub.id : id));
+    const t = apply(s, { t: 'halftime', day, minute: 30, ids: first });
+    const back = first.map((id) => (id === sub.id ? xi[5] : id));
+    expect(canApply(t, { t: 'halftime', day, minute: 60, ids: back })).toBe(false);
+  });
+});

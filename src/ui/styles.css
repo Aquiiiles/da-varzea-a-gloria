@@ -952,3 +952,38 @@ details.panel.more summary { font: 700 12px/1.2 var(--font-display); letter-spac
 }
 .cs-numbers { grid-template-columns: repeat(auto-fit, minmax(104px, 1fr)); }
 .cs-numbers dt { overflow-wrap: normal; word-break: normal; font-size: 10px; letter-spacing: 0.03em; }
+
+/* escalação: força ao vivo, cansaço de todos, banco por posição */
+.lineup-strength { display: flex; justify-content: space-between; align-items: baseline; background: var(--panel-2); border: 1px solid var(--line); border-radius: 6px; padding: 8px 10px; margin: 6px 0 8px; }
+.lineup-strength b { font: 700 20px var(--font-display); margin-left: 4px; }
+.pitch-row { position: relative; padding-left: 26px; }
+.pitch-row::before { content: attr(data-label); position: absolute; left: 2px; top: 50%; transform: translateY(-50%) rotate(-90deg); font: 700 9px/1 var(--font-display); letter-spacing: 0.12em; color: #ffffff88; }
+.pc-pen { font-style: normal; font-size: 9px; color: var(--bad); margin-left: 2px; }
+.pc-fat { display: flex; align-items: center; gap: 3px; width: 100%; margin-top: 2px; }
+.pc-fat i { display: block; height: 4px; border-radius: 2px; flex: 1; max-width: 100%; }
+.pc-fat small { font-size: 8px; color: var(--muted); min-width: 18px; text-align: right; }
+.pc-fat { background: linear-gradient(90deg, transparent, transparent); }
+.bench-group { display: grid; grid-template-columns: 70px 1fr; gap: 6px; align-items: start; margin-bottom: 6px; padding-bottom: 6px; border-bottom: 1px dashed var(--line); }
+.bench-group .bench { margin-bottom: 0; }
+.bench-label { font: 700 10px/1.2 var(--font-display); text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); padding-top: 10px; }
+.pc-track { flex: 1; height: 4px; border-radius: 2px; background: #ffffff1a; overflow: hidden; }
+.pc-track i { display: block; height: 100%; flex: none; }
+.meeting-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.meeting-list li { display: flex; align-items: center; justify-content: space-between; gap: 10px; background: var(--panel-2); border: 1px solid var(--line); border-radius: 6px; padding: 8px 10px; }
+.meeting-list li div { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.meeting-list small { color: var(--muted); font-size: 12px; }
+.meeting-odds b { font-weight: 700; }
+.meeting-none { border-style: dashed; }
+
+/* posições fáceis de achar: cor por posição, destaque de quem serve na vaga tocada */
+.pcard { border-top-width: 3px; }
+.pcard-GOL { border-top-color: #d4a017; }
+.pcard-DEF { border-top-color: #3d8bdb; }
+.pcard-MEI { border-top-color: #3fae63; }
+.pcard-ATA { border-top-color: #d9434f; }
+.pcard .pc-pos { padding: 1px 4px; border-radius: 3px; }
+.pc-pos.is-off { outline: 1px solid var(--bad); }
+.pcard.is-fit { box-shadow: 0 0 0 2px var(--good); }
+.pcard.is-dim { opacity: 0.35; }
+.bench-label { padding: 4px 6px; border-radius: 4px; text-align: center; align-self: center; }
+.pc-flag { font-weight: 700; text-transform: uppercase; }

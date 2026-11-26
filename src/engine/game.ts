@@ -244,6 +244,8 @@ function startSeason(state: GameState, afterJob = false): void {
       careerWindow(state, false);
     } else careerWindow(state, true);
   }
+  // lista de observação: novidades da janela
+  if (!afterJob) watchAlerts(state);
   // evento extraordinário (raro): na abertura da janela, com clube
   if (!afterJob && !state.career?.unemployed) rollExtraordinary(state);
 }
@@ -380,6 +382,9 @@ function applyAction(state: GameState, a: Action): void {
       p.tactic = a.v;
       return;
     }
+    case 'watch':
+      toggleWatch(state, a.id);
+      return;
     case 'training': {
       if (!career) fail('o treino é com o técnico');
       p.training = a.focus;
@@ -834,6 +839,49 @@ function preview(state: GameState): void {
   live.suspensions = clone.live!.suspensions;
 }
 
+/** Tamanho máximo da lista de observação. */
+export const MAX_WATCH = 20;
+
+/** Marca ou desmarca um jogador de outro clube na lista de observação. */
+function toggleWatch(state: GameState, id: number): void {
+  const list = (state.watch ??= []);
+  const clubs = (state.watchClubs ??= {});
+  if (list.includes(id)) {
+    state.watch = list.filter((x) => x !== id);
+    delete clubs[id];
+    return;
+  }
+  const club = state.clubs.find((c) => c.squad.some((f) => f.id === id));
+  if (!club) fail('jogador não encontrado em outro clube');
+  if (list.length >= MAX_WATCH) fail(`a lista de observação tem no máximo ${MAX_WATCH} jogadores`);
+  list.push(id);
+  clubs[id] = club.id;
+}
+
+/** Abertura da janela: o que mudou com os observados (contrato no fim, perdeu espaço, trocou de clube). */
+function watchAlerts(state: GameState): void {
+  const list = state.watch ?? [];
+  if (list.length === 0) return;
+  const clubs = (state.watchClubs ??= {});
+  const keep: number[] = [];
+  for (const id of list) {
+    const club = state.clubs.find((c) => c.squad.some((f) => f.id === id));
+    const f = club?.squad.find((x) => x.id === id);
+    if (!club || !f) {
+      state.news.push(`OBSERVADO: um jogador da sua lista saiu do radar (aposentou ou foi para o exterior)`);
+      delete clubs[id];
+      continue;
+    }
+    keep.push(id);
+    const before = state.clubs.find((c) => c.id === clubs[id]);
+    if (before && before.id !== club.id) state.news.push(`OBSERVADO: ${f.name} troca o ${before.name} pelo ${club.name}`);
+    clubs[id] = club.id;
+    if (f.contract === 1) state.news.push(`OBSERVADO: ${f.name} (${club.name}) entra no último ano de contrato`);
+    else if (!bestEleven(club.squad).ids.has(f.id)) state.news.push(`OBSERVADO: ${f.name} perdeu espaço no ${club.name} e pode sair mais barato`);
+  }
+  state.watch = keep;
+}
+
 /** Dias entre duas conversas com o mesmo jogador. */
 export const TALK_COOLDOWN = 14;
 
@@ -904,6 +952,10 @@ function midSeason(state: GameState, a: Action): void {
     preview(state);
     return;
   }
+  if (a.t === 'watch') {
+    toggleWatch(state, a.id);
+    return;
+  }
   if (a.t === 'talk') {
     if (!state.career) fail('conversar com o elenco é com o técnico');
     const f = p.squad.find((x) => x.id === a.id);
@@ -944,7 +996,9 @@ function midSeason(state: GameState, a: Action): void {
   }
   if (!WINDOW_ACTIONS.has(a.t)) fail('com a temporada em andamento, só escalação e, em julho, transferências');
   const [open, close] = julyWindow(cal.year);
-  if (day < open || day > close) fail('a janela do meio do ano vai de 1º a 31 de julho');
+  // subir garoto da base não depende de janela (modo técnico)
+  const anytime = !!state.career && a.t === 'promote';
+  if (!anytime && (day < open || day > close)) fail('a janela do meio do ano vai de 1º a 31 de julho');
   const before = new Map(p.squad.map((f) => [f.id, f]));
   state.phase = 'office';
   try {

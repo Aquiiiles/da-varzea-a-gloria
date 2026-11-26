@@ -28,7 +28,7 @@ export { BOARD_INFO, CAREER_END_AGE, CAREER_START_AGE, isCoachMode, starsFor, ti
 export { COACH_LEVELS } from './score';
 export { injuredAt, fatigueAt, suspendedOn, hangingAt, statusAt, statsUpTo, COMP_STATS_KEY, type StatLine } from './calendarView';
 export { MORALE_LOW, MORALE_HIGH, MORALE_START } from './squadplan';
-export { MAX_SUBS, MAX_STOPS, TALK_COOLDOWN } from './game';
+export { MAX_SUBS, MAX_STOPS, TALK_COOLDOWN, MAX_WATCH } from './game';
 export { julyWindow } from './calendar';
 export { FATIGUE_FREE, FATIGUE_REST } from './squadplan';
 export { currentInterview, answered, interviewEffects, type Interview, type InterviewQuestion, type InterviewAnswer } from './interview';

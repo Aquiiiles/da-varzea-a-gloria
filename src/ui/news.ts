@@ -44,6 +44,7 @@ const RULES: [RegExp, NewsCat, boolean][] = [
   [/^MERCADO/, 'mercado', false],
   [/^(TERREMOTO|ZEBRA)/, 'competicoes', true],
   [/^CLÁSSICO/, 'competicoes', true],
+  [/^OBSERVADO/, 'mercado', false],
   [/^DECISÃO/, 'competicoes', true],
 ];
 

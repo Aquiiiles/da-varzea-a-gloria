@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useMemo } from 'react';
-import { SQUAD_MAX, TIERS, agentFee, listingOpen, negotiationFor, squadStrength, type Club, type Footballer, type ListingProfile, type Position, type Tier } from '../../engine';
+import { MAX_WATCH, SQUAD_MAX, TIERS, agentFee, listingOpen, negotiationFor, squadStrength, type Club, type Footballer, type ListingProfile, type Position, type Tier } from '../../engine';
 import { NegotiationPanel } from './Negotiation';
 import { money, monthly, spendable } from '../format';
 import { marketValue } from '../../engine';
@@ -15,7 +15,7 @@ const PROFILE_LABEL: Record<ListingProfile | 'todos', string> = {
   livre: 'Sem clube',
 };
 
-type Mode = 'janela' | 'buscar' | 'clubes';
+type Mode = 'janela' | 'buscar' | 'clubes' | 'observados';
 
 export function MarketTab(props: TabProps) {
   const [mode, setMode] = useState<Mode>('janela');
@@ -27,6 +27,7 @@ export function MarketTab(props: TabProps) {
             ['janela', 'Janela'],
             ['buscar', 'Buscar jogadores'],
             ['clubes', 'Clubes'],
+            ['observados', `Observados${(props.state.watch ?? []).length > 0 ? ` (${props.state.watch!.length})` : ''}`],
           ] as [Mode, string][]
         ).map(([m, label]) => (
           <button key={m} type="button" role="tab" aria-selected={mode === m} className={`seg-btn${mode === m ? ' is-on' : ''}`} onClick={() => setMode(m)}>
@@ -37,6 +38,7 @@ export function MarketTab(props: TabProps) {
       {mode === 'janela' && <WindowMarket {...props} />}
       {mode === 'buscar' && <SearchMarket {...props} />}
       {mode === 'clubes' && <ClubsMarket {...props} />}
+      {mode === 'observados' && <WatchMarket {...props} />}
     </div>
   );
 }
@@ -47,6 +49,7 @@ function ForeignPlayer({ state, dispatch, club, f, open, onToggle }: TabProps & 
   const n = negotiationFor(state, club.id, f.id);
   const base = squadStrength(p.squad);
   const gain = squadStrength([...p.squad, f]) - base;
+  const watched = (state.watch ?? []).includes(f.id);
   return (
     <PlayerLine
       f={f}
@@ -55,6 +58,7 @@ function ForeignPlayer({ state, dispatch, club, f, open, onToggle }: TabProps & 
         <>
           {club.name} ({TIERS[club.tier].short}) · força {gain > 0.05 ? <span className="good">+{gain.toFixed(1)}</span> : <span className="muted">+0</span>}
           {n && <span className="tag-offer">{n.status === 'aceita' ? 'contratado' : 'negociando'}</span>}
+          {watched && <span className="tag-offer tag-watch">observado</span>}
         </>
       }
       aside={
@@ -66,6 +70,9 @@ function ForeignPlayer({ state, dispatch, club, f, open, onToggle }: TabProps & 
       open={open}
       onToggle={onToggle}
     >
+      <button type="button" className={`btn btn-small${watched ? '' : ' btn-watch'}`} onClick={() => dispatch({ t: 'watch', id: f.id })}>
+        {watched ? 'Deixar de observar' : 'Observar este jogador'}
+      </button>
       <NegotiationPanel state={state} dispatch={dispatch} club={club} f={f} />
     </PlayerLine>
   );
@@ -287,5 +294,31 @@ function WindowMarket({ state, dispatch }: TabProps) {
         </ul>
       </Section>
     </div>
+  );
+}
+
+/** Lista de observação: jogadores marcados, com a situação de agora (contrato, espaço no time, clube). */
+function WatchMarket(props: TabProps) {
+  const { state } = props;
+  const [open, setOpen] = useState<number | null>(null);
+  const rows = (state.watch ?? [])
+    .map((id) => {
+      const club = state.clubs.find((c) => c.squad.some((f) => f.id === id));
+      const f = club?.squad.find((x) => x.id === id);
+      return club && f ? { club, f } : null;
+    })
+    .filter((x): x is { club: Club; f: Footballer } => !!x);
+  return (
+    <Section title="Observados" note={`Marque jogadores de outros clubes para acompanhar (até ${MAX_WATCH}). A cada janela chegam avisos no jornal: contrato no fim, perdeu espaço ou trocou de clube.`}>
+      {rows.length === 0 ? (
+        <p className="empty">Ninguém na lista. Abra um jogador em Buscar ou Clubes e toque em "Observar este jogador".</p>
+      ) : (
+        <ul className="pl-list">
+          {rows.map(({ club, f }) => (
+            <ForeignPlayer key={f.id} {...props} club={club} f={f} open={open === f.id} onToggle={() => setOpen(open === f.id ? null : f.id)} />
+          ))}
+        </ul>
+      )}
+    </Section>
   );
 }

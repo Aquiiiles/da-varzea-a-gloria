@@ -14,9 +14,49 @@ export function YouthTab({ state, dispatch, goTo }: TabProps) {
   const [open, setOpen] = useState<number | null>(null);
   const cost = tryoutCost(p.tier);
   const youth = p.youth.slice().sort((a, b) => b.potHi - a.potHi);
+  // técnico: quem já briga por vaga (overall perto do 16º do elenco) e as maiores promessas
+  const bar = p.squad.slice().sort((a, b) => b.ovr - a.ovr)[15]?.ovr ?? 0;
+  const ready = youth.filter((y) => y.ovr >= bar - 2);
+  const gems = youth.filter((y) => !ready.includes(y)).slice(0, 3);
 
   return (
     <div className="tab-stack">
+      {state.career && youth.length > 0 && (
+        <Section title="Promessas" note="Como técnico, você pode subir um garoto a qualquer momento da temporada. Ele entra no elenco e joga a partir do próximo jogo.">
+          <ul className="todos">
+            {ready.map((y) => (
+              <li key={y.id} className="todo todo-good">
+                <div>
+                  <strong>
+                    {y.name} · {y.pos} {y.ovr}
+                  </strong>
+                  <small>
+                    {y.age} anos · POT {y.potLo}–{y.potHi} · pronto para brigar por vaga
+                  </small>
+                </div>
+                <button type="button" className="btn btn-small btn-primary" disabled={p.squad.length >= SQUAD_MAX} onClick={() => dispatch({ t: 'promote', id: y.id })}>
+                  Subir
+                </button>
+              </li>
+            ))}
+            {gems.map((y) => (
+              <li key={y.id} className="todo">
+                <div>
+                  <strong>
+                    {y.name} · {y.pos} {y.ovr}
+                  </strong>
+                  <small>
+                    {y.age} anos · POT {y.potLo}–{y.potHi} · ainda precisa de tempo
+                  </small>
+                </div>
+                <button type="button" className="btn btn-small" disabled={p.squad.length >= SQUAD_MAX} onClick={() => dispatch({ t: 'promote', id: y.id })}>
+                  Subir
+                </button>
+              </li>
+            ))}
+          </ul>
+        </Section>
+      )}
       <Section
         title={`Categorias de base (${p.youth.length}/${YOUTH_MAX})`}
         note={

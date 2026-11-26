@@ -71,6 +71,7 @@ export function encodeAction(a: Action): string {
     case 'lineup': return `L${a.rotate ? 1 : 0}${a.ids ? a.ids.map((id) => `_${id}`).join('') : ''}`;
     case 'precontract': return `Q${a.accept ? 1 : 0}`;
     case 'training': return `N${TRAININGS.indexOf(a.focus)}`;
+    case 'watch': return `W${a.id}`;
     case 'talk': return `K${a.id}_${TALKS.indexOf(a.kind)}`;
     case 'halftime': return `H${a.day}${a.minute !== undefined && a.minute !== 45 ? `m${a.minute}` : ''}_${a.tactic ? TACTIC_LIST.indexOf(a.tactic) : 'n'}${a.ids ? a.ids.map((id) => `_${id}`).join('') : ''}`;
     case 'next': return 'z';
@@ -130,6 +131,7 @@ export function decodeAction(tok: string): Action | null {
       const m = /^(\d{1,3})_(\d)_([012])$/.exec(rest);
       return m ? { t: 'interview', day: Number(m[1]), q: Number(m[2]), a: Number(m[3]) } : null;
     }
+    case 'W': return Number.isNaN(n) || n < 0 ? null : { t: 'watch', id: n };
     case 'N': return n >= 0 && n < TRAININGS.length ? { t: 'training', focus: TRAININGS[n] } : null;
     case 'K': {
       const m = /^(\d{1,7})_([012])$/.exec(rest);

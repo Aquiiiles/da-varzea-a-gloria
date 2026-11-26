@@ -440,6 +440,7 @@ export type Action =
   | { t: 'advance'; to: AdvanceTo } // mostra a temporada até o próximo jogo, semana, mês ou fim
   | { t: 'job'; idx: number } // técnico: aceita uma proposta de emprego
   | { t: 'lineup'; ids: number[] | null; rotate: boolean } // técnico: escalação (null = os melhores)
+  | { t: 'watch'; id: number } // lista de observação: marcar ou desmarcar um jogador de outro clube
   | { t: 'training'; focus: TrainingFocus } // foco do treino (modo técnico)
   | { t: 'talk'; id: number; kind: TalkKind } // conversa com um jogador (modo técnico)
   | { t: 'precontract'; accept: boolean } // proposta no meio da temporada (pré-contrato)
@@ -792,6 +793,10 @@ export interface GameState {
   live?: LiveSeason | null;
   /** temporada do último evento extraordinário */
   lastExtraordinary?: number;
+  /** lista de observação: jogadores de outros clubes que o técnico acompanha */
+  watch?: number[];
+  /** clube de cada observado quando foi visto pela última vez (para avisar quando ele muda) */
+  watchClubs?: Record<number, string>;
   /** técnicos da IA sem clube (demitidos), para a dança dos técnicos */
   freeCoaches?: string[];
   /** dança dos técnicos: as mudanças das últimas temporadas */

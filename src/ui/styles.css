@@ -897,3 +897,6 @@ h3 { font: 700 14px/1.2 var(--font-display); text-transform: uppercase; letter-s
 .ev-lesao { border-left: 3px solid var(--bad); }
 .talk { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 0 0 8px; }
 .talk small { flex-basis: 100%; }
+.tag-watch { background: #6fb3ff; color: #111; }
+.btn-watch { border-color: #6fb3ff; color: #6fb3ff; }
+.seg-modes { grid-template-columns: repeat(4, 1fr); }

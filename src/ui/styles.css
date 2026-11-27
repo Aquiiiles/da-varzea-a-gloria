@@ -1227,3 +1227,24 @@ details.panel.more summary { font: 700 12px/1.2 var(--font-display); letter-spac
 .mt-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .mini-table b { text-align: right; font-variant-numeric: tabular-nums; }
 .brand-live, .stops-btn { white-space: nowrap; }
+
+/* abas do jogo ao vivo: uma coisa de cada vez embaixo do placar */
+.live-tabs { display: flex; gap: 4px; margin: 10px 0 8px; padding: 3px; background: var(--bg); border-radius: 999px; }
+.live-tab { flex: 1; border: 0; background: transparent; border-radius: 999px; padding: 7px 4px; font-size: 13px; font-weight: 700; color: var(--muted); }
+.live-tab.is-on { background: var(--panel-2); color: var(--text); }
+
+/* mexer no time: tela por cima do jogo, com os botões presos embaixo */
+.sheet { position: fixed; inset: 0; z-index: 60; background: var(--bg); overflow-y: auto; overscroll-behavior: contain; padding: 0 16px; }
+.sheet-score { position: sticky; top: 0; z-index: 2; display: grid; grid-template-columns: 1fr auto 1fr; gap: 8px; align-items: center; margin: 0 -16px 12px; padding: 10px 16px; background: #0f1712; border-bottom: 2px solid var(--accent); font: 700 14px/1.1 var(--font-display); text-transform: uppercase; }
+.sheet-score span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sheet-score span:nth-child(3) { text-align: right; }
+.sheet-score b { font-size: 24px; }
+.sheet-score small { grid-column: 1 / -1; text-align: center; color: var(--live); font-size: 12px; }
+.sheet .halftime { max-width: 760px; margin: 0 auto; padding-bottom: 8px; }
+.ht-selects { grid-template-columns: 1fr 1fr; margin-bottom: 8px; }
+.ht-effect { grid-column: 1 / -1; margin: 0; font-size: 13px; }
+.ht-actions { position: sticky; bottom: 0; z-index: 2; display: grid; grid-template-columns: 1fr 1.4fr; gap: 8px; margin: 12px -16px 0; padding: 10px 16px calc(10px + env(safe-area-inset-bottom)); background: linear-gradient(180deg, transparent, var(--bg) 30%); }
+.ht-actions .btn { min-width: 0; }
+.sheet .pens .decision-actions { position: sticky; bottom: 0; margin: 12px -16px 0; padding: 10px 16px; background: var(--bg); }
+.sheet .halftime { border: 0; background: none; box-shadow: none; padding-left: 0; padding-right: 0; }
+.sheet .lineup-strength { margin: 6px 0; }

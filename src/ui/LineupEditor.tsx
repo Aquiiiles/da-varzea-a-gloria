@@ -63,6 +63,8 @@ export interface HalftimeMode {
   /** esquema em campo agora */
   formation?: Formation;
   onConfirm: (ids: number[] | null, tactic: Tactic, formation: Formation) => void;
+  /** voltar ao jogo sem mudar */
+  onCancel?: () => void;
 }
 
 export function LineupEditor({ state, dispatch, halftime, bare }: { state: GameState; dispatch: Dispatch; halftime?: HalftimeMode; bare?: boolean }) {
@@ -240,7 +242,42 @@ export function LineupEditor({ state, dispatch, halftime, bare }: { state: GameS
 
   return (
     <div className="lineup">
-{!bare && (
+{halftime ? (
+        <div className="plan-selects ht-selects">
+          <label>
+            <span>Estratégia</span>
+            <select value={tactic} onChange={(e) => setHtTactic(e.target.value as Tactic)}>
+              {(Object.keys(TACTICS) as Tactic[]).map((t) => (
+                <option key={t} value={t}>
+                  {TACTICS[t].label}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label>
+            <span>Esquema</span>
+            <select
+              value={formation}
+              onChange={(e) => {
+                const f = e.target.value as Formation;
+                // os mesmos em campo, cada um na vaga do esquema novo onde rende mais
+                setHtFormation(f);
+                setSlots(arrange(p.squad, slots.filter((x): x is number => x !== null), f));
+                setHint(null);
+              }}
+            >
+              {FORMATION_LIST.map((f) => (
+                <option key={f} value={f}>
+                  {f}
+                </option>
+              ))}
+            </select>
+          </label>
+          <p className="muted ht-effect">
+            {FORMATION_INFO[formation].text} {TACTICS[tactic].effect}
+          </p>
+        </div>
+      ) : !bare && (
         <>
       <p className="lineup-pos">Estratégia</p>
       <div className="seg tactic-seg">
@@ -280,8 +317,8 @@ export function LineupEditor({ state, dispatch, halftime, bare }: { state: GameS
         <>
         <p className="muted">
           {(halftime.size ?? 11) < 11
-            ? `Com ${halftime.size} em campo. Troque de posição tocando em dois jogadores (ou na vaga vazia) e faça substituições pelo banco. `
-            : 'Arraste quem entra do banco para a vaga de quem sai (ou toque em dois). '}
+            ? `Com ${halftime.size} em campo: toque em dois para trocar (vale a vaga vazia). `
+            : 'Toque em dois para trocar (ou arraste). '}
           {htSubs} de {halftime.maxSubs} substituições.
         </p>
         {hint && <p className="window-alert">{hint}</p>}
@@ -344,14 +381,19 @@ export function LineupEditor({ state, dispatch, halftime, bare }: { state: GameS
       )}
 
       {halftime ? (
-        <div className="actions">
+        <div className="actions ht-actions">
+          {halftime.onCancel && (
+            <button type="button" className="btn" onClick={halftime.onCancel}>
+              Voltar sem mudar
+            </button>
+          )}
           <button
             type="button"
             className="btn btn-primary"
             disabled={filled !== (halftime.size ?? 11) || (htSubs === 0 && tactic === halftime.tactic && formation === htStartFormation && slots.join(',') === initialSlots.join(','))}
             onClick={() => halftime.onConfirm(htSubs > 0 || formation !== htStartFormation || slots.join(',') !== initialSlots.join(',') ? slots.map((x) => x ?? 0) : null, tactic, formation)}
           >
-            Confirmar e voltar ao jogo
+            Confirmar
           </button>
         </div>
       ) : (

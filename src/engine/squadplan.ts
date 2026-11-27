@@ -229,11 +229,11 @@ export class SquadPlan {
   }
 
   /** Força com outro time em campo (mudanças no intervalo), com o cansaço e os desfalques do dia. */
-  strengthWith(day: number, ids: number[]): number {
+  strengthWith(day: number, ids: number[], formation?: Formation): number {
     const plan = this.at(day);
-    const want = new Set(ids);
+    const want = new Set(ids.filter((id) => id !== 0));
     const pool = plan.pool.filter((f) => want.has(f.id) || !plan.xi.some((x) => x.id === f.id));
-    return pickXI(pool, this.lineupAt(day).formation, want, ids, !!this.opts.coach).strength;
+    return pickXI(pool, formation ?? this.lineupAt(day).formation, want, ids, !!this.opts.coach).strength;
   }
 
   /**

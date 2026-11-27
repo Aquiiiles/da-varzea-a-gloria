@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { MAX_STOPS, MAX_SUBS, PERSONALITY_INFO, TIRED_AT, matchStamina, penaltyOrder, personalityOf, liveRatings, staminaAt, type LiveRating, PLAYER_ID, subbedOut, isDecisive, rivalName, STYLE_TACTIC, injuredAt, suspendedOn, tableAfter, type GameState, type LiveEvent, type RoundGame, type RoundView, type Tactic } from '../../engine';
+import { MAX_STOPS, MAX_SUBS, PERSONALITY_INFO, detailOf, TIRED_AT, matchStamina, penaltyOrder, personalityOf, liveRatings, staminaAt, type LiveRating, PLAYER_ID, subbedOut, isDecisive, rivalName, STYLE_TACTIC, injuredAt, suspendedOn, tableAfter, type Formation, type GameState, type LiveEvent, type RoundGame, type RoundView, type Tactic } from '../../engine';
 import type { Dispatch } from '../App';
 import { LineupEditor } from '../LineupEditor';
 import { StandingsTable } from './TableTab';
@@ -66,6 +66,8 @@ export function RoundLive({ state, round, dispatch, onDone, onNext, nextBlocked 
     }
   };
   const [view, setView] = useState<'live' | 'table'>('live');
+  /** o que aparece embaixo do placar (uma coisa de cada vez, sem rolar) */
+  const [tab, setTab] = useState<'lances' | 'stats' | 'notas' | 'rodada'>('lances');
   // pênaltis: as cobranças aparecem uma a uma depois do apito
   const totalKicks = m.events.filter((e) => e.kick !== undefined).length;
   const [kicksShown, setKicksShown] = useState(0);
@@ -100,6 +102,17 @@ export function RoundLive({ state, round, dispatch, onDone, onNext, nextBlocked 
       setStop({ minute: 45, reason: 'Intervalo' });
     }
   }, [minute, canChange, stop, finished, m.events, handled, lastChange, stops]);
+
+  // com a tela de mexer aberta, o fundo não rola; ao fechar, volta para o placar
+  useEffect(() => {
+    if (stop) {
+      document.body.style.overflow = 'hidden';
+      return () => {
+        document.body.style.overflow = '';
+        window.scrollTo({ top: 0, behavior: 'auto' });
+      };
+    }
+  }, [stop]);
 
   // pênaltis: antes da primeira cobrança, o técnico escolhe a ordem
   useEffect(() => {
@@ -226,7 +239,20 @@ export function RoundLive({ state, round, dispatch, onDone, onNext, nextBlocked 
           <div className="sb-clock">{finished ? 'FIM' : paused ? 'PAUSA' : `${minute}'`}</div>
         </div>
         {flash && <div className="goal-flash">{lastGoal!.mine ? 'GOOOOL!' : 'Gol deles...'}</div>}
-        <ol className={`feed feed-short${atHalftime ? ' is-hidden' : ''}`} ref={feedRef}>
+        <div className="live-tabs" role="tablist">
+          {(
+            [
+              ['lances', 'Lances'],
+              ...(round.stats ? [['stats', 'Estatísticas'], ['notas', 'Notas']] : []),
+              ...(others.length > 0 ? [['rodada', 'Rodada']] : []),
+            ] as [typeof tab, string][]
+          ).map(([id, label]) => (
+            <button key={id} type="button" role="tab" aria-selected={tab === id} className={`live-tab${tab === id ? ' is-on' : ''}`} onClick={() => setTab(id)}>
+              {label}
+            </button>
+          ))}
+        </div>
+        <ol className={`feed feed-short${tab !== 'lances' ? ' is-hidden' : ''}`} ref={feedRef}>
           {[...feed].reverse().map((e, i) => (
             <li key={`${e.minute}-${i}-${e.kind}`} className={`ev ev-${e.kind}${e.mine ? ' ev-mine' : ''}`}>
               <span className="ev-min">{e.minute}'</span>
@@ -243,7 +269,7 @@ export function RoundLive({ state, round, dispatch, onDone, onNext, nextBlocked 
         )}
       </section>
 
-      {round.stats && (
+      {round.stats && tab === 'stats' && (
         <LiveStats
           stats={round.stats}
           minute={minute}
@@ -254,11 +280,19 @@ export function RoundLive({ state, round, dispatch, onDone, onNext, nextBlocked 
         />
       )}
 
-      {round.stats && !stop && <Ratings ratings={ratings} stamina={stamina} finished={finished} />}
+      {round.stats && tab === 'notas' && <Ratings ratings={ratings} stamina={stamina} finished={finished} />}
 
-      {stop && stop.reason === 'Pênaltis' && <PenaltyPanel state={state} day={round.day} dispatch={dispatch} onClose={() => setStop(null)} />}
-
-      {stop && stop.reason !== 'Pênaltis' && (
+      {stop && (
+        <div className="sheet" role="dialog" aria-modal="true" aria-label={stop.reason}>
+          <div className="sheet-score">
+            <span>{m.homeName}</span>
+            <b>
+              {score[0]} x {score[1]}
+            </b>
+            <span>{m.awayName}</span>
+            <small>{stop.reason === 'Pênaltis' ? 'Pênaltis' : `${minute}'`}</small>
+          </div>
+          {stop.reason === 'Pênaltis' ? <PenaltyPanel state={state} day={round.day} dispatch={dispatch} onClose={() => setStop(null)} /> : (
         <HalftimePanel
           state={state}
           day={round.day}
@@ -269,9 +303,11 @@ export function RoundLive({ state, round, dispatch, onDone, onNext, nextBlocked 
           stamina={staminaAt(state, round.day, changeAt(stop.minute))}
           ratings={new Map(ratings.map((r) => [r.id, r.rating]))}
         />
+          )}
+        </div>
       )}
 
-      {others.length > 0 && (
+      {others.length > 0 && tab === 'rodada' && (
         <section className="panel">
           <p className="kicker">Outros jogos da rodada</p>
           <ul className="round-games">
@@ -293,11 +329,7 @@ export function RoundLive({ state, round, dispatch, onDone, onNext, nextBlocked 
       )}
 
       <div className="playbar coach-playbar">
-        {atHalftime ? (
-          <button type="button" className="btn" onClick={() => setStop(null)}>
-            Voltar sem mudar
-          </button>
-        ) : !finished ? (
+        {atHalftime ? null : !finished ? (
           <>
             <div className="speed" role="group" aria-label="Velocidade">
               {SPEEDS.map((s, i) => (
@@ -394,24 +426,28 @@ function HalftimePanel({ state, day, minute, reason, dispatch, onClose, stamina,
   for (const i of live.injuries.filter((x) => x.from === day && (x.minute ?? 60) < minute)) reasons.set(i.id, 'machucou');
   for (const c of (live.cards ?? []).filter((x) => x.day === day && x.kind === 'vermelho' && (x.minute ?? 60) < minute)) reasons.set(c.id, 'expulso');
   const out = new Set([...injuredAt(live, day).filter((i) => i.from < day).map((i) => i.id), ...suspendedOn(live, day).map((s) => s.id), ...gone, ...left]);
-  const field = (lastIds ?? original).filter((id) => !out.has(id));
+  const field = (lastIds ?? original).filter((id) => id !== 0 && !out.has(id));
+  // posições de agora: as da última mexida (com a vaga vazia onde estava o expulso)
+  const initial = lastIds && lastIds.length === 11 ? lastIds.map((id) => (id === 0 || out.has(id) ? null : id)) : undefined;
   const used = field.filter((id) => !original.includes(id)).length;
   const lastTactic = before.reduce<Tactic | null>((t, h) => h.tactic ?? t, null);
   const current: Tactic = (lastTactic ?? live.lineups.filter((l) => l.day < day).at(-1)?.tactic ?? p.tactic ?? STYLE_TACTIC[p.coach.style]) as Tactic;
-  const confirm = (ids: number[] | null, tactic: Tactic) => {
-    const ok = dispatch({ t: 'halftime', day, minute, ids, ...(tactic !== current ? { tactic } : {}) });
+  const lastFormation = before.reduce<Formation | null>((f, h) => h.formation ?? f, null);
+  const curFormation: Formation = lastFormation ?? live.lineups.filter((l) => l.day < day).at(-1)?.formation ?? p.coach.formation;
+  const confirm = (ids: number[] | null, tactic: Tactic, formation: Formation) => {
+    const ok = dispatch({ t: 'halftime', day, minute, ids, ...(tactic !== current ? { tactic } : {}), ...(formation !== curFormation ? { formation } : {}) });
     if (ok) onClose();
   };
   const halftime = minute === 45;
   return (
-    <section className="panel halftime">
+    <section className="halftime">
       <p className="kicker">{halftime ? 'Intervalo · vestiário' : `Parada técnica · vale a partir dos ${minute}'`}</p>
       {reason !== 'Intervalo' && reason !== 'Parada técnica' && <p className="window-alert">{reason}</p>}
       <LineupEditor
         key={`${minute}-${field.join(',')}`}
         state={state}
         dispatch={dispatch}
-        halftime={{ firstIds: field, out, reasons, maxSubs: MAX_SUBS - used, tactic: current, size: 11 - reds, onConfirm: confirm, stamina, ratings }}
+        halftime={{ firstIds: field, out, reasons, maxSubs: MAX_SUBS - used, tactic: current, size: 11 - reds, onConfirm: confirm, onCancel: onClose, stamina, ratings, initial, formation: curFormation }}
       />
     </section>
   );
@@ -430,7 +466,7 @@ function PenaltyPanel({ state, day, dispatch, onClose }: { state: GameState; day
     if (dispatch({ t: 'penorder', day, ids })) onClose();
   };
   return (
-    <section className="panel halftime pens">
+    <section className="halftime pens">
       <p className="kicker">Disputa de pênaltis</p>
       <p className="muted">Toque nos {need} batedores na ordem da cobrança. Quem é frio (profissional) e tem qualidade bate melhor; goleiro e temperamental tremem mais.</p>
       <ul className="pen-list">
@@ -443,7 +479,7 @@ function PenaltyPanel({ state, day, dispatch, onClose }: { state: GameState; day
               <li key={f.id}>
                 <button type="button" className={`pen-pick${n >= 0 ? ' is-on' : ''}`} onClick={() => toggle(f.id)}>
                   <span className="pen-n">{n >= 0 ? n + 1 : ''}</span>
-                  <span className={`pc-pos pos-${f.pos}`}>{f.pos}</span>
+                  <span className={`pc-pos pos-${f.pos}`}>{detailOf(f)}</span>
                   <span className="pen-name">
                     {f.name}
                     <small>{PERSONALITY_INFO[personalityOf(f)].label}</small>

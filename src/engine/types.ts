@@ -190,7 +190,7 @@ export type Tactic = 'equilibrado' | 'ofensivo' | 'retranqueiro' | 'contra_ataqu
 export type BusinessId = 'bar' | 'loja' | 'escolinha' | 'estacionamento' | 'foodtruck';
 export type DelegateArea = 'contratos' | 'base' | 'mercado' | 'estadio';
 
-export type Formation = '4-4-2' | '4-3-3' | '3-5-2' | '4-5-1';
+export type Formation = '4-4-2' | '4-3-3' | '3-5-2' | '4-5-1' | '5-3-2' | '5-4-1' | '3-4-3';
 
 export interface Coach {
   name: string;
@@ -462,7 +462,7 @@ export type Action =
   | { t: 'dilemma'; idx: number; choice: number } // notícia com escolha
   | { t: 'talk'; id: number; kind: TalkKind } // conversa com um jogador (modo técnico)
   | { t: 'precontract'; accept: boolean } // proposta no meio da temporada (pré-contrato)
-  | { t: 'halftime'; day: number; minute?: number; ids: number[] | null; tactic?: Tactic } // durante o jogo: substituições e estratégia a partir do minuto
+  | { t: 'halftime'; day: number; minute?: number; ids: number[] | null; tactic?: Tactic; formation?: Formation } // durante o jogo: substituições e estratégia a partir do minuto
   | { t: 'interview'; day: number; q: number; a: number } // entrevista pós-jogo ou coletiva (dia do jogo, pergunta, resposta)
   | { t: 'tactic'; v: Tactic } // técnico: estratégia de jogo
   | { t: 'counter'; idx: number; fee: number } // pede mais por um jogador seu (proposta idx)
@@ -739,6 +739,8 @@ export interface HalftimeChange {
   /** os 11 em campo no 2º tempo (null = os mesmos) */
   ids: number[] | null;
   tactic?: Tactic;
+  /** esquema a partir desse minuto (os ids vêm na ordem das vagas dele) */
+  formation?: Formation;
 }
 
 export interface LineupEntry {

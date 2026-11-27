@@ -1,4 +1,4 @@
-import { bestLineup, traitMods } from './traits';
+import { bestLineup, formationMult, traitMods } from './traits';
 import { captainBoost, freeKickMult, kickAdjust, penaltyOrder, resolveRoles } from './roles';
 import { DEFAULT_SET_PIECES, blockMods, derbyCardFactor, opponentProfile, refCardFactor, refereeFor, setPieceEdge } from './matchday';
 import { referenceTiredness, staminaTimeline, teamTiredness } from './stamina';
@@ -27,6 +27,7 @@ import { renewTarget, renewWage } from './office';
 import { deriveRng, type Rng } from './rng';
 import { clamp } from './util';
 import type {
+  Formation,
   Tactic,
   CalendarMatch, CalendarStage, Club, CoachStyle, CompId, CompResult, CompetitionId, CupMatch, CupRun, Footballer, GameState, LiveMoment, MatchResult, NationalDiv,
   Outcome, SeasonResult, StateDiv, TableRow, Tier,
@@ -233,18 +234,24 @@ export function simulateSeason(state: GameState): SeasonResult {
     // vale a partir da primeira mexida (antes dela o jogo já aconteceu)
     const takeover = mine.length > 0 ? Math.min(...mine.map((c) => c.minute ?? 45)) : Infinity;
     /** quem está em campo no bloco: a última mudança até ali, menos expulsos e machucados */
-    const fieldAt = (b: number): { ids: number[] | null; tactic: Tactic | null; gone: typeof events; field: number[] } => {
+    const fieldAt = (b: number): { ids: number[] | null; tactic: Tactic | null; formation: Formation | null; gone: typeof events; field: number[]; order: number[] | null } => {
       const t = b * BLOCK_MINUTES;
       let ids: number[] | null = null;
       let tactic: Tactic | null = null;
+      let formation: Formation | null = null;
       for (const c of mine) {
         if ((c.minute ?? 45) > t) continue;
         if (c.ids) ids = c.ids;
         if (c.tactic) tactic = c.tactic;
+        if (c.formation) formation = c.formation;
       }
       const gone = events.filter((e) => e.minute < t);
       const out = new Set(gone.map((e) => e.id));
-      return { ids, tactic, gone, field: (ids ?? firstXI).filter((id) => !out.has(id)) };
+      const base = ids ?? firstXI;
+      // expulso vira vaga vazia na posição dele; lesionado sai e o auxiliar põe o melhor do banco
+      const injured = gone.some((e) => e.kind === 'lesao' && base.includes(e.id));
+      const order = !injured && base.length === 11 ? base.map((id) => (out.has(id) ? 0 : id)) : null;
+      return { ids, tactic, formation, gone, field: base.filter((id) => id !== 0 && !out.has(id)), order };
     };
     const players = (ids: number[]) => ids.map((id) => roster.get(id)).filter((f): f is Footballer => !!f);
     const opp = h === PLAYER ? a : h;
@@ -254,15 +261,15 @@ export function simulateSeason(state: GameState): SeasonResult {
     const referee = refereeFor(seed, season, day).profile;
     const spEdge = setPieceEdge(dayPlan.xi);
     const fn = ((b: number, score: [number, number]) => {
-      const { ids, tactic, gone, field } = fieldAt(b);
-      const key = JSON.stringify([ids, tactic, gone.map((e) => e.id)]);
+      const { ids, tactic, formation, gone, field, order } = fieldAt(b);
+      const key = JSON.stringify([ids, tactic, formation, gone.map((e) => e.id)]);
       let st = cache.get(key);
       if (!st) {
-        if (!ids && gone.length === 0) st = { delta: [0, 0], mult: tactic ? multFor(tactic, h, a, base) : first };
+        if (!ids && !formation && gone.length === 0) st = { delta: [0, 0], mult: tactic ? multFor(tactic, h, a, base) : first };
         else {
           const reds = gone.filter((e) => e.kind === 'vermelho').length;
           // machucado: entra o melhor do banco (automático); expulso: o time fica com um a menos
-          const after = plan.strengthWith(day, field) + coachBonus - reds * 3;
+          const after = plan.strengthWith(day, order ?? field, formation ?? undefined) + coachBonus - reds * 3;
           const d = after - base;
           st = { delta: h === PLAYER ? [d, 0] : [0, d], mult: tactic ? multFor(tactic, h, a, after) : first };
         }
@@ -291,8 +298,10 @@ export function simulateSeason(state: GameState): SeasonResult {
       dOpp += mods.delta[1];
       // características de quem está em campo (finalizador, marcador, goleiro de reflexo...)
       const tm = traitMods(players(field), { tactic: tactic ?? baseTactic, profile, corner: setPieces.corner });
-      const fk = freeKickMult(roles.fk, avg) * mods.mult[0] * tm.mine;
-      const om = mods.mult[1] * tm.theirs;
+      // esquema em campo (com a estratégia junto): 5 atrás fecha, 3-4-3 abre
+      const [fGf, fGa] = formationMult(formation ?? plan.lineupAt(day).formation, tactic ?? baseTactic);
+      const fk = freeKickMult(roles.fk, avg) * mods.mult[0] * tm.mine * fGf;
+      const om = mods.mult[1] * tm.theirs * fGa;
       if (Math.abs(d) < 0.005 && Math.abs(dOpp) < 0.005 && fk === 1 && om === 1) return st;
       const delta: [number, number] = h === PLAYER ? [st.delta[0] + d, st.delta[1] + dOpp] : [st.delta[0] + dOpp, st.delta[1] + d];
       const mult: GoalMult = h === PLAYER ? [st.mult[0] * fk, st.mult[1] * om] : [st.mult[0] * om, st.mult[1] * fk];

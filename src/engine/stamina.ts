@@ -56,7 +56,7 @@ export function staminaTimeline(inp: StaminaInput): Map<number, number>[] {
     for (const c of changes) {
       if (c.minute !== t) continue;
       if (c.ids) {
-        field = c.ids.slice();
+        field = c.ids.filter((id) => id !== 0);
         for (const id of field) if (!stamina.has(id)) stamina.set(id, startStamina(inp.pre(id)));
       }
       if (c.tactic) tactic = c.tactic;

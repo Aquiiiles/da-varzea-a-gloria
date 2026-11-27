@@ -126,6 +126,10 @@ export const FORMATIONS: Record<Formation, Record<Position, number>> = {
   '4-3-3': { GOL: 1, DEF: 4, MEI: 3, ATA: 3 },
   '3-5-2': { GOL: 1, DEF: 3, MEI: 5, ATA: 2 },
   '4-5-1': { GOL: 1, DEF: 4, MEI: 5, ATA: 1 },
+  // só no modo técnico
+  '5-3-2': { GOL: 1, DEF: 5, MEI: 3, ATA: 2 },
+  '5-4-1': { GOL: 1, DEF: 5, MEI: 4, ATA: 1 },
+  '3-4-3': { GOL: 1, DEF: 3, MEI: 4, ATA: 3 },
 };
 /** Penalidade de jogar fora de posição. */
 const OUT_OF_POSITION = 8;
@@ -182,11 +186,12 @@ export function lineupStrength(squad: readonly Footballer[], formation: Formatio
   const slots = formationSlots(formation);
   if (ids.length !== slots.length) return null;
   const byId = new Map(squad.map((f) => [f.id, f]));
-  const xi = ids.map((id) => byId.get(id));
-  if (xi.some((f) => !f)) return null;
+  // 0 = vaga vazia (expulsão): conta só quem está em campo
+  const xi = ids.map((id) => (id === 0 ? null : byId.get(id)));
+  if (xi.some((f) => f === undefined) || xi.every((f) => f === null)) return null;
   // posição detalhada: lateral na lateral, volante na volância...
   const details = FORMATION_DETAILS[formation];
-  const ratings = xi.map((f, i) => f!.ovr - slotPenalty(details[i], f!));
+  const ratings = xi.flatMap((f, i) => (f ? [f.ovr - slotPenalty(details[i], f)] : []));
   const mean = ratings.reduce((s, r) => s + r, 0) / ratings.length;
   const used = new Set(ids);
   const bench = squad.filter((f) => !used.has(f.id)).sort((a, b) => b.ovr - a.ovr).slice(0, 7);

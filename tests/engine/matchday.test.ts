@@ -111,3 +111,64 @@ describe('pênaltis ao vivo', () => {
     expect(decodeAction(encodeAction({ t: 'penorder', day, ids }))).toEqual({ t: 'penorder', day, ids });
   });
 });
+
+describe('expulsão: arrumar o time com um a menos', () => {
+  it('aceita a vaga vazia (0) na posição escolhida, o formato antigo de 10 e recusa 11', () => {
+    let s = start(2);
+    const red = (s.live!.cards ?? []).find((c) => c.kind === 'vermelho' && (c.minute ?? 60) < 70)!;
+    expect(red).toBeTruthy();
+    s = until(s, (x) => x.reveal! >= red.day);
+    const day = red.day;
+    const minute = Math.min(85, Math.max(5, Math.ceil(((red.minute ?? 60) + 1) / 5) * 5));
+    const xi = s.live!.elevens.find((e) => e.day === day)!.ids;
+    const ten = xi.filter((id) => id !== red.id);
+    const withHole = xi.map((id) => (id === red.id ? 0 : id)).reverse();
+    expect(canApply(s, { t: 'halftime', day, minute, ids: withHole })).toBe(true);
+    expect(canApply(s, { t: 'halftime', day, minute, ids: ten })).toBe(true);
+    const bench = s.player.squad.find((f) => !xi.includes(f.id))!;
+    expect(canApply(s, { t: 'halftime', day, minute, ids: [...ten, bench.id] })).toBe(false);
+    const t = apply(s, { t: 'halftime', day, minute, ids: withHole });
+    expect(decodeAction(encodeAction({ t: 'halftime', day, minute, ids: withHole }))).toEqual({ t: 'halftime', day, minute, ids: withHole });
+    // o que aconteceu antes da mexida não muda
+    const before = s.calendar!.matches.find((m) => m.day === day)!.blocks!.slice(0, minute / 5);
+    expect(t.calendar!.matches.find((m) => m.day === day)!.blocks!.slice(0, minute / 5)).toEqual(before);
+  });
+});
+
+describe('esquema no meio do jogo', () => {
+  it('troca o esquema no intervalo: vale dali para frente, vai no link e precisa das posições', () => {
+    let s = start(7);
+    s = until(s, (x) => x.calendar!.matches.some((m) => m.day === x.reveal));
+    const day = s.reveal!;
+    const xi = s.live!.elevens.find((e) => e.day === day)!.ids;
+    const a = { t: 'halftime' as const, day, ids: [...xi], formation: '3-5-2' as const };
+    expect(canApply(s, { t: 'halftime', day, minute: 45, ids: null, formation: '3-5-2' })).toBe(false);
+    const t = apply(s, a);
+    expect(t.live!.halftimes!.at(-1)!.formation).toBe('3-5-2');
+    expect(decodeAction(encodeAction(a))).toEqual(a);
+    const before = s.calendar!.matches.find((m) => m.day === day)!.blocks!.slice(0, 9);
+    expect(t.calendar!.matches.find((m) => m.day === day)!.blocks!.slice(0, 9)).toEqual(before);
+    expect(roundOn(t, day)!.changes.at(-1)!.formation).toBe('3-5-2');
+  });
+});
+
+describe('o esquema pesa no resultado', () => {
+  it('5-4-1 fecha (menos gols dos dois lados) e 3-4-3 abre; estratégia que briga com o esquema piora', async () => {
+    const { formationMult } = await import('../../src/engine/traits');
+    expect(formationMult('5-4-1', 'equilibrado')[1]).toBeLessThan(formationMult('4-4-2', 'equilibrado')[1]);
+    expect(formationMult('3-4-3', 'equilibrado')[0]).toBeGreaterThan(formationMult('4-4-2', 'equilibrado')[0]);
+    expect(formationMult('5-4-1', 'ofensivo')[1]).toBeGreaterThan(formationMult('5-4-1', 'equilibrado')[1]);
+    expect(formationMult('5-3-2', 'contra_ataque')[0]).toBeGreaterThan(formationMult('5-3-2', 'equilibrado')[0]);
+    // na temporada: os mesmos jogos com 5-4-1 têm menos gols que com 3-4-3
+    const base = apply(newGame(7, COACH), { t: 'job', idx: 0 });
+    const goals = (f: '5-4-1' | '3-4-3') => {
+      const s = apply(apply(base, { t: 'formation', f }), { t: 'play' });
+      return s.calendar!.matches.reduce((n, m) => n + m.gf + m.ga, 0);
+    };
+    expect(goals('5-4-1')).toBeLessThan(goals('3-4-3'));
+  });
+  it('no modo presidente os esquemas novos não existem', () => {
+    const s = newGame(1, { name: 'Unidos', colors: ['#c8102e', '#ffffff'], origin: 'pub' });
+    expect(canApply(s, { t: 'formation', f: '5-4-1' })).toBe(false);
+  });
+});

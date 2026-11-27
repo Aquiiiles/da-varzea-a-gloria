@@ -1,12 +1,12 @@
 import { useRef, useState, type PointerEvent as ReactPointerEvent } from 'react';
 import {
-  FATIGUE_FREE, FATIGUE_REST, FORMATIONS, FORMATION_DETAILS, TIRED_AT, bestLineup, detailOf, slotPenalty, traitsOf, TRAIT_INFO, DETAIL_GROUP, type Detail, statusAt, STYLE_TACTIC, TACTICS, fatigueAt, injuredAt, lineupStrength, squadStrength, suspendedOn,
+  COACH_FORMATIONS, FORMATION_INFO, FATIGUE_FREE, FATIGUE_REST, FORMATIONS, FORMATION_DETAILS, TIRED_AT, bestLineup, detailOf, slotPenalty, traitsOf, TRAIT_INFO, DETAIL_GROUP, type Detail, statusAt, STYLE_TACTIC, TACTICS, fatigueAt, injuredAt, lineupStrength, squadStrength, suspendedOn,
   type Footballer, type Formation, type GameState, type Position, type Tactic,
 } from '../engine';
 import type { Dispatch } from './App';
 
 const ORDER: Position[] = ['GOL', 'DEF', 'MEI', 'ATA'];
-const FORMATION_LIST: Formation[] = ['4-4-2', '4-3-3', '3-5-2', '4-5-1'];
+const FORMATION_LIST: Formation[] = COACH_FORMATIONS;
 const POS_SHORT: Record<Position, string> = { GOL: 'GOL', DEF: 'ZAG', MEI: 'MEI', ATA: 'ATA' };
 const POS_GROUP: Record<Position, string> = { GOL: 'Goleiros', DEF: 'Defensores', MEI: 'Meio-campo', ATA: 'Ataque' };
 
@@ -54,11 +54,17 @@ export interface HalftimeMode {
   size?: number;
   /** por que cada um de `out` não pode entrar (saiu, expulso, lesionado, suspenso) */
   reasons?: Map<number, string>;
+  /** posições de agora (11 vagas, null = vaga vazia do expulso); sem isso, cada um vai para onde rende mais */
+  initial?: (number | null)[];
   /** fôlego de cada um no minuto (0 a 100) */
   stamina?: Map<number, number>;
   /** nota no jogo até aqui */
   ratings?: Map<number, number>;
-  onConfirm: (ids: number[] | null, tactic: Tactic) => void;
+  /** esquema em campo agora */
+  formation?: Formation;
+  onConfirm: (ids: number[] | null, tactic: Tactic, formation: Formation) => void;
+  /** voltar ao jogo sem mudar */
+  onCancel?: () => void;
 }
 
 export function LineupEditor({ state, dispatch, halftime, bare }: { state: GameState; dispatch: Dispatch; halftime?: HalftimeMode; bare?: boolean }) {
@@ -71,15 +77,21 @@ export function LineupEditor({ state, dispatch, halftime, bare }: { state: GameS
   const suspended = new Set(!halftime && live && nextDay !== undefined ? suspendedOn(live, nextDay).map((s) => s.id) : []);
   const fatigue = live ? fatigueAt(live, day) : {};
   const form = live ? statusAt(live, day).form : {};
-  const formation = p.coach.formation;
+  // no jogo, o esquema muda só aqui (vale quando confirmar)
+  const [htFormation, setHtFormation] = useState<Formation | null>(halftime?.formation ?? null);
+  const formation = htFormation ?? p.coach.formation;
+  const htStartFormation = halftime?.formation ?? p.coach.formation;
   const slotPos = slotsOf(formation);
   const slotDetail = FORMATION_DETAILS[formation];
   const current = p.lineup?.ids ?? null;
   const [slots, setSlots] = useState<(number | null)[]>(() => {
     // escalação salva com os 11 nas vagas: abre exatamente como foi montada
     if (!halftime && current && current.length === slotPos.length && current.every((id) => p.squad.some((f) => f.id === id))) return current.slice();
+    if (halftime?.initial && halftime.initial.length === slotPos.length) return halftime.initial.slice();
     return arrange(p.squad, halftime ? halftime.firstIds : current ?? bestLineup(p.squad, formation), formation);
   });
+  const [initialSlots] = useState(() => slots.slice());
+  const [hint, setHint] = useState<string | null>(null);
   const [htTactic, setHtTactic] = useState<Tactic | null>(halftime?.tactic ?? null);
   const [rotate, setRotate] = useState(p.lineup?.rotate ?? true);
   const [selected, setSelected] = useState<Spot | null>(null);
@@ -109,8 +121,17 @@ export function LineupEditor({ state, dispatch, halftime, bare }: { state: GameS
     if (halftime) {
       // no intervalo: lesionado/suspenso não entra e o limite de substituições vale
       if (next.some((id) => id !== null && halftime.out.has(id))) return;
-      if (next.filter((id) => id !== null && !halftime.firstIds.includes(id)).length > halftime.maxSubs) return;
+      if (next.filter((id) => id !== null && !halftime.firstIds.includes(id)).length > halftime.maxSubs) {
+        setHint(`Limite de substituições: ${halftime.maxSubs}.`);
+        return;
+      }
+      const size = halftime.size ?? 11;
+      if (next.filter((id) => id !== null).length > size) {
+        setHint(`Com ${size} em campo, ${11 - size === 1 ? 'uma vaga fica vazia' : `${11 - size} vagas ficam vazias`}: troque com quem está em campo ou mova a vaga vazia.`);
+        return;
+      }
     }
+    setHint(null);
     setSlots(next);
   };
 
@@ -221,7 +242,42 @@ export function LineupEditor({ state, dispatch, halftime, bare }: { state: GameS
 
   return (
     <div className="lineup">
-{!bare && (
+{halftime ? (
+        <div className="plan-selects ht-selects">
+          <label>
+            <span>Estratégia</span>
+            <select value={tactic} onChange={(e) => setHtTactic(e.target.value as Tactic)}>
+              {(Object.keys(TACTICS) as Tactic[]).map((t) => (
+                <option key={t} value={t}>
+                  {TACTICS[t].label}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label>
+            <span>Esquema</span>
+            <select
+              value={formation}
+              onChange={(e) => {
+                const f = e.target.value as Formation;
+                // os mesmos em campo, cada um na vaga do esquema novo onde rende mais
+                setHtFormation(f);
+                setSlots(arrange(p.squad, slots.filter((x): x is number => x !== null), f));
+                setHint(null);
+              }}
+            >
+              {FORMATION_LIST.map((f) => (
+                <option key={f} value={f}>
+                  {f}
+                </option>
+              ))}
+            </select>
+          </label>
+          <p className="muted ht-effect">
+            {FORMATION_INFO[formation].text} {TACTICS[tactic].effect}
+          </p>
+        </div>
+      ) : !bare && (
         <>
       <p className="lineup-pos">Estratégia</p>
       <div className="seg tactic-seg">
@@ -233,21 +289,40 @@ export function LineupEditor({ state, dispatch, halftime, bare }: { state: GameS
       </div>
       <p className="muted">{TACTICS[tactic].effect}</p>
 
-      {!halftime && <p className="lineup-pos">Esquema</p>}
-      <div className="seg formation-mini" hidden={!!halftime} style={halftime ? { display: 'none' } : undefined}>
+      <p className="lineup-pos">Esquema</p>
+      <div className="seg formation-mini">
         {FORMATION_LIST.map((f) => (
-          <button key={f} type="button" className={`seg-btn${formation === f ? ' is-on' : ''}`} onClick={() => formation !== f && dispatch({ t: 'formation', f })}>
+          <button
+            key={f}
+            type="button"
+            className={`seg-btn${formation === f ? ' is-on' : ''}`}
+            onClick={() => {
+              if (formation === f) return;
+              if (!halftime) return void dispatch({ t: 'formation', f });
+              // no jogo: os mesmos em campo, cada um na vaga do esquema novo onde rende mais
+              setHtFormation(f);
+              setSlots(arrange(p.squad, slots.filter((x): x is number => x !== null), f));
+              setHint(null);
+            }}
+          >
             <strong>{f}</strong>
           </button>
         ))}
       </div>
+      <p className="muted">{FORMATION_INFO[formation].text}</p>
 
         </>
       )}
       {halftime ? (
+        <>
         <p className="muted">
-          Arraste quem entra do banco para a vaga de quem sai (ou toque em dois). {htSubs} de {halftime.maxSubs} substituições.
+          {(halftime.size ?? 11) < 11
+            ? `Com ${halftime.size} em campo: toque em dois para trocar (vale a vaga vazia). `
+            : 'Toque em dois para trocar (ou arraste). '}
+          {htSubs} de {halftime.maxSubs} substituições.
         </p>
+        {hint && <p className="window-alert">{hint}</p>}
+        </>
       ) : (
         <p className="muted">Arraste para a vaga ou toque em dois para trocar · {current ? 'escalação sua' : 'automática'}</p>
       )}
@@ -273,7 +348,7 @@ export function LineupEditor({ state, dispatch, halftime, bare }: { state: GameS
               ) : (
                 <button key={i} type="button" className={`pcard pc-empty${same(selected, spot) ? ' is-sel' : ''}`} data-spot={`slot:${i}`} onClick={() => tap(spot)}>
                   <span className="pc-pos">{slotDetail[i]}</span>
-                  <span className="pc-name">vaga</span>
+                  <span className="pc-name">{halftime && (halftime.size ?? 11) < 11 ? 'vazia' : 'vaga'}</span>
                 </button>
               );
             })}
@@ -306,14 +381,19 @@ export function LineupEditor({ state, dispatch, halftime, bare }: { state: GameS
       )}
 
       {halftime ? (
-        <div className="actions">
+        <div className="actions ht-actions">
+          {halftime.onCancel && (
+            <button type="button" className="btn" onClick={halftime.onCancel}>
+              Voltar sem mudar
+            </button>
+          )}
           <button
             type="button"
             className="btn btn-primary"
-            disabled={filled !== (halftime.size ?? 11) || (htSubs === 0 && tactic === halftime.tactic && filled === halftime.firstIds.length)}
-            onClick={() => halftime.onConfirm(htSubs > 0 ? slots.filter((x): x is number => x !== null) : null, tactic)}
+            disabled={filled !== (halftime.size ?? 11) || (htSubs === 0 && tactic === halftime.tactic && formation === htStartFormation && slots.join(',') === initialSlots.join(','))}
+            onClick={() => halftime.onConfirm(htSubs > 0 || formation !== htStartFormation || slots.join(',') !== initialSlots.join(',') ? slots.map((x) => x ?? 0) : null, tactic, formation)}
           >
-            Confirmar e voltar ao jogo
+            Confirmar
           </button>
         </div>
       ) : (

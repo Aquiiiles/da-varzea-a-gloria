@@ -1,5 +1,5 @@
 import { useState, type ReactNode } from 'react';
-import { BOARD_INFO, DEFAULT_SET_PIECES, START_YEAR, bestEleven, type SetPieces, leadership, resolveRoles, type Footballer, type Roles, STYLE_TACTIC, TACTICS, TRAINING, julyWindow, myPosition, ultimatumStatus, type Formation, type GameState, type Tactic, type TrainingFocus } from '../../engine';
+import { BOARD_INFO, COACH_FORMATIONS, FORMATION_INFO, DEFAULT_SET_PIECES, START_YEAR, bestEleven, type SetPieces, leadership, resolveRoles, type Footballer, type Roles, STYLE_TACTIC, TACTICS, TRAINING, julyWindow, myPosition, ultimatumStatus, type Formation, type GameState, type Tactic, type TrainingFocus } from '../../engine';
 import type { Dispatch } from '../App';
 import { Crest } from '../Crest';
 import { Ticker, tickerItems } from '../Ticker';
@@ -154,7 +154,7 @@ function Prepare({ state, dispatch }: { state: GameState; dispatch: Dispatch }) 
         <label>
           <span>Esquema</span>
           <select value={p.coach.formation} onChange={(e) => dispatch({ t: 'formation', f: e.target.value as Formation })}>
-            {(['4-4-2', '4-3-3', '3-5-2', '4-5-1'] as Formation[]).map((f) => (
+            {COACH_FORMATIONS.map((f) => (
               <option key={f} value={f}>
                 {f}
               </option>
@@ -183,7 +183,7 @@ function Prepare({ state, dispatch }: { state: GameState; dispatch: Dispatch }) 
         </label>
       </div>
       <p className="muted plan-effects">
-        {TACTICS[tactic].effect} {training !== 'equilibrado' ? TRAINING[training].effect : ''}
+        {FORMATION_INFO[p.coach.formation].text} {TACTICS[tactic].effect} {training !== 'equilibrado' ? TRAINING[training].effect : ''}
       </p>
       <LineupEditor key={`${state.reveal}-${JSON.stringify(p.lineup)}-${p.coach.formation}`} state={state} dispatch={dispatch} bare />
       <RolesPicker state={state} dispatch={dispatch} />

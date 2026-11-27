@@ -22,7 +22,7 @@ const ZIB: Record<string, BusinessId> = { b: 'bar', l: 'loja', e: 'escolinha', p
 const DEL: Record<DelegateArea, string> = { contratos: 'c', base: 'b', mercado: 'm', estadio: 'e' };
 const LED: Record<string, DelegateArea> = { c: 'contratos', b: 'base', m: 'mercado', e: 'estadio' };
 
-const FORMS: Formation[] = ['4-4-2', '4-3-3', '3-5-2', '4-5-1'];
+const FORMS: Formation[] = ['4-4-2', '4-3-3', '3-5-2', '4-5-1', '5-3-2', '5-4-1', '3-4-3'];
 
 export interface RunCode {
   seed: number;
@@ -75,7 +75,7 @@ export function encodeAction(a: Action): string {
     case 'roles': return `C${[a.roles.captain, a.roles.pens, a.roles.fk].map((x) => (x == null ? 'n' : x)).join('_')}`;
     case 'watch': return `W${a.id}`;
     case 'talk': return `K${a.id}_${TALKS.indexOf(a.kind)}`;
-    case 'halftime': return `H${a.day}${a.minute !== undefined && a.minute !== 45 ? `m${a.minute}` : ''}_${a.tactic ? TACTIC_LIST.indexOf(a.tactic) : 'n'}${a.ids ? a.ids.map((id) => `_${id}`).join('') : ''}`;
+    case 'halftime': return `H${a.day}${a.minute !== undefined && a.minute !== 45 ? `m${a.minute}` : ''}${a.formation ? `f${FORMS.indexOf(a.formation)}` : ''}_${a.tactic ? TACTIC_LIST.indexOf(a.tactic) : 'n'}${a.ids ? a.ids.map((id) => `_${id}`).join('') : ''}`;
     case 'next': return 'z';
     case 'setpieces': return `B${a.v.corner === 'area' ? 1 : 0}${a.v.marking === 'individual' ? 1 : 0}`;
     case 'penorder': return `O${a.day}${a.ids.map((id) => `_${id}`).join('')}`;
@@ -163,14 +163,16 @@ export function decodeAction(tok: string): Action | null {
     }
     case 'H': {
       const [dayPart, tac, ...ids] = rest.split('_');
-      const dm = /^(\d{1,3})(?:m(\d{1,2}))?$/.exec(dayPart ?? '');
+      const dm = /^(\d{1,3})(?:m(\d{1,2}))?(?:f(\d))?$/.exec(dayPart ?? '');
       if (!dm || !(tac === 'n' || /^\d$/.test(tac ?? ''))) return null;
       const day = dm[1];
       const minute = dm[2] ? Number(dm[2]) : undefined;
+      const formation = dm[3] !== undefined ? FORMS[Number(dm[3])] : undefined;
+      if (dm[3] !== undefined && !formation) return null;
       if (ids.length > 11 || !ids.every((x) => /^\d{1,7}$/.test(x))) return null;
       const t = tac === 'n' ? undefined : TACTIC_LIST[Number(tac)];
       if (tac !== 'n' && !t) return null;
-      return { t: 'halftime', day: Number(day), ...(minute !== undefined ? { minute } : {}), ids: ids.length > 0 ? ids.map(Number) : null, ...(t ? { tactic: t } : {}) };
+      return { t: 'halftime', day: Number(day), ...(minute !== undefined ? { minute } : {}), ids: ids.length > 0 ? ids.map(Number) : null, ...(t ? { tactic: t } : {}), ...(formation ? { formation } : {}) };
     }
     case 'L': {
       const [flag, ...ids] = rest.split('_');

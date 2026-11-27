@@ -1,3 +1,4 @@
+import { FORMATIONS } from './footballers';
 import { DILEMMA_INFO, pendingCourting, pendingDilemmas, planDecisions, resolveDilemma } from './decisions';
 import type { Roles } from './roles';
 import { personalityOf, scoldThreshold } from './personality';
@@ -1014,7 +1015,9 @@ function midSeason(state: GameState, a: Action): void {
     const before = (live.halftimes ?? []).filter((h) => h.day === day);
     if (before.some((h) => (h.minute ?? 45) >= minute)) fail('já houve mudança nesse ponto do jogo');
     if (before.length >= MAX_STOPS) fail(`no máximo ${MAX_STOPS} paradas por jogo`);
-    if (!a.ids && !a.tactic) fail('nenhuma mudança');
+    if (!a.ids && !a.tactic && !a.formation) fail('nenhuma mudança');
+    if (a.formation && !a.ids) fail('troque o esquema junto com as posições');
+    if (a.formation && !(a.formation in FORMATIONS)) fail('esquema inválido');
     if (a.ids) {
       // com expulsão, a vaga do expulso vai como 0 (a posição que fica vazia)
       const holes = a.ids.filter((id) => id === 0).length;
@@ -1040,7 +1043,7 @@ function midSeason(state: GameState, a: Action): void {
       const back = ids.find((id) => left.has(id));
       if (back !== undefined) fail(`${p.squad.find((f) => f.id === back)?.name ?? 'esse jogador'} já saiu do jogo e não pode voltar`);
     }
-    (live.halftimes ??= []).push({ day, minute, ids: a.ids ? [...a.ids] : null, ...(a.tactic ? { tactic: a.tactic } : {}) });
+    (live.halftimes ??= []).push({ day, minute, ids: a.ids ? [...a.ids] : null, ...(a.tactic ? { tactic: a.tactic } : {}), ...(a.formation ? { formation: a.formation } : {}) });
     preview(state);
     return;
   }

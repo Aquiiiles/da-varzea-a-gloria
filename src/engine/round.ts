@@ -45,6 +45,8 @@ export interface MatchChange {
   outs: string[];
   /** nova estratégia (rótulo) */
   tactic: string | null;
+  /** novo esquema */
+  formation: string | null;
 }
 
 /** As mexidas do jogador no jogo do dia, com quem entrou e quem saiu. */
@@ -65,7 +67,7 @@ export function matchChanges(state: GameState, day: number): MatchChange[] {
     const ins = next.filter((id) => !field.includes(id)).map(name);
     const outs = field.filter((id) => !next.includes(id) && !gone.has(id)).map(name);
     field = next;
-    return { minute, ins, outs, tactic: h.tactic ? TACTICS[h.tactic].label : null };
+    return { minute, ins, outs, tactic: h.tactic ? TACTICS[h.tactic].label : null, formation: h.formation ?? null };
   });
 }
 

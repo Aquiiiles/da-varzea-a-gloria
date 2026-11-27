@@ -40,6 +40,7 @@ export function changeEffect(stats: BlockStat[] | null, minute: number): string 
 export function changeText(c: MatchChange): string {
   const parts: string[] = [];
   if (c.ins.length > 0) parts.push(`Substituição: entra ${c.ins.join(', ')}${c.outs.length > 0 ? `, sai ${c.outs.join(', ')}` : ''}.`);
+  if (c.formation) parts.push(`Esquema: ${c.formation}.`);
   if (c.tactic) parts.push(`Estratégia: ${c.tactic}.`);
   return parts.length > 0 ? parts.join(' ') : 'Ajuste no time.';
 }

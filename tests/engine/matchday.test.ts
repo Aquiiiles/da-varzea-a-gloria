@@ -134,3 +134,20 @@ describe('expulsão: arrumar o time com um a menos', () => {
     expect(t.calendar!.matches.find((m) => m.day === day)!.blocks!.slice(0, minute / 5)).toEqual(before);
   });
 });
+
+describe('esquema no meio do jogo', () => {
+  it('troca o esquema no intervalo: vale dali para frente, vai no link e precisa das posições', () => {
+    let s = start(7);
+    s = until(s, (x) => x.calendar!.matches.some((m) => m.day === x.reveal));
+    const day = s.reveal!;
+    const xi = s.live!.elevens.find((e) => e.day === day)!.ids;
+    const a = { t: 'halftime' as const, day, ids: [...xi], formation: '3-5-2' as const };
+    expect(canApply(s, { t: 'halftime', day, minute: 45, ids: null, formation: '3-5-2' })).toBe(false);
+    const t = apply(s, a);
+    expect(t.live!.halftimes!.at(-1)!.formation).toBe('3-5-2');
+    expect(decodeAction(encodeAction(a))).toEqual(a);
+    const before = s.calendar!.matches.find((m) => m.day === day)!.blocks!.slice(0, 9);
+    expect(t.calendar!.matches.find((m) => m.day === day)!.blocks!.slice(0, 9)).toEqual(before);
+    expect(roundOn(t, day)!.changes.at(-1)!.formation).toBe('3-5-2');
+  });
+});

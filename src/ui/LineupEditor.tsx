@@ -60,7 +60,9 @@ export interface HalftimeMode {
   stamina?: Map<number, number>;
   /** nota no jogo até aqui */
   ratings?: Map<number, number>;
-  onConfirm: (ids: number[] | null, tactic: Tactic) => void;
+  /** esquema em campo agora */
+  formation?: Formation;
+  onConfirm: (ids: number[] | null, tactic: Tactic, formation: Formation) => void;
 }
 
 export function LineupEditor({ state, dispatch, halftime, bare }: { state: GameState; dispatch: Dispatch; halftime?: HalftimeMode; bare?: boolean }) {
@@ -73,7 +75,10 @@ export function LineupEditor({ state, dispatch, halftime, bare }: { state: GameS
   const suspended = new Set(!halftime && live && nextDay !== undefined ? suspendedOn(live, nextDay).map((s) => s.id) : []);
   const fatigue = live ? fatigueAt(live, day) : {};
   const form = live ? statusAt(live, day).form : {};
-  const formation = p.coach.formation;
+  // no jogo, o esquema muda só aqui (vale quando confirmar)
+  const [htFormation, setHtFormation] = useState<Formation | null>(halftime?.formation ?? null);
+  const formation = htFormation ?? p.coach.formation;
+  const htStartFormation = halftime?.formation ?? p.coach.formation;
   const slotPos = slotsOf(formation);
   const slotDetail = FORMATION_DETAILS[formation];
   const current = p.lineup?.ids ?? null;
@@ -247,10 +252,22 @@ export function LineupEditor({ state, dispatch, halftime, bare }: { state: GameS
       </div>
       <p className="muted">{TACTICS[tactic].effect}</p>
 
-      {!halftime && <p className="lineup-pos">Esquema</p>}
-      <div className="seg formation-mini" hidden={!!halftime} style={halftime ? { display: 'none' } : undefined}>
+      <p className="lineup-pos">Esquema</p>
+      <div className="seg formation-mini">
         {FORMATION_LIST.map((f) => (
-          <button key={f} type="button" className={`seg-btn${formation === f ? ' is-on' : ''}`} onClick={() => formation !== f && dispatch({ t: 'formation', f })}>
+          <button
+            key={f}
+            type="button"
+            className={`seg-btn${formation === f ? ' is-on' : ''}`}
+            onClick={() => {
+              if (formation === f) return;
+              if (!halftime) return void dispatch({ t: 'formation', f });
+              // no jogo: os mesmos em campo, cada um na vaga do esquema novo onde rende mais
+              setHtFormation(f);
+              setSlots(arrange(p.squad, slots.filter((x): x is number => x !== null), f));
+              setHint(null);
+            }}
+          >
             <strong>{f}</strong>
           </button>
         ))}
@@ -330,8 +347,8 @@ export function LineupEditor({ state, dispatch, halftime, bare }: { state: GameS
           <button
             type="button"
             className="btn btn-primary"
-            disabled={filled !== (halftime.size ?? 11) || (htSubs === 0 && tactic === halftime.tactic && slots.join(',') === initialSlots.join(','))}
-            onClick={() => halftime.onConfirm(htSubs > 0 || slots.join(',') !== initialSlots.join(',') ? slots.map((x) => x ?? 0) : null, tactic)}
+            disabled={filled !== (halftime.size ?? 11) || (htSubs === 0 && tactic === halftime.tactic && formation === htStartFormation && slots.join(',') === initialSlots.join(','))}
+            onClick={() => halftime.onConfirm(htSubs > 0 || formation !== htStartFormation || slots.join(',') !== initialSlots.join(',') ? slots.map((x) => x ?? 0) : null, tactic, formation)}
           >
             Confirmar e voltar ao jogo
           </button>

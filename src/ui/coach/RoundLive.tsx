@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { MAX_STOPS, MAX_SUBS, PERSONALITY_INFO, TIRED_AT, matchStamina, penaltyOrder, personalityOf, liveRatings, staminaAt, type LiveRating, PLAYER_ID, subbedOut, isDecisive, rivalName, STYLE_TACTIC, injuredAt, suspendedOn, tableAfter, type GameState, type LiveEvent, type RoundGame, type RoundView, type Tactic } from '../../engine';
+import { MAX_STOPS, MAX_SUBS, PERSONALITY_INFO, TIRED_AT, matchStamina, penaltyOrder, personalityOf, liveRatings, staminaAt, type LiveRating, PLAYER_ID, subbedOut, isDecisive, rivalName, STYLE_TACTIC, injuredAt, suspendedOn, tableAfter, type Formation, type GameState, type LiveEvent, type RoundGame, type RoundView, type Tactic } from '../../engine';
 import type { Dispatch } from '../App';
 import { LineupEditor } from '../LineupEditor';
 import { StandingsTable } from './TableTab';
@@ -400,8 +400,10 @@ function HalftimePanel({ state, day, minute, reason, dispatch, onClose, stamina,
   const used = field.filter((id) => !original.includes(id)).length;
   const lastTactic = before.reduce<Tactic | null>((t, h) => h.tactic ?? t, null);
   const current: Tactic = (lastTactic ?? live.lineups.filter((l) => l.day < day).at(-1)?.tactic ?? p.tactic ?? STYLE_TACTIC[p.coach.style]) as Tactic;
-  const confirm = (ids: number[] | null, tactic: Tactic) => {
-    const ok = dispatch({ t: 'halftime', day, minute, ids, ...(tactic !== current ? { tactic } : {}) });
+  const lastFormation = before.reduce<Formation | null>((f, h) => h.formation ?? f, null);
+  const curFormation: Formation = lastFormation ?? live.lineups.filter((l) => l.day < day).at(-1)?.formation ?? p.coach.formation;
+  const confirm = (ids: number[] | null, tactic: Tactic, formation: Formation) => {
+    const ok = dispatch({ t: 'halftime', day, minute, ids, ...(tactic !== current ? { tactic } : {}), ...(formation !== curFormation ? { formation } : {}) });
     if (ok) onClose();
   };
   const halftime = minute === 45;
@@ -413,7 +415,7 @@ function HalftimePanel({ state, day, minute, reason, dispatch, onClose, stamina,
         key={`${minute}-${field.join(',')}`}
         state={state}
         dispatch={dispatch}
-        halftime={{ firstIds: field, out, reasons, maxSubs: MAX_SUBS - used, tactic: current, size: 11 - reds, onConfirm: confirm, stamina, ratings, initial }}
+        halftime={{ firstIds: field, out, reasons, maxSubs: MAX_SUBS - used, tactic: current, size: 11 - reds, onConfirm: confirm, stamina, ratings, initial, formation: curFormation }}
       />
     </section>
   );

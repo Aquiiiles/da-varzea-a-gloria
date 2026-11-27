@@ -54,6 +54,8 @@ export interface HalftimeMode {
   size?: number;
   /** por que cada um de `out` não pode entrar (saiu, expulso, lesionado, suspenso) */
   reasons?: Map<number, string>;
+  /** posições de agora (11 vagas, null = vaga vazia do expulso); sem isso, cada um vai para onde rende mais */
+  initial?: (number | null)[];
   /** fôlego de cada um no minuto (0 a 100) */
   stamina?: Map<number, number>;
   /** nota no jogo até aqui */
@@ -78,8 +80,11 @@ export function LineupEditor({ state, dispatch, halftime, bare }: { state: GameS
   const [slots, setSlots] = useState<(number | null)[]>(() => {
     // escalação salva com os 11 nas vagas: abre exatamente como foi montada
     if (!halftime && current && current.length === slotPos.length && current.every((id) => p.squad.some((f) => f.id === id))) return current.slice();
+    if (halftime?.initial && halftime.initial.length === slotPos.length) return halftime.initial.slice();
     return arrange(p.squad, halftime ? halftime.firstIds : current ?? bestLineup(p.squad, formation), formation);
   });
+  const [initialSlots] = useState(() => slots.slice());
+  const [hint, setHint] = useState<string | null>(null);
   const [htTactic, setHtTactic] = useState<Tactic | null>(halftime?.tactic ?? null);
   const [rotate, setRotate] = useState(p.lineup?.rotate ?? true);
   const [selected, setSelected] = useState<Spot | null>(null);
@@ -109,8 +114,17 @@ export function LineupEditor({ state, dispatch, halftime, bare }: { state: GameS
     if (halftime) {
       // no intervalo: lesionado/suspenso não entra e o limite de substituições vale
       if (next.some((id) => id !== null && halftime.out.has(id))) return;
-      if (next.filter((id) => id !== null && !halftime.firstIds.includes(id)).length > halftime.maxSubs) return;
+      if (next.filter((id) => id !== null && !halftime.firstIds.includes(id)).length > halftime.maxSubs) {
+        setHint(`Limite de substituições: ${halftime.maxSubs}.`);
+        return;
+      }
+      const size = halftime.size ?? 11;
+      if (next.filter((id) => id !== null).length > size) {
+        setHint(`Com ${size} em campo, ${11 - size === 1 ? 'uma vaga fica vazia' : `${11 - size} vagas ficam vazias`}: troque com quem está em campo ou mova a vaga vazia.`);
+        return;
+      }
     }
+    setHint(null);
     setSlots(next);
   };
 
@@ -245,9 +259,15 @@ export function LineupEditor({ state, dispatch, halftime, bare }: { state: GameS
         </>
       )}
       {halftime ? (
+        <>
         <p className="muted">
-          Arraste quem entra do banco para a vaga de quem sai (ou toque em dois). {htSubs} de {halftime.maxSubs} substituições.
+          {(halftime.size ?? 11) < 11
+            ? `Com ${halftime.size} em campo. Troque de posição tocando em dois jogadores (ou na vaga vazia) e faça substituições pelo banco. `
+            : 'Arraste quem entra do banco para a vaga de quem sai (ou toque em dois). '}
+          {htSubs} de {halftime.maxSubs} substituições.
         </p>
+        {hint && <p className="window-alert">{hint}</p>}
+        </>
       ) : (
         <p className="muted">Arraste para a vaga ou toque em dois para trocar · {current ? 'escalação sua' : 'automática'}</p>
       )}
@@ -273,7 +293,7 @@ export function LineupEditor({ state, dispatch, halftime, bare }: { state: GameS
               ) : (
                 <button key={i} type="button" className={`pcard pc-empty${same(selected, spot) ? ' is-sel' : ''}`} data-spot={`slot:${i}`} onClick={() => tap(spot)}>
                   <span className="pc-pos">{slotDetail[i]}</span>
-                  <span className="pc-name">vaga</span>
+                  <span className="pc-name">{halftime && (halftime.size ?? 11) < 11 ? 'vazia' : 'vaga'}</span>
                 </button>
               );
             })}
@@ -310,8 +330,8 @@ export function LineupEditor({ state, dispatch, halftime, bare }: { state: GameS
           <button
             type="button"
             className="btn btn-primary"
-            disabled={filled !== (halftime.size ?? 11) || (htSubs === 0 && tactic === halftime.tactic && filled === halftime.firstIds.length)}
-            onClick={() => halftime.onConfirm(htSubs > 0 ? slots.filter((x): x is number => x !== null) : null, tactic)}
+            disabled={filled !== (halftime.size ?? 11) || (htSubs === 0 && tactic === halftime.tactic && slots.join(',') === initialSlots.join(','))}
+            onClick={() => halftime.onConfirm(htSubs > 0 || slots.join(',') !== initialSlots.join(',') ? slots.map((x) => x ?? 0) : null, tactic)}
           >
             Confirmar e voltar ao jogo
           </button>

@@ -61,7 +61,7 @@ export function matchChanges(state: GameState, day: number): MatchChange[] {
       ...live.injuries.filter((i) => i.from === day && (i.minute ?? 60) < minute).map((i) => i.id),
       ...(live.cards ?? []).filter((c) => c.day === day && c.kind === 'vermelho' && (c.minute ?? 60) < minute).map((c) => c.id),
     ]);
-    const next = h.ids ?? field;
+    const next = (h.ids ?? field).filter((id) => id !== 0);
     const ins = next.filter((id) => !field.includes(id)).map(name);
     const outs = field.filter((id) => !next.includes(id) && !gone.has(id)).map(name);
     field = next;

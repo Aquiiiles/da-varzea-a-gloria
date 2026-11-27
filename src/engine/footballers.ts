@@ -182,11 +182,12 @@ export function lineupStrength(squad: readonly Footballer[], formation: Formatio
   const slots = formationSlots(formation);
   if (ids.length !== slots.length) return null;
   const byId = new Map(squad.map((f) => [f.id, f]));
-  const xi = ids.map((id) => byId.get(id));
-  if (xi.some((f) => !f)) return null;
+  // 0 = vaga vazia (expulsão): conta só quem está em campo
+  const xi = ids.map((id) => (id === 0 ? null : byId.get(id)));
+  if (xi.some((f) => f === undefined) || xi.every((f) => f === null)) return null;
   // posição detalhada: lateral na lateral, volante na volância...
   const details = FORMATION_DETAILS[formation];
-  const ratings = xi.map((f, i) => f!.ovr - slotPenalty(details[i], f!));
+  const ratings = xi.flatMap((f, i) => (f ? [f.ovr - slotPenalty(details[i], f)] : []));
   const mean = ratings.reduce((s, r) => s + r, 0) / ratings.length;
   const used = new Set(ids);
   const bench = squad.filter((f) => !used.has(f.id)).sort((a, b) => b.ovr - a.ovr).slice(0, 7);

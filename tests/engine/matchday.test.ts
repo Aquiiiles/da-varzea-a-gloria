@@ -111,3 +111,26 @@ describe('pênaltis ao vivo', () => {
     expect(decodeAction(encodeAction({ t: 'penorder', day, ids }))).toEqual({ t: 'penorder', day, ids });
   });
 });
+
+describe('expulsão: arrumar o time com um a menos', () => {
+  it('aceita a vaga vazia (0) na posição escolhida, o formato antigo de 10 e recusa 11', () => {
+    let s = start(2);
+    const red = (s.live!.cards ?? []).find((c) => c.kind === 'vermelho' && (c.minute ?? 60) < 70)!;
+    expect(red).toBeTruthy();
+    s = until(s, (x) => x.reveal! >= red.day);
+    const day = red.day;
+    const minute = Math.min(85, Math.max(5, Math.ceil(((red.minute ?? 60) + 1) / 5) * 5));
+    const xi = s.live!.elevens.find((e) => e.day === day)!.ids;
+    const ten = xi.filter((id) => id !== red.id);
+    const withHole = xi.map((id) => (id === red.id ? 0 : id)).reverse();
+    expect(canApply(s, { t: 'halftime', day, minute, ids: withHole })).toBe(true);
+    expect(canApply(s, { t: 'halftime', day, minute, ids: ten })).toBe(true);
+    const bench = s.player.squad.find((f) => !xi.includes(f.id))!;
+    expect(canApply(s, { t: 'halftime', day, minute, ids: [...ten, bench.id] })).toBe(false);
+    const t = apply(s, { t: 'halftime', day, minute, ids: withHole });
+    expect(decodeAction(encodeAction({ t: 'halftime', day, minute, ids: withHole }))).toEqual({ t: 'halftime', day, minute, ids: withHole });
+    // o que aconteceu antes da mexida não muda
+    const before = s.calendar!.matches.find((m) => m.day === day)!.blocks!.slice(0, minute / 5);
+    expect(t.calendar!.matches.find((m) => m.day === day)!.blocks!.slice(0, minute / 5)).toEqual(before);
+  });
+});

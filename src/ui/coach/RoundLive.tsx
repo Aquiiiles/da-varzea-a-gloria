@@ -394,7 +394,9 @@ function HalftimePanel({ state, day, minute, reason, dispatch, onClose, stamina,
   for (const i of live.injuries.filter((x) => x.from === day && (x.minute ?? 60) < minute)) reasons.set(i.id, 'machucou');
   for (const c of (live.cards ?? []).filter((x) => x.day === day && x.kind === 'vermelho' && (x.minute ?? 60) < minute)) reasons.set(c.id, 'expulso');
   const out = new Set([...injuredAt(live, day).filter((i) => i.from < day).map((i) => i.id), ...suspendedOn(live, day).map((s) => s.id), ...gone, ...left]);
-  const field = (lastIds ?? original).filter((id) => !out.has(id));
+  const field = (lastIds ?? original).filter((id) => id !== 0 && !out.has(id));
+  // posições de agora: as da última mexida (com a vaga vazia onde estava o expulso)
+  const initial = lastIds && lastIds.length === 11 ? lastIds.map((id) => (id === 0 || out.has(id) ? null : id)) : undefined;
   const used = field.filter((id) => !original.includes(id)).length;
   const lastTactic = before.reduce<Tactic | null>((t, h) => h.tactic ?? t, null);
   const current: Tactic = (lastTactic ?? live.lineups.filter((l) => l.day < day).at(-1)?.tactic ?? p.tactic ?? STYLE_TACTIC[p.coach.style]) as Tactic;
@@ -411,7 +413,7 @@ function HalftimePanel({ state, day, minute, reason, dispatch, onClose, stamina,
         key={`${minute}-${field.join(',')}`}
         state={state}
         dispatch={dispatch}
-        halftime={{ firstIds: field, out, reasons, maxSubs: MAX_SUBS - used, tactic: current, size: 11 - reds, onConfirm: confirm, stamina, ratings }}
+        halftime={{ firstIds: field, out, reasons, maxSubs: MAX_SUBS - used, tactic: current, size: 11 - reds, onConfirm: confirm, stamina, ratings, initial }}
       />
     </section>
   );

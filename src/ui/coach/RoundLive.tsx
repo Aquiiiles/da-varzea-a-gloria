@@ -6,7 +6,20 @@ import { StandingsTable } from './TableTab';
 import { LiveStats, changeEffect, changeText } from './LiveStats';
 
 /** ms por minuto de jogo em cada velocidade */
-const SPEEDS = [{ label: '1x', ms: 110 }, { label: '2x', ms: 55 }, { label: '4x', ms: 25 }];
+const SPEEDS = [{ label: '1x', ms: 110 }, { label: '2x', ms: 55 }, { label: '4x', ms: 25 }, { label: 'Rápido', ms: 6 }];
+
+/** Quando o jogo para sozinho: tudo (intervalo, expulsão, lesão), só o grave (expulsão, lesão, pênaltis) ou nunca. */
+type Stops = 'todas' | 'graves' | 'nenhuma';
+const STOPS_LABEL: Record<Stops, string> = { todas: 'Paradas: todas', graves: 'Paradas: graves', nenhuma: 'Sem paradas' };
+const NEXT_STOPS: Record<Stops, Stops> = { todas: 'graves', graves: 'nenhuma', nenhuma: 'todas' };
+function loadStops(): Stops {
+  try {
+    const v = localStorage.getItem('dvg:paradas');
+    return v === 'graves' || v === 'nenhuma' ? v : 'todas';
+  } catch {
+    return 'todas';
+  }
+}
 
 function scoreAt(g: RoundGame, minute: number): [number, number] {
   let h = 0;
@@ -19,7 +32,7 @@ function scoreAt(g: RoundGame, minute: number): [number, number] {
  * A rodada ao vivo: todos os jogos ao mesmo tempo, com o seu em destaque e a narração.
  * Os placares já existem no motor; aqui o relógio só revela. No fim, a tabela com quem subiu e quem caiu.
  */
-export function RoundLive({ state, round, dispatch, onDone }: { state: GameState; round: RoundView; dispatch: Dispatch; onDone: () => void }) {
+export function RoundLive({ state, round, dispatch, onDone, onNext, nextBlocked }: { state: GameState; round: RoundView; dispatch: Dispatch; onDone: () => void; onNext?: () => void; nextBlocked?: string | null }) {
   const m = round.moment;
   const calMatch = state.calendar?.matches.find((x) => x.day === round.day);
   const derby = !!calMatch && calMatch.opponent === rivalName(state);
@@ -42,6 +55,16 @@ export function RoundLive({ state, round, dispatch, onDone }: { state: GameState
     }
   });
   const [paused, setPaused] = useState(false);
+  const [stops, setStops] = useState<Stops>(loadStops);
+  const cycleStops = () => {
+    const v = NEXT_STOPS[stops];
+    setStops(v);
+    try {
+      localStorage.setItem('dvg:paradas', v);
+    } catch {
+      /* sem armazenamento */
+    }
+  };
   const [view, setView] = useState<'live' | 'table'>('live');
   // pênaltis: as cobranças aparecem uma a uma depois do apito
   const totalKicks = m.events.filter((e) => e.kick !== undefined).length;
@@ -67,26 +90,26 @@ export function RoundLive({ state, round, dispatch, onDone }: { state: GameState
   useEffect(() => {
     if (!canChange || stop || finished) return;
     const alert = m.events.find((e) => e.alert && e.mine && e.minute === minute && !handled.has(`a${e.minute}${e.text}`));
-    if (alert && minute < 85 && lastChange < 85) {
+    if (alert && minute < 85 && lastChange < 85 && stops !== 'nenhuma') {
       setHandled(new Set([...handled, `a${alert.minute}${alert.text}`]));
       setStop({ minute, reason: alert.text });
       return;
     }
-    if (minute === 45 && !handled.has('ht') && lastChange < 45) {
+    if (minute === 45 && !handled.has('ht') && lastChange < 45 && stops === 'todas') {
       setHandled(new Set([...handled, 'ht']));
       setStop({ minute: 45, reason: 'Intervalo' });
     }
-  }, [minute, canChange, stop, finished, m.events, handled, lastChange]);
+  }, [minute, canChange, stop, finished, m.events, handled, lastChange, stops]);
 
   // pênaltis: antes da primeira cobrança, o técnico escolhe a ordem
   useEffect(() => {
-    if (!atEnd || stop || !penPending || handled.has('pens')) return;
+    if (!atEnd || stop || !penPending || handled.has('pens') || stops === 'nenhuma') return;
     setHandled(new Set([...handled, 'pens']));
     setStop({ minute: end, reason: 'Pênaltis' });
   }, [atEnd, stop, penPending, handled, end]);
   useEffect(() => {
     if (!atEnd || stop || kicksShown >= totalKicks) return;
-    if (penPending && !handled.has('pens')) return;
+    if (penPending && !handled.has('pens') && stops !== 'nenhuma') return;
     const t = setTimeout(() => setKicksShown((k) => k + 1), reduced ? 0 : 900);
     return () => clearTimeout(t);
   }, [atEnd, stop, kicksShown, totalKicks, reduced, penPending, handled]);
@@ -159,9 +182,18 @@ export function RoundLive({ state, round, dispatch, onDone }: { state: GameState
           <StandingsTable rows={rows} name={name} zones={round.stage.compName.startsWith('Série') && rows.length >= 16} />
         </section>
         <div className="playbar coach-playbar">
-          <button type="button" className="btn btn-primary" onClick={onDone}>
-            Continuar
+          <button type="button" className="btn" onClick={onDone}>
+            Voltar
           </button>
+          {onNext && !nextBlocked ? (
+            <button type="button" className="btn btn-primary" onClick={onNext}>
+              Próxima rodada
+            </button>
+          ) : (
+            <button type="button" className="btn btn-primary" onClick={onDone}>
+              {nextBlocked ?? 'Continuar'}
+            </button>
+          )}
         </div>
       </div>
     );
@@ -176,6 +208,11 @@ export function RoundLive({ state, round, dispatch, onDone }: { state: GameState
           <span className="live-count">
             {round.comp} · {round.round}
           </span>
+          {canChange && (
+            <button type="button" className="stops-btn" onClick={cycleStops} title="Quando o jogo para sozinho">
+              {STOPS_LABEL[stops]}
+            </button>
+          )}
         </div>
         {m.kind !== 'jogo' && <p className="live-stake">{m.title}. {m.stake}</p>}
         <div className="scoreboard">
@@ -198,6 +235,7 @@ export function RoundLive({ state, round, dispatch, onDone }: { state: GameState
           ))}
         </ol>
         {finished && verdict && <p className={`live-verdict v-${verdict}`}>{verdict === 'win' ? 'VITÓRIA!' : verdict === 'loss' ? 'Derrota.' : 'Empate.'}</p>}
+        {finished && round.stage && <MiniTable state={state} round={round} />}
         {finished && ratings[0] && (
           <p className="mvp">
             Melhor do seu time: {ratings[0].name} ({ratings[0].rating.toFixed(1)})
@@ -282,9 +320,25 @@ export function RoundLive({ state, round, dispatch, onDone }: { state: GameState
             </button>
           </>
         ) : (
-          <button type="button" className="btn btn-primary" onClick={() => (round.stage ? setView('table') : onDone())}>
-            {round.stage ? 'Ver a tabela' : 'Continuar'}
-          </button>
+          <>
+            <button type="button" className="btn" onClick={onDone}>
+              Voltar
+            </button>
+            {round.stage && (
+              <button type="button" className="btn" onClick={() => setView('table')}>
+                Tabela
+              </button>
+            )}
+            {onNext && !nextBlocked ? (
+              <button type="button" className="btn btn-primary" onClick={onNext}>
+                Próxima rodada
+              </button>
+            ) : (
+              <button type="button" className="btn btn-primary" onClick={onDone}>
+                {nextBlocked ?? 'Continuar'}
+              </button>
+            )}
+          </>
         )}
       </div>
     </div>
@@ -409,5 +463,26 @@ function PenaltyPanel({ state, day, dispatch, onClose }: { state: GameState; day
         </button>
       </div>
     </section>
+  );
+}
+
+/** Fim da rodada: a sua posição e os vizinhos de tabela, sem sair da tela. */
+function MiniTable({ state, round }: { state: GameState; round: RoundView }) {
+  const rows = tableAfter(round.stage!, round.day);
+  const i = rows.findIndex((r) => r.clubId === PLAYER_ID);
+  if (i < 0) return null;
+  const from = Math.max(0, Math.min(rows.length - 5, i - 2));
+  const name = (id: string) => (id === PLAYER_ID ? state.player.name : state.calendar?.clubNames[id] ?? id);
+  return (
+    <ol className="mini-table" start={from + 1}>
+      {rows.slice(from, from + 5).map((r) => (
+        <li key={r.clubId} className={r.clubId === PLAYER_ID ? 'is-me' : ''}>
+          <span className="mt-pos">{r.pos}º</span>
+          <span className="mt-name">{name(r.clubId)}</span>
+          {r.delta !== 0 ? <span className={r.delta > 0 ? 'good' : 'bad'}>{r.delta > 0 ? `▲${r.delta}` : `▼${-r.delta}`}</span> : <span />}
+          <b>{r.points}</b>
+        </li>
+      ))}
+    </ol>
   );
 }

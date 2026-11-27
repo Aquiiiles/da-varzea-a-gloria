@@ -1,3 +1,4 @@
+import { traitsOf } from './traits';
 import { REF_INFO, refereeFor } from './matchday';
 import { matchStamina } from './stamina';
 import { personName } from './footballers';
@@ -27,6 +28,11 @@ function fill(tpl: string, p: string, t: string): string {
 }
 
 const SCORE_WEIGHT = { GOL: 0, DEF: 0.5, MEI: 2, ATA: 5 };
+/** Peso de cada um para ser o autor do gol (finalizador e cabeceador fazem mais). */
+const scoreWeight = (f: Footballer) => {
+  const t = traitsOf(f);
+  return SCORE_WEIGHT[f.pos] * Math.pow(1.06, f.ovr - 50) * (t.includes('finalizacao') ? 1.6 : 1) * (t.includes('cabeceio') ? 1.2 : 1);
+};
 
 /**
  * Lances de um jogo já simulado: o placar é o do motor; a narração só distribui os gols no tempo,
@@ -149,7 +155,7 @@ function narrateBlocks(
         // o autor sai de quem estava em campo no bloco
         const field = fieldAt?.(b) ?? [];
         const list = field.length > 0 ? field : squad;
-        const who = list.length > 0 ? rng.weighted(list, (f) => SCORE_WEIGHT[f.pos] * Math.pow(1.06, f.ovr - 50)) : null;
+        const who = list.length > 0 ? rng.weighted(list, scoreWeight) : null;
         events.push({ minute, kind: 'gol', mine, text: fill(rng.pick(GOAL), who?.name ?? 'o camisa 9', ''), ...(who && field.length > 0 ? { who: who.id } : {}) });
       } else events.push({ minute, kind: 'gol', mine, text: fill(rng.pick(GOAL), pick(rng, oppSquad, oppFallback), '') });
     }

@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import type { Effect, Footballer, GameState, Tier } from '../../engine';
+import { DETAIL_LABEL, TRAIT_INFO, detailOf, traitsOf, type Effect, type Footballer, type GameState, type Tier } from '../../engine';
 import { describeEffects, ovrTone, potLabel } from '../format';
 
 export function Chips({ state, effects }: { state: GameState; effects: readonly Effect[] }) {
@@ -34,7 +34,7 @@ export function PlayerLine({ f, tier, badge, meta, aside, open, onToggle, childr
     <li className={`pl${open ? ' is-open' : ''}`}>
       <button type="button" className="pl-main" onClick={onToggle} aria-expanded={open}>
         <span className={`pl-ovr ${ovrTone(f.ovr, tier)}`}>{f.ovr}</span>
-        <span className={`pl-pos pos-${f.pos}`}>{f.pos}</span>
+        <span className={`pl-pos pos-${f.pos}`} title={DETAIL_LABEL[detailOf(f)]}>{detailOf(f)}</span>
         <span className="pl-id">
           <strong>
             {f.name}
@@ -42,7 +42,8 @@ export function PlayerLine({ f, tier, badge, meta, aside, open, onToggle, childr
             {f.homegrown && <em className="pl-badge pl-home" title="Cria da base">BASE</em>}
           </strong>
           <small>
-            {f.age} anos · POT {potLabel(f)} · {meta}
+            {f.age} anos · POT {potLabel(f)}
+            {traitsOf(f).length > 0 ? ` · ${traitsOf(f).map((t) => TRAIT_INFO[t].label).join(', ')}` : ''} · {meta}
           </small>
         </span>
         {aside && <span className="pl-aside">{aside}</span>}

@@ -45,3 +45,4 @@ export { resolveRoles, leadership } from './roles';
 export { OPP_PROFILE_INFO, REF_INFO, DEFAULT_SET_PIECES, opponentProfile, refereeFor, type OppProfile, type RefProfile, type SetPieces } from './matchday';
 export { DILEMMA_INFO, COURTED_OPTIONS, pendingCourting, pendingDilemmas } from './decisions';
 export { penaltyOrder } from './roles';
+export { DETAIL_LABEL, DETAIL_GROUP, FORMATION_DETAILS, TRAIT_INFO, arrangeLineup, bestLineup, detailOf, slotPenalty, traitsOf, type Detail, type Trait } from './traits';

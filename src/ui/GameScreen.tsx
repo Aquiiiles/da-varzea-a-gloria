@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { quickMoment, roundOn, type GameState, type LiveMoment, type SeasonResult } from '../engine';
+import { pendingCourting, pendingDilemmas, quickMoment, roundOn, type GameState, type LiveMoment, type SeasonResult } from '../engine';
 import { CoachShell } from './coach/CoachShell';
 import { RoundLive } from './coach/RoundLive';
 import { CoachSummary, SeasonMoment, bigMoment } from './coach/SeasonEnd';
@@ -116,7 +116,27 @@ export function GameScreen({ state, dispatch, onRestart, onSnapshot, onResume, f
           if (special) setSeen(new Set([...seen, keyOf(state.season, special)]));
           setNarrateDay(null);
         };
-        return <RoundLive key={`rodada-${narrateDay}`} state={state} round={round} dispatch={dispatch} onDone={done} />;
+        // próxima rodada direto, a não ser que algo peça resposta antes
+        const mid = state.career?.midOffer;
+        const blocked = pendingCourting(state)
+          ? 'Ver a proposta pelo craque'
+          : pendingDilemmas(state).length > 0
+            ? 'Responder a notícia'
+            : mid && !mid.answered && state.reveal! <= mid.until
+              ? 'Ver a sondagem'
+              : null;
+        const hasNext = !!state.calendar?.matches.some((x) => x.day > state.reveal!);
+        return (
+          <RoundLive
+            key={`rodada-${narrateDay}`}
+            state={state}
+            round={round}
+            dispatch={dispatch}
+            onDone={done}
+            onNext={hasNext ? () => (done(), playRound()) : undefined}
+            nextBlocked={blocked}
+          />
+        );
       }
     }
     return <CoachShell state={state} dispatch={dispatch} onPlayRound={playRound} onFast={() => setFast(true)} onMenu={onRestart} onSnapshot={onSnapshot} onResume={onResume} />;

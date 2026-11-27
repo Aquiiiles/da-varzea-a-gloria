@@ -1,6 +1,6 @@
 import { useRef, useState, type PointerEvent as ReactPointerEvent } from 'react';
 import {
-  FATIGUE_FREE, FATIGUE_REST, FORMATIONS, TIRED_AT, statusAt, STYLE_TACTIC, TACTICS, bestEleven, fatigueAt, injuredAt, lineupStrength, positionPenalty, squadStrength, suspendedOn,
+  FATIGUE_FREE, FATIGUE_REST, FORMATIONS, FORMATION_DETAILS, TIRED_AT, bestLineup, detailOf, slotPenalty, traitsOf, TRAIT_INFO, DETAIL_GROUP, type Detail, statusAt, STYLE_TACTIC, TACTICS, fatigueAt, injuredAt, lineupStrength, squadStrength, suspendedOn,
   type Footballer, type Formation, type GameState, type Position, type Tactic,
 } from '../engine';
 import type { Dispatch } from './App';
@@ -15,19 +15,20 @@ function slotsOf(formation: Formation): Position[] {
   return ORDER.flatMap((pos) => Array(FORMATIONS[formation][pos]).fill(pos) as Position[]);
 }
 
-/** Distribui os titulares nas vagas, preferindo cada um na sua posição. */
+/** Distribui os titulares nas vagas detalhadas, cada um onde rende mais (com menos de 11, sobra vaga). */
 function arrange(squad: readonly Footballer[], ids: number[], formation: Formation): (number | null)[] {
-  const slots = slotsOf(formation);
+  const slots = FORMATION_DETAILS[formation];
   const chosen = ids.map((id) => squad.find((f) => f.id === id)).filter((f): f is Footballer => !!f);
+  const pairs: { s: number; f: Footballer; v: number }[] = [];
+  for (let s = 0; s < slots.length; s++) for (const f of chosen) pairs.push({ s, f, v: f.ovr - slotPenalty(slots[s], f) });
+  pairs.sort((a, b) => b.v - a.v || a.f.id - b.f.id || a.s - b.s);
   const out: (number | null)[] = slots.map(() => null);
-  const left = chosen.slice().sort((a, b) => b.ovr - a.ovr);
-  slots.forEach((pos, i) => {
-    const k = left.findIndex((f) => f.pos === pos);
-    if (k >= 0) out[i] = left.splice(k, 1)[0].id;
-  });
-  slots.forEach((_, i) => {
-    if (out[i] === null && left.length > 0) out[i] = left.shift()!.id;
-  });
+  const used = new Set<number>();
+  for (const x of pairs) {
+    if (out[x.s] !== null || used.has(x.f.id)) continue;
+    out[x.s] = x.f.id;
+    used.add(x.f.id);
+  }
   return out;
 }
 
@@ -72,11 +73,12 @@ export function LineupEditor({ state, dispatch, halftime, bare }: { state: GameS
   const form = live ? statusAt(live, day).form : {};
   const formation = p.coach.formation;
   const slotPos = slotsOf(formation);
+  const slotDetail = FORMATION_DETAILS[formation];
   const current = p.lineup?.ids ?? null;
   const [slots, setSlots] = useState<(number | null)[]>(() => {
     // escalação salva com os 11 nas vagas: abre exatamente como foi montada
     if (!halftime && current && current.length === slotPos.length && current.every((id) => p.squad.some((f) => f.id === id))) return current.slice();
-    return arrange(p.squad, halftime ? halftime.firstIds : current ?? [...bestEleven(p.squad, formation).ids], formation);
+    return arrange(p.squad, halftime ? halftime.firstIds : current ?? bestLineup(p.squad, formation), formation);
   });
   const [htTactic, setHtTactic] = useState<Tactic | null>(halftime?.tactic ?? null);
   const [rotate, setRotate] = useState(p.lineup?.rotate ?? true);
@@ -92,7 +94,7 @@ export function LineupEditor({ state, dispatch, halftime, bare }: { state: GameS
   // força ao vivo: cada um na vaga em que está (fora de posição rende menos) x o time ideal
   const ids11 = filled === slotPos.length ? slots.map((x) => x!) : null;
   const strength = ids11 ? lineupStrength(p.squad, formation, ids11) : null;
-  const ideal = squadStrength(p.squad, formation);
+  const ideal = lineupStrength(p.squad, formation, bestLineup(p.squad, formation)) ?? squadStrength(p.squad, formation);
 
   /** troca o conteúdo de dois lugares (vaga ↔ vaga, vaga ↔ banco) */
   const swap = (a: Spot, b: Spot) => {
@@ -150,12 +152,14 @@ export function LineupEditor({ state, dispatch, halftime, bare }: { state: GameS
   };
 
   const captainId = p.roles?.captain ?? null;
-  const Card = ({ f, spot, slot }: { f: Footballer; spot: Spot; slot?: Position }) => {
+  const Card = ({ f, spot, slot }: { f: Footballer; spot: Spot; slot?: Detail }) => {
     const tired = fatigue[f.id] ?? 0;
     const susp = suspended.has(f.id);
     const out = injured.has(f.id) || susp;
-    const offPos = slot && slot !== f.pos;
-    const penalty = slot ? positionPenalty(slot, f.pos) : 0;
+    const det = detailOf(f);
+    const offPos = slot && slot !== det;
+    const penalty = slot ? slotPenalty(slot, f) : 0;
+    const traits = traitsOf(f);
     return (
       <button
         type="button"
@@ -167,10 +171,11 @@ export function LineupEditor({ state, dispatch, halftime, bare }: { state: GameS
         onPointerCancel={() => ((start.current = null), setDrag(null))}
       >
         <span className={`pc-pos pos-${f.pos}${offPos ? ' is-off' : ''}`}>
-          {f.pos}
+          {det}
           {penalty > 0 && <em className="pc-pen">-{penalty}</em>}
         </span>
         <span className="pc-name">{f.name.split(' ').slice(-1)[0]}</span>
+        {traits.length > 0 && <span className="pc-traits" title={traits.map((t) => TRAIT_INFO[t].label).join(', ')}>{traits.map((t) => TRAIT_INFO[t].short).join(' ')}</span>}
         {captainId === f.id && <i className="pc-cap" title="Capitão">C</i>}
         <b className="pc-ovr">
           {f.ovr}
@@ -199,14 +204,14 @@ export function LineupEditor({ state, dispatch, halftime, bare }: { state: GameS
   };
 
   /** vaga escolhida (tocada ou arrastada): o banco destaca quem é da posição dela */
-  const wantPos: Position | null = (() => {
+  const wantPos: Detail | null = (() => {
     const s = drag?.from ?? selected;
-    if (s?.kind === 'slot') return slotPos[s.i];
+    if (s?.kind === 'slot') return slotDetail[s.i];
     return null;
   })();
   function fitClass(spot: Spot, f: Footballer): string {
     if (spot.kind !== 'bench' || !wantPos) return '';
-    return f.pos === wantPos ? ' is-fit' : ' is-dim';
+    return detailOf(f) === wantPos ? ' is-fit' : f.pos === DETAIL_GROUP[wantPos] ? '' : ' is-dim';
   }
   const tactic: Tactic = htTactic ?? p.tactic ?? STYLE_TACTIC[p.coach.style];
   const htSubs = halftime ? slots.filter((id) => id !== null && !halftime.firstIds.includes(id)).length : 0;
@@ -264,10 +269,10 @@ export function LineupEditor({ state, dispatch, halftime, bare }: { state: GameS
               const f = id !== null ? byId.get(id) : undefined;
               const spot: Spot = { kind: 'slot', i };
               return f ? (
-                <Card key={i} f={f} spot={spot} slot={slotPos[i]} />
+                <Card key={i} f={f} spot={spot} slot={slotDetail[i]} />
               ) : (
                 <button key={i} type="button" className={`pcard pc-empty${same(selected, spot) ? ' is-sel' : ''}`} data-spot={`slot:${i}`} onClick={() => tap(spot)}>
-                  <span className="pc-pos">{slotPos[i]}</span>
+                  <span className="pc-pos">{slotDetail[i]}</span>
                   <span className="pc-name">vaga</span>
                 </button>
               );
@@ -294,7 +299,7 @@ export function LineupEditor({ state, dispatch, halftime, bare }: { state: GameS
 
       {drag && dragged && (
         <div className="pcard pc-drag" style={{ left: drag.x, top: drag.y }} aria-hidden="true">
-          <span className="pc-pos">{dragged.pos}</span>
+          <span className="pc-pos">{detailOf(dragged)}</span>
           <span className="pc-name">{dragged.name.split(' ').slice(-1)[0]}</span>
           <b className="pc-ovr">{dragged.ovr}</b>
         </div>

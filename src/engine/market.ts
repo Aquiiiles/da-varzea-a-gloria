@@ -37,7 +37,14 @@ export function listingOpen(state: GameState, l: Listing): boolean {
 
 /** A proposta já chegou? (as de última hora só nos últimos dias da janela) */
 export function offerOpen(state: GameState, of: Offer): boolean {
-  if (!of.july) return true;
+  if (!of.july) {
+    // proposta da pré-temporada: com a bola rolando, só dá para responder na janela de julho
+    if (state.phase !== 'season') return true;
+    const d = today(state);
+    if (d === null) return false;
+    const [open, close] = julyWindow(state.calendar!.year);
+    return d >= open && d <= close;
+  }
   const d = today(state);
   if (d === null) return false;
   const [from, to] = deadlineDays(state.calendar!.year);

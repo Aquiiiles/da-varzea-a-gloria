@@ -1,4 +1,5 @@
-import { captainBoost, freeKickMult, penaltyEdge, resolveRoles } from './roles';
+import { captainBoost, freeKickMult, kickAdjust, penaltyOrder, resolveRoles } from './roles';
+import { DEFAULT_SET_PIECES, blockMods, derbyCardFactor, opponentProfile, refCardFactor, refereeFor, setPieceEdge } from './matchday';
 import { referenceTiredness, staminaTimeline, teamTiredness } from './stamina';
 import { personalityOf } from './personality';
 import { SERIE_D_SPOTS, SQUAD_MAX, SQUAD_MIN, START_YEAR, TIERS, YOUTH_AGE_LIMIT, YOUTH_MAX } from '../data/pyramid';
@@ -124,7 +125,20 @@ export function simulateSeason(state: GameState): SeasonResult {
     live?.startSquad ?? p.squad,
     live?.changes ?? [],
     live?.lineups ?? [{ day: -1, ids: p.lineup?.ids ?? null, rotate: p.lineup?.rotate ?? true, formation: p.coach.formation, tactic: p.tactic, training: p.training }],
-    { seed, season, formation: p.coach.formation, medical: p.facilities.medical, fitness: p.staff.fitness, coach: !!state.career, talks: live?.talks },
+    {
+      seed,
+      season,
+      formation: p.coach.formation,
+      medical: p.facilities.medical,
+      fitness: p.staff.fitness,
+      coach: !!state.career,
+      talks: live?.talks,
+      moraleHits: live?.moraleHits,
+      benched: live?.benched,
+      fatigueHits: live?.fatigueHits,
+      // cartões: árbitro do dia e clássico pegado (a 1ª passada já sabe o adversário de cada dia)
+      cardFactor: (day: number) => refCardFactor(refereeFor(seed, season, day).profile) * (pass1Opp.get(day) === p.rivalId ? derbyCardFactor(p.rivalHatred) : 1),
+    },
   );
   const coachBonus = coachEdge(p.coach.rating, p.tier) + moraleEdge(p.coach.morale) + p.formMod + form;
   /** dia do jogo sendo simulado (as competições avisam pela data da rodada) */
@@ -228,6 +242,12 @@ export function simulateSeason(state: GameState): SeasonResult {
       return { ids, tactic, gone, field: (ids ?? firstXI).filter((id) => !out.has(id)) };
     };
     const players = (ids: number[]) => ids.map((id) => roster.get(id)).filter((f): f is Footballer => !!f);
+    const opp = h === PLAYER ? a : h;
+    const profile = opponentProfile(seed, season, nameOf(opp));
+    const baseTactic = plan.lineupAt(day).tactic ?? (state.career ? STYLE_TACTIC[p.coach.style] : null);
+    const setPieces = plan.lineupAt(day).setPieces ?? DEFAULT_SET_PIECES;
+    const referee = refereeFor(seed, season, day).profile;
+    const spEdge = setPieceEdge(dayPlan.xi);
     const fn = ((b: number, score: [number, number]) => {
       const { ids, tactic, gone, field } = fieldAt(b);
       const key = JSON.stringify([ids, tactic, gone.map((e) => e.id)]);
@@ -244,26 +264,46 @@ export function simulateSeason(state: GameState): SeasonResult {
         cache.set(key, st);
       }
       let d = 0;
+      let dOpp = 0;
       if (tl && b * BLOCK_MINUTES >= takeover) d -= teamTiredness(tl[b]) - ref![b];
       // funções: capitão puxa o time quando está perdendo; cobrador de falta bom faz mais gols
       const roles = resolveRoles(players(field), chosen);
       const [mineG, theirG] = h === PLAYER ? score : [score[1], score[0]];
       if (mineG < theirG && roles.captain) d += captainBoost(roles.captain, roles.vice);
-      const fk = freeKickMult(roles.fk, avg);
-      if (Math.abs(d) < 0.005 && fk === 1) return st;
-      const delta: [number, number] = h === PLAYER ? [st.delta[0] + d, st.delta[1]] : [st.delta[0], st.delta[1] + d];
-      const mult: GoalMult = h === PLAYER ? [st.mult[0] * fk, st.mult[1]] : [st.mult[0], st.mult[1] * fk];
+      // jeito do adversário, bola parada, árbitro e torcida
+      const mods = blockMods({
+        block: b,
+        profile,
+        tactic: tactic ?? baseTactic,
+        setPieces,
+        home: h === PLAYER,
+        ref: referee,
+        behind: mineG < theirG,
+        mood: p.mood,
+        setPieceEdge: spEdge,
+      });
+      d += mods.delta[0];
+      dOpp += mods.delta[1];
+      const fk = freeKickMult(roles.fk, avg) * mods.mult[0];
+      const om = mods.mult[1];
+      if (Math.abs(d) < 0.005 && Math.abs(dOpp) < 0.005 && fk === 1 && om === 1) return st;
+      const delta: [number, number] = h === PLAYER ? [st.delta[0] + d, st.delta[1] + dOpp] : [st.delta[0] + dOpp, st.delta[1] + d];
+      const mult: GoalMult = h === PLAYER ? [st.mult[0] * fk, st.mult[1] * om] : [st.mult[0] * om, st.mult[1] * fk];
       return { delta, mult };
     }) as BlockFn;
-    // pênaltis: o batedor em campo no fim do jogo
-    const edge = penaltyEdge(resolveRoles(players(fieldAt(17).field), chosen).pens, avg);
-    fn.pens = h === PLAYER ? [edge, 0] : [0, edge];
+    // pênaltis: a ordem escolhida (ou a do auxiliar) entre quem terminou em campo
+    const kickers = penaltyOrder(players(fieldAt(17).field), chosen, live?.penOrders?.find((x) => x.day === day)?.ids ?? null);
+    kickersByDay.set(day, kickers.map((f) => f.id));
+    const adj = kickers.map((f) => kickAdjust(f, avg));
+    fn.pens = h === PLAYER ? [adj, []] : [[], adj];
     return fn;
   };
   /** placar do 1º tempo dos jogos do jogador, por dia (do ponto de vista dele) */
   const halves = new Map<number, [number, number]>();
   const blocksOf = new Map<number, [number, number][]>();
   const ratesOf = new Map<number, [number, number][]>();
+  const kicksOf = new Map<number, [boolean[], boolean[]]>();
+  const kickersByDay = new Map<number, number[]>();
 
   const capacityAtInspection = p.capacity + p.capacityBuilding;
   const nameOf = (id: string) => (id === PLAYER ? p.name : foreign.get(id)?.name ?? byId.get(id)?.name ?? id);
@@ -293,17 +333,22 @@ export function simulateSeason(state: GameState): SeasonResult {
   if (p.stateDiv) stats.logComps.add(STATE_KEY[p.stateDiv]);
   let pass: 1 | 2 = 1;
   const pass1Days: number[] = [];
+  const pass1Opp = new Map<number, string>();
   const env = (label: CalendarKey, target?: Tier, track?: [CompId, string]): CompEnv & CupEnv => {
     let n = 0;
     return {
       detail:
         pass === 1
           ? (m) => {
-              if (m.home === PLAYER || m.away === PLAYER) pass1Days.push(m.day ?? 0);
+              if (m.home === PLAYER || m.away === PLAYER) {
+                pass1Days.push(m.day ?? 0);
+                pass1Opp.set(m.day ?? 0, m.home === PLAYER ? m.away : m.home);
+              }
             }
           : (m, rng) => {
               if (m.half && (m.home === PLAYER || m.away === PLAYER)) halves.set(m.day ?? 0, m.home === PLAYER ? m.half : [m.half[1], m.half[0]]);
               if (m.blocks && (m.home === PLAYER || m.away === PLAYER)) blocksOf.set(m.day ?? 0, m.home === PLAYER ? m.blocks : m.blocks.map(([x, y]) => [y, x] as [number, number]));
+              if (m.kicks && (m.home === PLAYER || m.away === PLAYER)) kicksOf.set(m.day ?? 0, m.home === PLAYER ? m.kicks : [m.kicks[1], m.kicks[0]]);
               if (m.rates && (m.home === PLAYER || m.away === PLAYER)) ratesOf.set(m.day ?? 0, m.home === PLAYER ? m.rates : m.rates.map(([x, y]) => [y, x] as [number, number]));
               stats.record(label, m, rng);
             },
@@ -501,6 +546,8 @@ export function simulateSeason(state: GameState): SeasonResult {
     p.derby.w += derby.w;
     p.derby.d += derby.d;
     p.derby.l += derby.l;
+    // modo técnico: cada clássico esquenta a rivalidade (mata-mata vale o dobro)
+    if (state.career) p.rivalHatred = clamp(p.rivalHatred + derbyGames.length * 6 + derbyGames.filter((m) => m.winner).length * 6, 0, 100);
   }
 
   // ---------------------- objetivos ----------------------
@@ -550,6 +597,11 @@ export function simulateSeason(state: GameState): SeasonResult {
     if (rt) {
       m.rates = rt;
       m.pre = plan.at(m.day).pre;
+    }
+    const kk = kicksOf.get(m.day);
+    if (kk && m.pens) {
+      m.kicks = kk;
+      m.kickers = kickersByDay.get(m.day);
     }
   }
   if (state.live) {

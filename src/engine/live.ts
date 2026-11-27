@@ -1,3 +1,4 @@
+import { REF_INFO, refereeFor } from './matchday';
 import { matchStamina } from './stamina';
 import { personName } from './footballers';
 import { createRng, deriveRng, hashSeed, type Rng } from './rng';
@@ -41,8 +42,9 @@ export function narrate(
   oppSquad: readonly Footballer[] = [],
   cards?: Incident[],
   fieldAt?: (block: number) => Footballer[],
+  extras?: NarrationExtras,
 ): LiveEvent[] {
-  if (r.blocks) return narrateBlocks(rng0, r, playerHome, homeName, awayName, squad, oppSquad, cards ?? [], fieldAt);
+  if (r.blocks) return narrateBlocks(rng0, r, playerHome, homeName, awayName, squad, oppSquad, cards ?? [], fieldAt, extras);
   const rng = rng0;
   const events: Omit<LiveEvent, 'score'>[] = [];
   const reg = r.reg ?? [r.hg, r.ag];
@@ -126,6 +128,7 @@ function narrateBlocks(
   oppSquad: readonly Footballer[],
   incidents: Incident[],
   fieldAt?: (block: number) => Footballer[],
+  extras?: NarrationExtras,
 ): LiveEvent[] {
   const base = rng0.int(1, 2 ** 30);
   const etSeed = rng0.int(1, 2 ** 30);
@@ -179,15 +182,35 @@ function narrateBlocks(
     const text = c.kind === 'lesao' ? fill(rng.pick(INJURY), c.name, '') : c.kind === 'vermelho' ? fill(rng.pick(RED), c.name, '') : fill(rng.pick(CARD), c.name, '');
     events.push({ minute, kind: c.kind === 'lesao' ? 'lesao' : 'cartao', mine: true, text, ...(c.kind === 'amarelo' ? {} : { alert: true }) });
   }
+  // clima: árbitro, clássico e torcida (sorteio próprio; não mexe no resto da narração)
+  if (extras?.referee) events.push({ minute: 0, kind: 'apito', mine: false, text: `Apita ${extras.referee}.` });
+  if (extras?.derbyHeat !== undefined) {
+    const t = extras.derbyHeat;
+    events.push({ minute: 1, kind: 'chance', mine: false, text: t >= 70 ? 'Clássico pegando fogo: provocação nas arquibancadas e entradas duras desde o começo.' : t >= 40 ? 'Clima de clássico: estádio cheio e muita rivalidade.' : 'Começa o clássico, com respeito dos dois lados.' });
+  }
+  if (extras?.crowd && playerHome) {
+    let h = 0;
+    let a = 0;
+    for (let b = 0; b < blocks.length; b++) {
+      const behind = h < a;
+      if (behind) {
+        const minute = b * 5 + 1 + (base % 4);
+        events.push({ minute, kind: 'chance', mine: extras.crowd === 'empurra', text: extras.crowd === 'empurra' ? 'A torcida canta mais alto e empurra o time para frente!' : 'Vaias na arquibancada. O time sente a pressão.' });
+        break;
+      }
+      h += blocks[b][0];
+      a += blocks[b][1];
+    }
+  }
   events.push({ minute: 0, kind: 'apito', mine: false, text: 'Rola a bola!' });
   events.push({ minute: 45, kind: 'apito', mine: false, text: 'Fim do primeiro tempo.' });
   if (r.extraTime) events.push({ minute: 90, kind: 'apito', mine: false, text: 'Fim do tempo normal. Vamos para a prorrogação!' });
   events.sort((a, b) => a.minute - b.minute || (a.kind === 'apito' ? (a.minute === 45 ? 1 : -1) : b.kind === 'apito' ? (b.minute === 45 ? -1 : 1) : 0));
-  return finish(events, r, playerHome);
+  return finish(events, r, playerHome, extras);
 }
 
 /** Placar acumulado, apito final e pênaltis. */
-function finish(events: Omit<LiveEvent, 'score'>[], r: MatchResult, playerHome: boolean): LiveEvent[] {
+function finish(events: Omit<LiveEvent, 'score'>[], r: MatchResult, playerHome: boolean, extras?: NarrationExtras): LiveEvent[] {
   let h = 0;
   let a = 0;
   const out: LiveEvent[] = events.map((e) => {
@@ -201,12 +224,46 @@ function finish(events: Omit<LiveEvent, 'score'>[], r: MatchResult, playerHome: 
   if (r.pens) {
     const myPens = playerHome ? r.pens[0] : r.pens[1];
     const theirPens = playerHome ? r.pens[1] : r.pens[0];
+    let shown: [number, number] | null = null;
     out.push({ minute: end, kind: 'apito', mine: false, text: 'Empate na prorrogação. Decisão nos pênaltis!', score: [h, a] });
+    // cobrança por cobrança (jogos do técnico): para quando um lado não alcança mais
+    if (r.kicks) {
+      const [hk, ak] = r.kicks;
+      const mineK = playerHome ? hk : ak;
+      const theirK = playerHome ? ak : hk;
+      const myNames = extras?.kickers ?? [];
+      const oppNames = extras?.oppKickers ?? [];
+      let m = 0;
+      let t = 0;
+      let k = 0;
+      let done = false;
+      for (let i = 0; i < mineK.length && !done; i++) {
+        for (const side of [0, 1] as const) {
+          const hit = side === 0 ? mineK[i] : theirK[i];
+          const list = side === 0 ? myNames : oppNames;
+          const name = list.length > 0 ? list[i % list.length] : side === 0 ? 'o batedor' : 'o batedor deles';
+          if (hit) side === 0 ? m++ : t++;
+          out.push({ minute: end, kind: 'penaltis', mine: side === 0, kick: k++, text: hit ? `${name} bate e marca! (${m} x ${t})` : `${side === 0 ? `${name} perde!` : `${name} para no goleiro!`} (${m} x ${t})`, score: [h, a] });
+          if (i < 5) {
+            // quem está atrás ainda alcança com as cobranças que restam?
+            const remM = 4 - i;
+            const remT = side === 0 ? 5 - i : 4 - i;
+            if (m > t + remT || t > m + remM) {
+              done = true;
+              break;
+            }
+          } else if (side === 1 && m !== t) done = true;
+        }
+      }
+      // placar da disputa como foi narrado (o motor bate as 5 de qualquer jeito)
+      shown = [m, t];
+    }
+    const [fm, ft] = shown ?? [myPens, theirPens];
     out.push({
       minute: end,
       kind: 'penaltis',
       mine: myPens > theirPens,
-      text: myPens > theirPens ? `CLASSIFICADO NOS PÊNALTIS! ${myPens} a ${theirPens}!` : `Eliminado nos pênaltis: ${myPens} a ${theirPens}.`,
+      text: myPens > theirPens ? `CLASSIFICADO NOS PÊNALTIS! ${fm} a ${ft}!` : `Eliminado nos pênaltis: ${fm} a ${ft}.`,
       score: [h, a],
     });
   } else {
@@ -227,12 +284,13 @@ export function moment(
   oppSquad: (id: string) => readonly Footballer[] = () => [],
   cards?: Incident[],
   fieldAt?: (block: number) => Footballer[],
+  extras?: NarrationExtras,
 ): LiveMoment {
   const playerHome = r.home === playerId;
   const homeName = name(r.home);
   const awayName = name(r.away);
   const opp = playerHome ? r.away : r.home;
-  return { kind, title, stake, homeName, awayName, playerHome, result: r, events: narrate(rng, r, playerHome, homeName, awayName, squad, oppSquad(opp), cards, fieldAt) };
+  return { kind, title, stake, homeName, awayName, playerHome, result: r, events: narrate(rng, r, playerHome, homeName, awayName, squad, oppSquad(opp), cards, fieldAt, extras) };
 }
 
 /**
@@ -260,7 +318,22 @@ export function quickMoment(state: GameState, m: CalendarMatch): LiveMoment {
   const tl = matchStamina(state, m.day);
   const byId = new Map(p.squad.map((f) => [f.id, f]));
   const fieldAt = tl ? (b: number) => [...(tl[b]?.keys() ?? [])].map((id) => byId.get(id)).filter((f): f is Footballer => !!f) : undefined;
-  const mo = moment(deriveRng(state.seed, state.season, 'narra', m.day), 'jogo', `${m.comp} · ${m.round}`, m.home ? 'Em casa.' : 'Fora de casa.', r, 'player', name, p.squad, () => club?.squad ?? [], cards, fieldAt);
+  if (m.kicks) r.kicks = m.home ? m.kicks : [m.kicks[1], m.kicks[0]];
+  const extras: NarrationExtras | undefined = state.career
+    ? (() => {
+        const ref = refereeFor(state.seed, state.season, m.day);
+        const derby = club?.id === p.rivalId;
+        const last = (f: { name: string }) => f.name.split(' ').slice(-1)[0];
+        return {
+          referee: `${ref.name}${ref.profile !== 'normal' ? ` (${REF_INFO[ref.profile].label.toLowerCase()})` : ''}`,
+          ...(derby ? { derbyHeat: p.rivalHatred } : {}),
+          crowd: m.home ? (p.mood >= 60 ? 'empurra' : p.mood < 30 ? 'vaia' : null) : null,
+          kickers: (m.kickers ?? []).map((id) => byId.get(id)).filter((f): f is Footballer => !!f).map(last),
+          oppKickers: (club?.squad ?? []).filter((f) => f.pos !== 'GOL').sort((x, y) => y.ovr - x.ovr).map(last),
+        };
+      })()
+    : undefined;
+  const mo = moment(deriveRng(state.seed, state.season, 'narra', m.day), 'jogo', `${m.comp} · ${m.round}`, m.home ? 'Em casa.' : 'Fora de casa.', r, 'player', name, p.squad, () => club?.squad ?? [], cards, fieldAt, extras);
   mo.day = m.day;
   return mo;
 }
@@ -303,4 +376,16 @@ export function blockStats(r: MatchResult, playerHome: boolean, seed: number): B
     const flow = Math.round((press * 0.5 + shotShare * 0.5) * 1000) / 1000;
     return { poss, shots: [sm, so], onTarget: [target(gm, sm), target(go, so)], press, flow };
   });
+}
+
+/** Clima do jogo para a narração (modo técnico). */
+export interface NarrationExtras {
+  referee?: string;
+  /** tensão do clássico (0 a 100), só em clássico */
+  derbyHeat?: number;
+  /** em casa, perdendo: a torcida empurra ou vaia */
+  crowd?: 'empurra' | 'vaia' | null;
+  /** nomes dos seus batedores, na ordem */
+  kickers?: string[];
+  oppKickers?: string[];
 }

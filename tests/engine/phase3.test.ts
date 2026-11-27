@@ -73,7 +73,9 @@ describe('entrevistas e coletivas', () => {
     if ((fxA.board ?? 0) !== (fxB.board ?? 0) && !a.career!.unemployed && !b.career!.unemployed) {
       expect(Math.sign(a.career!.board.confidence - b.career!.board.confidence)).toBe(Math.sign((fxA.board ?? 0) - (fxB.board ?? 0)));
     }
-    expect(a.history.at(-1)!.headlines).toEqual(b.history.at(-1)!.headlines.filter(() => true)); // mesmos jogos e manchetes
+    // mesmos jogos e manchetes (a cobrança da diretoria depende da confiança, que a resposta muda)
+    const games = (x: GameState) => x.history.at(-1)!.headlines.filter((h) => !h.startsWith('Cadeira balança'));
+    expect(games(a)).toEqual(games(b));
   });
 
   it('pular não registra nada; a entrevista vai no link e o replay bate', () => {

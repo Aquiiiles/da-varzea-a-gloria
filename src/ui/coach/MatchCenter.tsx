@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import {
-  START_YEAR, STYLE_TACTIC, TACTICS, TRAINING, YOUTH_AGE_LIMIT, hangingAt, injuredAt, isDecisive, julyWindow, moodLabel, nextMatchAfter, offerOpen,
+  COURTED_OPTIONS, DILEMMA_INFO, OPP_PROFILE_INFO, REF_INFO, opponentProfile, pendingCourting, pendingDilemmas, refereeFor, START_YEAR, STYLE_TACTIC, TACTICS, TRAINING, YOUTH_AGE_LIMIT, hangingAt, injuredAt, isDecisive, julyWindow, moodLabel, nextMatchAfter, offerOpen,
   opponentInfo, outcomeOf, playedMatches, rivalName, suspendedOn, teamStrength, ultimatumStatus, weekdayOf,
   type GameState,
 } from '../../engine';
@@ -189,6 +189,8 @@ function Matchday({ state, dispatch, go, onPlayRound }: Props) {
         </ul>
       )}
 
+      <Decisions state={state} dispatch={dispatch} />
+
       {showMid && (
         <section className="panel">
           <p className="kicker">Sondagem para o ano que vem</p>
@@ -229,6 +231,7 @@ function Matchday({ state, dispatch, go, onPlayRound }: Props) {
               {hanging.length > 0 && <span className="warnc"> · Pendurados: {hanging.map((h) => h.name.split(' ').slice(-1)[0]).join(', ')}</span>}
             </p>
           )}
+          <Scouting state={state} day={next.day} opponent={next.opponent} derby={derby} />
           <PlanLine state={state} go={go} />
           {stopsAtWindow && <p className="muted">Antes desse jogo abre a janela de julho.</p>}
         </section>
@@ -273,6 +276,78 @@ function Matchday({ state, dispatch, go, onPlayRound }: Props) {
         </button>
       </div>
     </div>
+  );
+}
+
+/** O que o auxiliar sabe do jogo: como o adversário joga, o árbitro e, no clássico, a temperatura. */
+function Scouting({ state, day, opponent, derby }: { state: GameState; day: number; opponent: string; derby: boolean }) {
+  const prof = OPP_PROFILE_INFO[opponentProfile(state.seed, state.season, opponent)];
+  const ref = refereeFor(state.seed, state.season, day);
+  const heat = state.player.rivalHatred;
+  return (
+    <div className="scout">
+      <p>
+        <span className="scout-k">Leitura do auxiliar</span>
+        <b>{prof.label}.</b> {prof.tip}
+      </p>
+      <p>
+        <span className="scout-k">Árbitro</span>
+        {ref.name} · <b className={ref.profile === 'rigoroso' ? 'warnc' : ''}>{REF_INFO[ref.profile].label}</b>
+        {ref.profile !== 'normal' ? ` · ${REF_INFO[ref.profile].text}` : ''}
+      </p>
+      {derby && (
+        <div className="scout-heat">
+          <span className="scout-k">Tensão do clássico</span>
+          <div className="meter">
+            <span className="meter-fill" style={{ width: `${Math.max(4, heat)}%`, background: heat >= 70 ? 'var(--live)' : heat >= 40 ? 'var(--warn)' : 'var(--good)' }} />
+          </div>
+          <small className="muted">{heat >= 70 ? 'Pegando fogo: mais cartões, e o resultado pesa muito na diretoria.' : heat >= 40 ? 'Clima quente.' : 'Rivalidade morna.'}</small>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** Decisões fora de campo: clube grande atrás do craque e notícias que pedem resposta. */
+function Decisions({ state, dispatch }: { state: GameState; dispatch: Dispatch }) {
+  const court = pendingCourting(state);
+  const dilemmas = pendingDilemmas(state);
+  if (!court && dilemmas.length === 0) return null;
+  return (
+    <>
+      {court && (
+        <section className="panel decision">
+          <p className="kicker kicker-alert">Assédio</p>
+          <h3 className="decision-title">
+            {court.club} quer {court.name} e oferece {money(court.fee)}
+          </h3>
+          <p className="muted">
+            Segurar deixa o jogador chateado (o ambicioso mais, o leal quase nada). Vender agora dá dinheiro e enfraquece o time. Dar aumento custa salário, mas o
+            mantém feliz.
+          </p>
+          <div className="decision-actions">
+            {COURTED_OPTIONS.map((label, i) => (
+              <button key={label} type="button" className={`btn${i === 0 ? ' btn-primary' : ''}`} onClick={() => dispatch({ t: 'courted', choice: i as 0 | 1 | 2 })}>
+                {label}
+              </button>
+            ))}
+          </div>
+        </section>
+      )}
+      {dilemmas.map(({ d, idx }) => (
+        <section key={idx} className="panel decision">
+          <p className="kicker">Gazeta da Bola · pede resposta</p>
+          <h3 className="decision-title">{DILEMMA_INFO[d.kind].title(d.name ?? '')}</h3>
+          <div className="decision-actions">
+            {DILEMMA_INFO[d.kind].options.map((label, i) => (
+              <button key={label} type="button" className="btn" onClick={() => dispatch({ t: 'dilemma', idx, choice: i })}>
+                {label}
+              </button>
+            ))}
+          </div>
+        </section>
+      ))}
+    </>
   );
 }
 

@@ -1,3 +1,4 @@
+import { DILEMMA_INFO, pendingCourting, pendingDilemmas, planDecisions, resolveDilemma } from './decisions';
 import type { Roles } from './roles';
 import { personalityOf, scoldThreshold } from './personality';
 import { EVENTS, EVENT_CHANCE } from '../data/events';
@@ -387,6 +388,11 @@ function applyAction(state: GameState, a: Action): void {
     case 'watch':
       toggleWatch(state, a.id);
       return;
+    case 'setpieces': {
+      if (!career) fail('a bola parada é com o técnico');
+      p.setPieces = { ...a.v };
+      return;
+    }
     case 'roles': {
       if (!career) fail('as funções são com o técnico');
       setRoles(p, a.roles);
@@ -775,7 +781,7 @@ function applyAction(state: GameState, a: Action): void {
       state.live = {
         startSquad: structuredClone(p.squad),
         changes: [],
-        lineups: [{ day: -1, ids: p.lineup?.ids ?? null, rotate: p.lineup?.rotate ?? true, formation: p.coach.formation, tactic: p.tactic, training: p.training, ...(p.roles ? { roles: { ...p.roles } } : {}) }],
+        lineups: [{ day: -1, ids: p.lineup?.ids ?? null, rotate: p.lineup?.rotate ?? true, formation: p.coach.formation, tactic: p.tactic, training: p.training, ...(p.roles ? { roles: { ...p.roles } } : {}), ...(p.setPieces ? { setPieces: { ...p.setPieces } } : {}) }],
         moments: [],
         injuries: [],
         fatigue: [],
@@ -784,6 +790,7 @@ function applyAction(state: GameState, a: Action): void {
       preview(state);
       state.reveal = state.calendar ? state.calendar.start : null;
       state.phase = 'season';
+      planDecisions(state);
       return;
     }
   }
@@ -949,6 +956,56 @@ function midSeason(state: GameState, a: Action): void {
     answerMidOffer(state, a.accept);
     return;
   }
+  if (a.t === 'penorder') {
+    if (!state.career) fail('os pênaltis são com o técnico');
+    const m = cal.matches.find((x) => x.day === a.day);
+    if (a.day !== day || !m) fail('só durante o jogo de hoje');
+    if (!m.pens) fail('esse jogo não foi para os pênaltis');
+    if ((live.penOrders ?? []).some((x) => x.day === day)) fail('a ordem dos pênaltis já foi escolhida');
+    const ids = [...new Set(a.ids)];
+    if (ids.length !== a.ids.length || ids.length < 1 || ids.length > 11 || !ids.every((id) => p.squad.some((f) => f.id === id))) fail('ordem de batedores inválida');
+    (live.penOrders ??= []).push({ day, ids });
+    preview(state);
+    return;
+  }
+  if (a.t === 'courted') {
+    if (!state.career) fail('só no modo técnico');
+    const c = pendingCourting(state);
+    if (!c) fail('não há proposta pelo seu craque agora');
+    const f = p.squad.find((x) => x.id === c.playerId)!;
+    const jeito = personalityOf(f);
+    const career = state.career;
+    if (a.choice === 0) {
+      (live.moraleHits ??= []).push({ day, id: f.id, delta: jeito === 'ambicioso' ? -25 : jeito === 'leal' ? -5 : -15 });
+      career.board.confidence = Math.min(100, career.board.confidence + 3);
+      state.news.push(`${career.name} segura ${f.name}: "não está à venda". O ${c.club} sai de mãos vazias`);
+    } else if (a.choice === 1) {
+      if (p.squad.length <= SQUAD_MIN) fail(`o elenco precisa de pelo menos ${SQUAD_MIN} jogadores`);
+      p.cash += c.fee;
+      p.squad = p.squad.filter((x) => x.id !== f.id);
+      p.alumni.push(f);
+      live.changes.push({ day, remove: [f.id] });
+      if (p.lineup?.ids) p.lineup.ids = p.lineup.ids.filter((id) => id !== f.id);
+      moveToAiClub(state, f, deriveRng(state.seed, state.season, 'assedio-venda'), c.club);
+      state.news.push(`${f.name} é vendido ao ${c.club} por R$ ${c.fee} mil no meio da temporada`);
+    } else {
+      f.wage = Math.round(f.wage * 1.3 * 10) / 10;
+      (live.moraleHits ??= []).push({ day, id: f.id, delta: jeito === 'ambicioso' ? 2 : 6 });
+      state.news.push(`${p.name} dá aumento a ${f.name} para segurar o craque`);
+    }
+    c.choice = a.choice;
+    preview(state);
+    return;
+  }
+  if (a.t === 'dilemma') {
+    if (!state.career) fail('só no modo técnico');
+    const open = pendingDilemmas(state).find((x) => x.idx === a.idx);
+    if (!open) fail('essa notícia não está aberta');
+    if (!Number.isInteger(a.choice) || a.choice < 0 || a.choice >= DILEMMA_INFO[open.d.kind].options.length) fail('escolha inválida');
+    state.news.push(resolveDilemma(state, a.idx, a.choice));
+    preview(state);
+    return;
+  }
   if (a.t === 'halftime') {
     if (!state.career) fail('mexer no jogo é com o técnico');
     if (a.day !== day || !cal.matches.some((m) => m.day === day)) fail('só durante o jogo de hoje');
@@ -1010,10 +1067,11 @@ function midSeason(state: GameState, a: Action): void {
     preview(state);
     return;
   }
-  if (a.t === 'lineup' || a.t === 'formation' || a.t === 'tactic' || a.t === 'training' || a.t === 'roles') {
+  if (a.t === 'lineup' || a.t === 'formation' || a.t === 'tactic' || a.t === 'training' || a.t === 'roles' || a.t === 'setpieces') {
     if (!state.career) fail('a escalação é com o técnico');
     if (a.t === 'lineup') setLineup(p, a);
     else if (a.t === 'roles') setRoles(p, a.roles);
+    else if (a.t === 'setpieces') p.setPieces = { ...a.v };
     else if (a.t === 'training') {
       if ((p.training ?? 'equilibrado') === a.focus) fail('já é o treino atual');
       p.training = a.focus;
@@ -1024,7 +1082,7 @@ function midSeason(state: GameState, a: Action): void {
       if (p.coach.formation === a.f) fail('já é o esquema atual');
       p.coach.formation = a.f;
     }
-    live.lineups.push({ day, ids: p.lineup?.ids ?? null, rotate: p.lineup?.rotate ?? true, formation: p.coach.formation, tactic: p.tactic, training: p.training, ...(p.roles ? { roles: { ...p.roles } } : {}) });
+    live.lineups.push({ day, ids: p.lineup?.ids ?? null, rotate: p.lineup?.rotate ?? true, formation: p.coach.formation, tactic: p.tactic, training: p.training, ...(p.roles ? { roles: { ...p.roles } } : {}), ...(p.setPieces ? { setPieces: { ...p.setPieces } } : {}) });
     preview(state);
     return;
   }

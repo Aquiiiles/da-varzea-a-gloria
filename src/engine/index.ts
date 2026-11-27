@@ -42,3 +42,6 @@ export { personalityOf, PERSONALITY_INFO, type Personality } from './personality
 export { coachMarketWage, offerWage, wageRaiseChance } from './career';
 export { TIRED_AT, matchStamina, staminaAt } from './stamina';
 export { resolveRoles, leadership } from './roles';
+export { OPP_PROFILE_INFO, REF_INFO, DEFAULT_SET_PIECES, opponentProfile, refereeFor, type OppProfile, type RefProfile, type SetPieces } from './matchday';
+export { DILEMMA_INFO, COURTED_OPTIONS, pendingCourting, pendingDilemmas } from './decisions';
+export { penaltyOrder } from './roles';

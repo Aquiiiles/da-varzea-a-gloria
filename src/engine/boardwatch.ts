@@ -52,7 +52,9 @@ export function boardWatch(state: GameState, fromDay: number, toDay: number): nu
     // clássico e decisão: vale mais para a diretoria e vira manchete
     const res = outcomeOf(m);
     if (rival && m.opponent === rival) {
-      c.board.confidence = clamp(c.board.confidence + (res === 'V' ? 4 : res === 'D' ? -4 : 0), 0, 100);
+      // quanto mais quente a rivalidade, mais o clássico pesa
+      const weight = 4 + Math.round(state.player.rivalHatred / 20);
+      c.board.confidence = clamp(c.board.confidence + (res === 'V' ? weight : res === 'D' ? -weight : 0), 0, 100);
       state.news.push(
         res === 'V'
           ? `CLÁSSICO: ${club} vence o ${rival} por ${m.gf} a ${m.ga} e a cidade é do ${club}`

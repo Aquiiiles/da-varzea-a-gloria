@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { MAX_STOPS, MAX_SUBS, TIRED_AT, liveRatings, staminaAt, type LiveRating, PLAYER_ID, subbedOut, isDecisive, rivalName, STYLE_TACTIC, injuredAt, suspendedOn, tableAfter, type GameState, type LiveEvent, type RoundGame, type RoundView, type Tactic } from '../../engine';
+import { MAX_STOPS, MAX_SUBS, PERSONALITY_INFO, TIRED_AT, matchStamina, penaltyOrder, personalityOf, liveRatings, staminaAt, type LiveRating, PLAYER_ID, subbedOut, isDecisive, rivalName, STYLE_TACTIC, injuredAt, suspendedOn, tableAfter, type GameState, type LiveEvent, type RoundGame, type RoundView, type Tactic } from '../../engine';
 import type { Dispatch } from '../App';
 import { LineupEditor } from '../LineupEditor';
 import { StandingsTable } from './TableTab';
@@ -43,7 +43,12 @@ export function RoundLive({ state, round, dispatch, onDone }: { state: GameState
   });
   const [paused, setPaused] = useState(false);
   const [view, setView] = useState<'live' | 'table'>('live');
-  const finished = minute >= end;
+  // pênaltis: as cobranças aparecem uma a uma depois do apito
+  const totalKicks = m.events.filter((e) => e.kick !== undefined).length;
+  const [kicksShown, setKicksShown] = useState(0);
+  const atEnd = minute >= end;
+  const finished = atEnd && kicksShown >= totalKicks;
+  const penPending = canChange && !!m.result.pens && !!calMatch?.kicks && !(live?.penOrders ?? []).some((x) => x.day === round.day);
   const atHalftime = !!stop;
   const feedRef = useRef<HTMLOListElement>(null);
   const reduced = useMemo(() => {
@@ -73,11 +78,24 @@ export function RoundLive({ state, round, dispatch, onDone }: { state: GameState
     }
   }, [minute, canChange, stop, finished, m.events, handled, lastChange]);
 
+  // pênaltis: antes da primeira cobrança, o técnico escolhe a ordem
   useEffect(() => {
-    if (finished || paused || reduced || atHalftime) return;
+    if (!atEnd || stop || !penPending || handled.has('pens')) return;
+    setHandled(new Set([...handled, 'pens']));
+    setStop({ minute: end, reason: 'Pênaltis' });
+  }, [atEnd, stop, penPending, handled, end]);
+  useEffect(() => {
+    if (!atEnd || stop || kicksShown >= totalKicks) return;
+    if (penPending && !handled.has('pens')) return;
+    const t = setTimeout(() => setKicksShown((k) => k + 1), reduced ? 0 : 900);
+    return () => clearTimeout(t);
+  }, [atEnd, stop, kicksShown, totalKicks, reduced, penPending, handled]);
+
+  useEffect(() => {
+    if (atEnd || paused || reduced || atHalftime) return;
     const t = setTimeout(() => setMinute((x) => Math.min(end, x + 1)), SPEEDS[speed]?.ms ?? 55);
     return () => clearTimeout(t);
-  }, [minute, finished, paused, speed, end, reduced, atHalftime]);
+  }, [minute, atEnd, paused, speed, end, reduced, atHalftime]);
 
   /** a mudança vale a partir do próximo bloco de 5 minutos (no intervalo, do 2º tempo) */
   const changeAt = (at: number) => (at === 45 ? 45 : Math.min(85, Math.max(5, Math.ceil((at + 1) / 5) * 5)));
@@ -92,8 +110,9 @@ export function RoundLive({ state, round, dispatch, onDone }: { state: GameState
     }
   };
 
-  const endingCount = m.result.pens ? 2 : 1;
-  const shown = m.events.filter((e, i) => (i >= m.events.length - endingCount ? finished : e.minute <= minute));
+  // o fim: apito final (ou o anúncio dos pênaltis, as cobranças e o resultado)
+  const endStart = m.result.pens ? Math.max(0, m.events.findIndex((e) => e.kind === 'apito' && e.text.includes('pênaltis'))) : m.events.length - 1;
+  const shown = m.events.filter((e, i) => (i < endStart ? e.minute <= minute : e.kick !== undefined ? atEnd && e.kick < kicksShown : i === endStart ? atEnd : finished));
   const score = shown.at(-1)?.score ?? [0, 0];
   // suas mexidas entram na narração, com o efeito no jogo
   const feed: LiveEvent[] = [...shown];
@@ -199,7 +218,9 @@ export function RoundLive({ state, round, dispatch, onDone }: { state: GameState
 
       {round.stats && !stop && <Ratings ratings={ratings} stamina={stamina} finished={finished} />}
 
-      {stop && (
+      {stop && stop.reason === 'Pênaltis' && <PenaltyPanel state={state} day={round.day} dispatch={dispatch} onClose={() => setStop(null)} />}
+
+      {stop && stop.reason !== 'Pênaltis' && (
         <HalftimePanel
           state={state}
           day={round.day}
@@ -338,6 +359,55 @@ function HalftimePanel({ state, day, minute, reason, dispatch, onClose, stamina,
         dispatch={dispatch}
         halftime={{ firstIds: field, out, reasons, maxSubs: MAX_SUBS - used, tactic: current, size: 11 - reds, onConfirm: confirm, stamina, ratings }}
       />
+    </section>
+  );
+}
+
+/** Disputa de pênaltis: o técnico escolhe a ordem dos batedores entre quem terminou em campo. */
+function PenaltyPanel({ state, day, dispatch, onClose }: { state: GameState; day: number; dispatch: Dispatch; onClose: () => void }) {
+  const tl = matchStamina(state, day);
+  const fieldIds = tl ? [...tl[tl.length - 1].keys()] : [];
+  const field = state.player.squad.filter((f) => fieldIds.includes(f.id));
+  const auto = penaltyOrder(field, state.player.roles, null);
+  const [order, setOrder] = useState<number[]>([]);
+  const need = Math.min(5, field.length);
+  const toggle = (id: number) => setOrder(order.includes(id) ? order.filter((x) => x !== id) : order.length < need ? [...order, id] : order);
+  const confirm = (ids: number[]) => {
+    if (dispatch({ t: 'penorder', day, ids })) onClose();
+  };
+  return (
+    <section className="panel halftime pens">
+      <p className="kicker">Disputa de pênaltis</p>
+      <p className="muted">Toque nos {need} batedores na ordem da cobrança. Quem é frio (profissional) e tem qualidade bate melhor; goleiro e temperamental tremem mais.</p>
+      <ul className="pen-list">
+        {field
+          .slice()
+          .sort((a, b) => b.ovr - a.ovr)
+          .map((f) => {
+            const n = order.indexOf(f.id);
+            return (
+              <li key={f.id}>
+                <button type="button" className={`pen-pick${n >= 0 ? ' is-on' : ''}`} onClick={() => toggle(f.id)}>
+                  <span className="pen-n">{n >= 0 ? n + 1 : ''}</span>
+                  <span className={`pc-pos pos-${f.pos}`}>{f.pos}</span>
+                  <span className="pen-name">
+                    {f.name}
+                    <small>{PERSONALITY_INFO[personalityOf(f)].label}</small>
+                  </span>
+                  <b>{f.ovr}</b>
+                </button>
+              </li>
+            );
+          })}
+      </ul>
+      <div className="decision-actions">
+        <button type="button" className="btn" onClick={() => confirm(auto.slice(0, need).map((f) => f.id))}>
+          Auxiliar escolhe
+        </button>
+        <button type="button" className="btn btn-primary" disabled={order.length < need} onClick={() => confirm(order)}>
+          Confirmar ordem
+        </button>
+      </div>
     </section>
   );
 }

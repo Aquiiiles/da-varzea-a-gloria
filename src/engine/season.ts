@@ -1,3 +1,4 @@
+import { bestLineup, traitMods } from './traits';
 import { captainBoost, freeKickMult, kickAdjust, penaltyOrder, resolveRoles } from './roles';
 import { DEFAULT_SET_PIECES, blockMods, derbyCardFactor, opponentProfile, refCardFactor, refereeFor, setPieceEdge } from './matchday';
 import { referenceTiredness, staminaTimeline, teamTiredness } from './stamina';
@@ -64,7 +65,11 @@ export function playerHomeAdv(state: GameState): number {
 /** Força esperada do time (sem a sorte da temporada): XI + técnico + eventos. */
 export function teamStrength(state: GameState): number {
   const p = state.player;
-  const chosen = p.lineup?.ids ? lineupStrength(p.squad, p.coach.formation, p.lineup.ids) : null;
+  const chosen = p.lineup?.ids
+    ? lineupStrength(p.squad, p.coach.formation, p.lineup.ids)
+    : state.career
+      ? lineupStrength(p.squad, p.coach.formation, bestLineup(p.squad, p.coach.formation))
+      : null;
   return Math.round(((chosen ?? squadStrength(p.squad, p.coach.formation)) + coachEdge(p.coach.rating, p.tier) + moraleEdge(p.coach.morale) + p.formMod) * 10) / 10;
 }
 
@@ -284,8 +289,10 @@ export function simulateSeason(state: GameState): SeasonResult {
       });
       d += mods.delta[0];
       dOpp += mods.delta[1];
-      const fk = freeKickMult(roles.fk, avg) * mods.mult[0];
-      const om = mods.mult[1];
+      // características de quem está em campo (finalizador, marcador, goleiro de reflexo...)
+      const tm = traitMods(players(field), { tactic: tactic ?? baseTactic, profile, corner: setPieces.corner });
+      const fk = freeKickMult(roles.fk, avg) * mods.mult[0] * tm.mine;
+      const om = mods.mult[1] * tm.theirs;
       if (Math.abs(d) < 0.005 && Math.abs(dOpp) < 0.005 && fk === 1 && om === 1) return st;
       const delta: [number, number] = h === PLAYER ? [st.delta[0] + d, st.delta[1] + dOpp] : [st.delta[0] + dOpp, st.delta[1] + d];
       const mult: GoalMult = h === PLAYER ? [st.mult[0] * fk, st.mult[1] * om] : [st.mult[0] * om, st.mult[1] * fk];
@@ -295,7 +302,10 @@ export function simulateSeason(state: GameState): SeasonResult {
     const kickers = penaltyOrder(players(fieldAt(17).field), chosen, live?.penOrders?.find((x) => x.day === day)?.ids ?? null);
     kickersByDay.set(day, kickers.map((f) => f.id));
     const adj = kickers.map((f) => kickAdjust(f, avg));
-    fn.pens = h === PLAYER ? [adj, []] : [[], adj];
+    // goleiro de reflexo: as cobranças deles entram menos
+    const keeper = traitMods(players(fieldAt(17).field), { tactic: null, profile, corner: 'curto' }).penAgainst;
+    const theirs = keeper !== 0 ? [keeper] : [];
+    fn.pens = h === PLAYER ? [adj, theirs] : [theirs, adj];
     return fn;
   };
   /** placar do 1º tempo dos jogos do jogador, por dia (do ponto de vista dele) */

@@ -1,3 +1,4 @@
+import { bestLineup } from './traits';
 import { resolveRoles } from './roles';
 import { benchFactor, cardFactor, personalityOf } from './personality';
 import { bestEleven, lineupStrength, round1 } from './footballers';
@@ -89,13 +90,22 @@ export function fatiguePenalty(fatigue: number): number {
 }
 
 /** Força de um XI: média (com improviso fora de posição) + profundidade do banco, como `squadStrength`. */
-function pickXI(roster: Footballer[], formation: Formation, preferred: Set<number> | null, order?: readonly number[] | null): { xi: Footballer[]; strength: number } {
+function pickXI(roster: Footballer[], formation: Formation, preferred: Set<number> | null, order?: readonly number[] | null, detailed = false): { xi: Footballer[]; strength: number } {
   if (roster.length === 0) return { xi: [], strength: 30 };
   // escalação completa com as vagas escolhidas: cada um joga onde o técnico pôs
   if (order && order.length === 11) {
     const s = lineupStrength(roster, formation, order);
     if (s !== null) {
       const set = new Set(order);
+      return { xi: roster.filter((f) => set.has(f.id)), strength: s };
+    }
+  }
+  // modo técnico: cada um na vaga detalhada em que rende mais (lateral na lateral...)
+  if (detailed) {
+    const ids = bestLineup(roster, formation, (f) => (preferred?.has(f.id) ? BOOST : 0));
+    const s = ids.length === 11 ? lineupStrength(roster, formation, ids) : null;
+    if (s !== null) {
+      const set = new Set(ids);
       return { xi: roster.filter((f) => set.has(f.id)), strength: s };
     }
   }
@@ -196,7 +206,7 @@ export class SquadPlan {
       if (fresh.length >= 14) pool = fresh;
     }
     const preferred = lineup.ids ? new Set<number>(lineup.ids) : null;
-    const { xi, strength } = pickXI(pool, lineup.formation, preferred, lineup.ids);
+    const { xi, strength } = pickXI(pool, lineup.formation, preferred, lineup.ids, !!this.opts.coach);
     return { day, xi, strength, pool: eff, pre: Object.fromEntries(available.map((f) => [f.id, Math.round(tired(f))])) };
   }
 
@@ -223,7 +233,7 @@ export class SquadPlan {
     const plan = this.at(day);
     const want = new Set(ids);
     const pool = plan.pool.filter((f) => want.has(f.id) || !plan.xi.some((x) => x.id === f.id));
-    return pickXI(pool, this.lineupAt(day).formation, want, ids).strength;
+    return pickXI(pool, this.lineupAt(day).formation, want, ids, !!this.opts.coach).strength;
   }
 
   /**

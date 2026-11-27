@@ -1,3 +1,4 @@
+import { FORMATION_DETAILS, slotPenalty } from './traits';
 import { TIERS } from '../data/pyramid';
 import { personName as brName } from './names';
 import { clamp } from './util';
@@ -183,7 +184,9 @@ export function lineupStrength(squad: readonly Footballer[], formation: Formatio
   const byId = new Map(squad.map((f) => [f.id, f]));
   const xi = ids.map((id) => byId.get(id));
   if (xi.some((f) => !f)) return null;
-  const ratings = xi.map((f, i) => f!.ovr - positionPenalty(slots[i], f!.pos));
+  // posição detalhada: lateral na lateral, volante na volância...
+  const details = FORMATION_DETAILS[formation];
+  const ratings = xi.map((f, i) => f!.ovr - slotPenalty(details[i], f!));
   const mean = ratings.reduce((s, r) => s + r, 0) / ratings.length;
   const used = new Set(ids);
   const bench = squad.filter((f) => !used.has(f.id)).sort((a, b) => b.ovr - a.ovr).slice(0, 7);

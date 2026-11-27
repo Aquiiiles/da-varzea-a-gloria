@@ -11,6 +11,9 @@ const FORMATION_TEXT: Record<Formation, string> = {
   '4-3-3': '1 GOL · 4 DEF · 3 MEI · 3 ATA',
   '3-5-2': '1 GOL · 3 DEF · 5 MEI · 2 ATA',
   '4-5-1': '1 GOL · 4 DEF · 5 MEI · 1 ATA',
+  '5-3-2': '1 GOL · 5 DEF · 3 MEI · 2 ATA',
+  '5-4-1': '1 GOL · 5 DEF · 4 MEI · 1 ATA',
+  '3-4-3': '1 GOL · 3 DEF · 4 MEI · 3 ATA',
 };
 
 const STAFF: { id: StaffRole; name: string; effect: string; levels: string[] }[] = [

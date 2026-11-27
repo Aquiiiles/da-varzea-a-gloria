@@ -190,7 +190,7 @@ export type Tactic = 'equilibrado' | 'ofensivo' | 'retranqueiro' | 'contra_ataqu
 export type BusinessId = 'bar' | 'loja' | 'escolinha' | 'estacionamento' | 'foodtruck';
 export type DelegateArea = 'contratos' | 'base' | 'mercado' | 'estadio';
 
-export type Formation = '4-4-2' | '4-3-3' | '3-5-2' | '4-5-1';
+export type Formation = '4-4-2' | '4-3-3' | '3-5-2' | '4-5-1' | '5-3-2' | '5-4-1' | '3-4-3';
 
 export interface Coach {
   name: string;

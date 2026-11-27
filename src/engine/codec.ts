@@ -22,7 +22,7 @@ const ZIB: Record<string, BusinessId> = { b: 'bar', l: 'loja', e: 'escolinha', p
 const DEL: Record<DelegateArea, string> = { contratos: 'c', base: 'b', mercado: 'm', estadio: 'e' };
 const LED: Record<string, DelegateArea> = { c: 'contratos', b: 'base', m: 'mercado', e: 'estadio' };
 
-const FORMS: Formation[] = ['4-4-2', '4-3-3', '3-5-2', '4-5-1'];
+const FORMS: Formation[] = ['4-4-2', '4-3-3', '3-5-2', '4-5-1', '5-3-2', '5-4-1', '3-4-3'];
 
 export interface RunCode {
   seed: number;

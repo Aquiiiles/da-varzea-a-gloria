@@ -126,6 +126,10 @@ export const FORMATIONS: Record<Formation, Record<Position, number>> = {
   '4-3-3': { GOL: 1, DEF: 4, MEI: 3, ATA: 3 },
   '3-5-2': { GOL: 1, DEF: 3, MEI: 5, ATA: 2 },
   '4-5-1': { GOL: 1, DEF: 4, MEI: 5, ATA: 1 },
+  // só no modo técnico
+  '5-3-2': { GOL: 1, DEF: 5, MEI: 3, ATA: 2 },
+  '5-4-1': { GOL: 1, DEF: 5, MEI: 4, ATA: 1 },
+  '3-4-3': { GOL: 1, DEF: 3, MEI: 4, ATA: 3 },
 };
 /** Penalidade de jogar fora de posição. */
 const OUT_OF_POSITION = 8;

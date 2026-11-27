@@ -717,6 +717,7 @@ function applyAction(state: GameState, a: Action): void {
         p.coach.formation = a.f;
         return;
       }
+      if (!['4-4-2', '4-3-3', '3-5-2', '4-5-1'].includes(a.f)) fail('esse esquema é só do modo técnico');
       if (o.formationChanged) fail('o técnico só aceita mudar o esquema uma vez por janela');
       p.coach.formation = a.f;
       p.coach.morale = Math.max(0, p.coach.morale - 10);

@@ -32,7 +32,39 @@ export const FORMATION_DETAILS: Record<Formation, Detail[]> = {
   // no 3-5-2 os alas são laterais que jogam no meio
   '3-5-2': ['GOL', 'ZAG', 'ZAG', 'ZAG', 'LAT', 'VOL', 'MEI', 'VOL', 'LAT', 'CA', 'CA'],
   '4-5-1': ['GOL', 'LAT', 'ZAG', 'ZAG', 'LAT', 'PON', 'VOL', 'MEI', 'VOL', 'PON', 'CA'],
+  '5-3-2': ['GOL', 'LAT', 'ZAG', 'ZAG', 'ZAG', 'LAT', 'MEI', 'VOL', 'MEI', 'CA', 'CA'],
+  '5-4-1': ['GOL', 'LAT', 'ZAG', 'ZAG', 'ZAG', 'LAT', 'MEI', 'VOL', 'VOL', 'MEI', 'CA'],
+  // no 3-4-3 os laterais viram alas no meio
+  '3-4-3': ['GOL', 'ZAG', 'ZAG', 'ZAG', 'LAT', 'VOL', 'MEI', 'LAT', 'PON', 'CA', 'PON'],
 };
+
+/** Esquemas do modo técnico, do mais defensivo ao mais ofensivo. */
+export const COACH_FORMATIONS: Formation[] = ['5-4-1', '5-3-2', '4-5-1', '4-4-2', '3-5-2', '4-3-3', '3-4-3'];
+
+export const FORMATION_INFO: Record<Formation, { goals: [number, number]; text: string }> = {
+  '5-4-1': { goals: [0.8, 0.74], text: 'Ferrolho: toma bem menos gol, mas quase não ataca.' },
+  '5-3-2': { goals: [0.88, 0.82], text: 'Cinco atrás e dois na frente: segura e sai no contra-ataque.' },
+  '4-5-1': { goals: [0.92, 0.9], text: 'Meio-campo cheio: jogo mais travado.' },
+  '4-4-2': { goals: [1, 1], text: 'O equilíbrio clássico.' },
+  '3-5-2': { goals: [1.04, 1.05], text: 'Alas soltos: um pouco mais aberto dos dois lados.' },
+  '4-3-3': { goals: [1.08, 1.05], text: 'Três atacantes: mais chances, defesa mais exposta.' },
+  '3-4-3': { goals: [1.15, 1.15], text: 'Tudo ao ataque: muitos gols para os dois lados.' },
+};
+
+/**
+ * Gols a favor e contra do esquema, com a estratégia junto: esquema e estratégia que combinam rendem mais,
+ * os que brigam entre si deixam o time desequilibrado.
+ */
+export function formationMult(f: Formation, tactic: string | null): [number, number] {
+  let [gf, ga] = FORMATION_INFO[f].goals;
+  const defensive = f === '5-4-1' || f === '5-3-2';
+  const attacking = f === '3-4-3' || f === '4-3-3';
+  if (defensive && (tactic === 'ofensivo' || tactic === 'pressao')) ga *= 1.06; // linha de cinco subindo: buraco atrás
+  if (defensive && tactic === 'contra_ataque') gf *= 1.05; // fecha e sai rápido: combina
+  if (attacking && tactic === 'retranqueiro') gf *= 0.94; // três atacantes recuados: desperdiça o esquema
+  if (attacking && tactic === 'pressao') ga *= 1.04;
+  return [gf, ga];
+}
 
 /** Perda de quem joga numa vaga: na posição exata nada; mesma área, um pouco; outra área, a perda de sempre. */
 export function slotPenalty(slot: Detail, f: Pick<Footballer, 'id' | 'name' | 'pos'>): number {

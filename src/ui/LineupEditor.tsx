@@ -1,12 +1,12 @@
 import { useRef, useState, type PointerEvent as ReactPointerEvent } from 'react';
 import {
-  FATIGUE_FREE, FATIGUE_REST, FORMATIONS, FORMATION_DETAILS, TIRED_AT, bestLineup, detailOf, slotPenalty, traitsOf, TRAIT_INFO, DETAIL_GROUP, type Detail, statusAt, STYLE_TACTIC, TACTICS, fatigueAt, injuredAt, lineupStrength, squadStrength, suspendedOn,
+  COACH_FORMATIONS, FORMATION_INFO, FATIGUE_FREE, FATIGUE_REST, FORMATIONS, FORMATION_DETAILS, TIRED_AT, bestLineup, detailOf, slotPenalty, traitsOf, TRAIT_INFO, DETAIL_GROUP, type Detail, statusAt, STYLE_TACTIC, TACTICS, fatigueAt, injuredAt, lineupStrength, squadStrength, suspendedOn,
   type Footballer, type Formation, type GameState, type Position, type Tactic,
 } from '../engine';
 import type { Dispatch } from './App';
 
 const ORDER: Position[] = ['GOL', 'DEF', 'MEI', 'ATA'];
-const FORMATION_LIST: Formation[] = ['4-4-2', '4-3-3', '3-5-2', '4-5-1'];
+const FORMATION_LIST: Formation[] = COACH_FORMATIONS;
 const POS_SHORT: Record<Position, string> = { GOL: 'GOL', DEF: 'ZAG', MEI: 'MEI', ATA: 'ATA' };
 const POS_GROUP: Record<Position, string> = { GOL: 'Goleiros', DEF: 'Defensores', MEI: 'Meio-campo', ATA: 'Ataque' };
 
@@ -272,6 +272,7 @@ export function LineupEditor({ state, dispatch, halftime, bare }: { state: GameS
           </button>
         ))}
       </div>
+      <p className="muted">{FORMATION_INFO[formation].text}</p>
 
         </>
       )}

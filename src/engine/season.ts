@@ -1,4 +1,4 @@
-import { bestLineup, traitMods } from './traits';
+import { bestLineup, formationMult, traitMods } from './traits';
 import { captainBoost, freeKickMult, kickAdjust, penaltyOrder, resolveRoles } from './roles';
 import { DEFAULT_SET_PIECES, blockMods, derbyCardFactor, opponentProfile, refCardFactor, refereeFor, setPieceEdge } from './matchday';
 import { referenceTiredness, staminaTimeline, teamTiredness } from './stamina';
@@ -298,8 +298,10 @@ export function simulateSeason(state: GameState): SeasonResult {
       dOpp += mods.delta[1];
       // características de quem está em campo (finalizador, marcador, goleiro de reflexo...)
       const tm = traitMods(players(field), { tactic: tactic ?? baseTactic, profile, corner: setPieces.corner });
-      const fk = freeKickMult(roles.fk, avg) * mods.mult[0] * tm.mine;
-      const om = mods.mult[1] * tm.theirs;
+      // esquema em campo (com a estratégia junto): 5 atrás fecha, 3-4-3 abre
+      const [fGf, fGa] = formationMult(formation ?? plan.lineupAt(day).formation, tactic ?? baseTactic);
+      const fk = freeKickMult(roles.fk, avg) * mods.mult[0] * tm.mine * fGf;
+      const om = mods.mult[1] * tm.theirs * fGa;
       if (Math.abs(d) < 0.005 && Math.abs(dOpp) < 0.005 && fk === 1 && om === 1) return st;
       const delta: [number, number] = h === PLAYER ? [st.delta[0] + d, st.delta[1] + dOpp] : [st.delta[0] + dOpp, st.delta[1] + d];
       const mult: GoalMult = h === PLAYER ? [st.mult[0] * fk, st.mult[1] * om] : [st.mult[0] * om, st.mult[1] * fk];

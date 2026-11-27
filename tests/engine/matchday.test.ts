@@ -151,3 +151,24 @@ describe('esquema no meio do jogo', () => {
     expect(roundOn(t, day)!.changes.at(-1)!.formation).toBe('3-5-2');
   });
 });
+
+describe('o esquema pesa no resultado', () => {
+  it('5-4-1 fecha (menos gols dos dois lados) e 3-4-3 abre; estratégia que briga com o esquema piora', async () => {
+    const { formationMult } = await import('../../src/engine/traits');
+    expect(formationMult('5-4-1', 'equilibrado')[1]).toBeLessThan(formationMult('4-4-2', 'equilibrado')[1]);
+    expect(formationMult('3-4-3', 'equilibrado')[0]).toBeGreaterThan(formationMult('4-4-2', 'equilibrado')[0]);
+    expect(formationMult('5-4-1', 'ofensivo')[1]).toBeGreaterThan(formationMult('5-4-1', 'equilibrado')[1]);
+    expect(formationMult('5-3-2', 'contra_ataque')[0]).toBeGreaterThan(formationMult('5-3-2', 'equilibrado')[0]);
+    // na temporada: os mesmos jogos com 5-4-1 têm menos gols que com 3-4-3
+    const base = apply(newGame(7, COACH), { t: 'job', idx: 0 });
+    const goals = (f: '5-4-1' | '3-4-3') => {
+      const s = apply(apply(base, { t: 'formation', f }), { t: 'play' });
+      return s.calendar!.matches.reduce((n, m) => n + m.gf + m.ga, 0);
+    };
+    expect(goals('5-4-1')).toBeLessThan(goals('3-4-3'));
+  });
+  it('no modo presidente os esquemas novos não existem', () => {
+    const s = newGame(1, { name: 'Unidos', colors: ['#c8102e', '#ffffff'], origin: 'pub' });
+    expect(canApply(s, { t: 'formation', f: '5-4-1' })).toBe(false);
+  });
+});

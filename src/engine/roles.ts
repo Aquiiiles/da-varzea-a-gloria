@@ -42,8 +42,25 @@ export function freeKickMult(fk: Footballer | null, avg: number): number {
   return 1 + Math.max(-0.03, Math.min(0.06, (fk.ovr - avg) * 0.004));
 }
 
-/** Bônus por cobrança na disputa de pênaltis. */
-export function penaltyEdge(pens: Footballer | null, avg: number): number {
-  if (!pens) return 0;
-  return Math.max(-0.04, Math.min(0.05, (pens.ovr - avg) * 0.004));
+/**
+ * Ordem dos pênaltis: a escolhida (quem ainda está em campo), depois o cobrador oficial e os melhores.
+ * Todo mundo em campo entra na fila (as alternadas usam a fila de novo).
+ */
+export function penaltyOrder(field: Footballer[], roles: Partial<Roles> | null | undefined, chosen: number[] | null): Footballer[] {
+  const out: Footballer[] = [];
+  const add = (f: Footballer | null | undefined) => {
+    if (f && !out.includes(f)) out.push(f);
+  };
+  for (const id of chosen ?? []) add(field.find((f) => f.id === id));
+  add(resolveRoles(field, roles).pens);
+  for (const f of field.slice().sort((a, b) => b.ovr - a.ovr || a.id - b.id)) if (f.pos !== 'GOL') add(f);
+  for (const f of field) add(f);
+  return out;
+}
+
+/** Ajuste na chance de converter: qualidade, jeito e frieza. */
+export function kickAdjust(f: Footballer, avg: number): number {
+  const j = personalityOf(f);
+  const base = Math.max(-0.06, Math.min(0.08, (f.ovr - avg) * 0.006));
+  return base + (j === 'profissional' ? 0.02 : j === 'temperamental' ? -0.03 : 0) + (f.pos === 'GOL' ? -0.05 : 0);
 }

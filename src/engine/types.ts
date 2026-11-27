@@ -1,3 +1,4 @@
+import type { SetPieces } from './matchday';
 import type { Roles } from './roles';
 /** Tipos centrais do motor. Tudo serializável (sem funções), para rodar igual no cliente e no servidor. */
 
@@ -271,6 +272,8 @@ export interface LiveEvent {
   score: [number, number];
   /** autor do gol (seu time, jogos do técnico) */
   who?: number;
+  /** cobrança da disputa de pênaltis (ordem) */
+  kick?: number;
 }
 
 export interface LiveMoment {
@@ -352,6 +355,8 @@ export interface PlayerClub extends Club {
   training?: TrainingFocus;
   /** capitão e cobradores (modo técnico; ausente = o auxiliar escolhe) */
   roles?: Roles;
+  /** bola parada (modo técnico) */
+  setPieces?: SetPieces;
 }
 
 /** Foco do treino semanal (modo técnico). */
@@ -451,6 +456,10 @@ export type Action =
   | { t: 'watch'; id: number } // lista de observação: marcar ou desmarcar um jogador de outro clube
   | { t: 'training'; focus: TrainingFocus } // foco do treino (modo técnico)
   | { t: 'roles'; roles: Roles } // capitão e cobradores (modo técnico)
+  | { t: 'setpieces'; v: SetPieces } // bola parada (modo técnico)
+  | { t: 'penorder'; day: number; ids: number[] } // ordem dos pênaltis no jogo do dia
+  | { t: 'courted'; choice: 0 | 1 | 2 } // assédio ao craque: segurar, vender, valorizar
+  | { t: 'dilemma'; idx: number; choice: number } // notícia com escolha
   | { t: 'talk'; id: number; kind: TalkKind } // conversa com um jogador (modo técnico)
   | { t: 'precontract'; accept: boolean } // proposta no meio da temporada (pré-contrato)
   | { t: 'halftime'; day: number; minute?: number; ids: number[] | null; tactic?: Tactic } // durante o jogo: substituições e estratégia a partir do minuto
@@ -484,6 +493,8 @@ export interface MatchResult {
   blocks?: [number, number][];
   /** média de gols (por 90 min) de cada lado em cada bloco: o "volume" de jogo */
   rates?: [number, number][];
+  /** cobranças da disputa de pênaltis [mandante, visitante] (jogos do técnico) */
+  kicks?: [boolean[], boolean[]];
 }
 
 export interface TableRow {
@@ -743,6 +754,8 @@ export interface LineupEntry {
   training?: TrainingFocus;
   /** capitão e cobradores escolhidos */
   roles?: Roles;
+  /** bola parada */
+  setPieces?: SetPieces;
 }
 
 /** Mudança no elenco durante a temporada (janela do meio do ano). */
@@ -769,6 +782,18 @@ export interface LiveSeason {
   broken?: { day: number; id: number; name: string }[];
   /** mudanças no intervalo (modo técnico): novo time em campo e/ou estratégia para o 2º tempo */
   halftimes?: HalftimeChange[];
+  /** ordem dos pênaltis escolhida por jogo */
+  penOrders?: { day: number; ids: number[] }[];
+  /** mudanças de moral vindas de decisões (valem a partir do jogo seguinte ao dia) */
+  moraleHits?: { day: number; id: number; delta: number }[];
+  /** afastados pelo técnico (não jogam entre `from` e `to`) */
+  benched?: { id: number; from: number; to: number }[];
+  /** cansaço extra para o elenco todo (amistoso no meio da semana) */
+  fatigueHits?: { day: number; delta: number }[];
+  /** clube grande assedia o seu craque */
+  courting?: Courting | null;
+  /** notícias com escolha */
+  dilemmas?: Dilemma[];
   /** estatísticas por jogo (artilharia, assistências e notas durante a temporada) */
   stats?: { log: [number, string, number, number, number, number][]; people: Record<number, [string, string]> };
   /** forma e moral de cada jogador depois de cada jogo (prévia) */
@@ -893,6 +918,9 @@ export interface CalendarMatch {
   rates?: [number, number][];
   /** cansaço de cada jogador antes do jogo (modo técnico; para o fôlego ao vivo) */
   pre?: Record<number, number>;
+  /** disputa de pênaltis [seus, deles] e a fila dos seus batedores */
+  kicks?: [boolean[], boolean[]];
+  kickers?: number[];
 }
 
 export interface SeasonCalendar {
@@ -908,3 +936,26 @@ export interface SeasonCalendar {
 }
 
 export type { Roles } from './roles';
+
+export interface Courting {
+  day: number;
+  playerId: number;
+  name: string;
+  clubId: string;
+  club: string;
+  fee: number;
+  /** 0 segurar, 1 vender, 2 valorizar (aumento) */
+  choice?: 0 | 1 | 2;
+}
+
+export type DilemmaKind = 'balada' | 'banco' | 'organizada' | 'amistoso';
+
+export interface Dilemma {
+  day: number;
+  kind: DilemmaKind;
+  playerId?: number;
+  name?: string;
+  choice?: number;
+  /** resultado (texto) depois da escolha */
+  outcome?: string;
+}

@@ -34,7 +34,7 @@ export interface BlockState {
 }
 
 /** Plano de um jogo em blocos: o estado de cada bloco (com o placar até ali) e o bônus nos pênaltis [mandante, visitante]. */
-export type BlockFn = ((block: number, score: [number, number]) => BlockState) & { pens?: [number, number] };
+export type BlockFn = ((block: number, score: [number, number]) => BlockState) & { pens?: [number[], number[]] };
 type BlockHook = (home: string, away: string) => BlockFn | null;
 
 /** Quem joga em blocos (o simulador da temporada liga durante a simulação; null = um bloco só). */
@@ -51,7 +51,7 @@ export function withBlocks<T>(hook: BlockHook, fn: () => T): T {
 }
 
 /** Tempo normal: um bloco (padrão) ou 18 blocos de 5 minutos. Devolve também as médias do fim (para a prorrogação). */
-function regulation(rng: Rng, home: string, away: string, hs: number, as: number, homeAdv: number, mult: GoalMult): { r: MatchResult; lh: number; la: number; pens?: [number, number] } {
+function regulation(rng: Rng, home: string, away: string, hs: number, as: number, homeAdv: number, mult: GoalMult): { r: MatchResult; lh: number; la: number; pens?: [number[], number[]] } {
   const [lh0, la0] = goalRates(hs, as, homeAdv);
   const lh = lh0 * mult[0];
   const la = la0 * mult[1];
@@ -118,17 +118,33 @@ export function playKnockout(
   if (r.hg === r.ag) {
     // pênaltis: quase moeda, com leve viés para o mais forte
     const pHome = 0.5 + Math.max(-0.1, Math.min(0.1, (hs - as) / 90));
+    // ajuste de cada cobrança (batedor da vez), quando o jogo tem plano
+    const adj = (side: 0 | 1, i: number) => {
+      const list = edge?.[side];
+      return list && list.length > 0 ? list[i % list.length] : 0;
+    };
     let ph = 0;
     let pa = 0;
+    const kh: boolean[] = [];
+    const ka: boolean[] = [];
     for (let i = 0; i < 5; i++) {
-      if (rng.chance(0.75 + (pHome - 0.5) / 2 + (edge?.[0] ?? 0))) ph++;
-      if (rng.chance(0.75 - (pHome - 0.5) / 2 + (edge?.[1] ?? 0))) pa++;
+      const x = rng.chance(0.75 + (pHome - 0.5) / 2 + adj(0, i));
+      const y = rng.chance(0.75 - (pHome - 0.5) / 2 + adj(1, i));
+      kh.push(x);
+      ka.push(y);
+      if (x) ph++;
+      if (y) pa++;
     }
-    while (ph === pa) {
-      if (rng.chance(0.75)) ph++;
-      if (rng.chance(0.75)) pa++;
+    for (let i = 5; ph === pa; i++) {
+      const x = rng.chance(0.75 + adj(0, i));
+      const y = rng.chance(0.75 + adj(1, i));
+      kh.push(x);
+      ka.push(y);
+      if (x) ph++;
+      if (y) pa++;
     }
     r.pens = [ph, pa];
+    if (edge) r.kicks = [kh, ka];
   }
   r.winner = winnerOf(r);
   return r;

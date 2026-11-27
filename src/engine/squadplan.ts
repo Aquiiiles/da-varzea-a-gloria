@@ -74,6 +74,14 @@ export interface PlanOptions {
   coach?: boolean;
   /** conversas do técnico com jogadores */
   talks?: Talk[];
+  /** moral mexida por decisões (assédio, notícias) */
+  moraleHits?: { day: number; id: number; delta: number }[];
+  /** afastados pelo técnico */
+  benched?: { id: number; from: number; to: number }[];
+  /** cansaço extra para todo o elenco */
+  fatigueHits?: { day: number; delta: number }[];
+  /** multiplicador da chance de cartão no dia (árbitro, clássico) */
+  cardFactor?: (day: number) => number;
 }
 
 export function fatiguePenalty(fatigue: number): number {
@@ -160,6 +168,7 @@ export class SquadPlan {
   private injuredOn(day: number): Set<number> {
     const out = new Set(this.injuries.filter((i) => i.from < day && i.to > day).map((i) => i.id));
     for (const s of this.suspensions) if (s.day === day) out.add(s.id);
+    for (const b of this.opts.benched ?? []) if (b.from < day && b.to >= day) out.add(b.id);
     return out;
   }
 
@@ -225,8 +234,15 @@ export class SquadPlan {
     const days = [...new Set(matchDays)].sort((a, b) => a - b);
     const yellows = new Map<number, number>();
     let pending: Omit<Suspension, 'day'>[] = [];
+    const hitsDone = new Set<object>();
     for (const day of days) {
       this.recover(day);
+      // amistoso no meio da semana: todo mundo chega mais cansado
+      for (const h of this.opts.fatigueHits ?? []) {
+        if (h.day >= day || hitsDone.has(h)) continue;
+        hitsDone.add(h);
+        for (const f of this.rosterAt(day)) this.fatigue.set(f.id, Math.min(100, (this.fatigue.get(f.id) ?? 0) + h.delta));
+      }
       // suspensos do jogo anterior cumprem neste
       for (const s of pending) this.suspensions.push({ ...s, day });
       pending = [];
@@ -234,7 +250,8 @@ export class SquadPlan {
       this.plans.set(day, plan);
       // cartões (sorteio próprio do dia; não muda resultado, lesões nem cansaço)
       const crng = deriveRng(this.opts.seed, this.opts.season, 'cartao', day);
-      const aggressive = this.lineupAt(day).tactic === 'pressao' ? 1.3 : 1;
+      const sp = this.lineupAt(day).setPieces;
+      const aggressive = (this.lineupAt(day).tactic === 'pressao' ? 1.3 : 1) * (sp?.marking === 'individual' ? 1.15 : 1) * (this.opts.coach ? this.opts.cardFactor?.(day) ?? 1 : 1);
       for (const f of plan.xi) {
         const minute = deriveRng(this.opts.seed, this.opts.season, 'minuto', day, f.id).int(5, 88);
         const temper = this.opts.coach ? cardFactor(personalityOf(f)) : 1;
@@ -278,6 +295,13 @@ export class SquadPlan {
       const inXI = new Set(plan.xi.map((f) => f.id));
       const ranked = roster.slice().sort((a, b) => b.ovr - a.ovr || a.id - b.id);
       const expects = new Set(ranked.slice(0, 16).map((f) => f.id));
+      // decisões do técnico (assédio, notícias) antes deste jogo
+      for (const h of this.opts.moraleHits ?? []) {
+        if (h.day >= day || this.talked.has(h as unknown as Talk)) continue;
+        this.talked.add(h as unknown as Talk);
+        const f = roster.find((x) => x.id === h.id);
+        if (f) this.morale.set(f.id, clamp(this.moraleOf(f) + h.delta, 0, 100));
+      }
       // conversas feitas antes deste jogo (valem uma vez)
       for (const t of this.opts.talks ?? []) {
         if (t.day >= day || this.talked.has(t)) continue;

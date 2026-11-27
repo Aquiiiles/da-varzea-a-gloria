@@ -22,7 +22,10 @@ describe('correções', () => {
       expect(decodeAction(encodeAction({ t: 'tactic', v }))).toEqual({ t: 'tactic', v });
     }
     let s = season(3);
-    while (s.reveal! < 60) s = apply(s, { t: 'advance', to: 1 });
+    while (s.reveal! < 60) {
+      s.career!.board.confidence = 100; // sem demissão no meio do teste
+      s = apply(s, { t: 'advance', to: 1 });
+    }
     const past = s.calendar!.matches.filter((m) => m.day <= s.reveal!);
     const t = apply(s, { t: 'tactic', v: 'ofensivo' });
     expect(t.calendar!.matches.filter((m) => m.day <= s.reveal!)).toEqual(past);

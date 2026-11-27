@@ -1,5 +1,5 @@
 import { useState, type ReactNode } from 'react';
-import { BOARD_INFO, START_YEAR, bestEleven, leadership, resolveRoles, type Footballer, type Roles, STYLE_TACTIC, TACTICS, TRAINING, julyWindow, myPosition, ultimatumStatus, type Formation, type GameState, type Tactic, type TrainingFocus } from '../../engine';
+import { BOARD_INFO, DEFAULT_SET_PIECES, START_YEAR, bestEleven, type SetPieces, leadership, resolveRoles, type Footballer, type Roles, STYLE_TACTIC, TACTICS, TRAINING, julyWindow, myPosition, ultimatumStatus, type Formation, type GameState, type Tactic, type TrainingFocus } from '../../engine';
 import type { Dispatch } from '../App';
 import { Crest } from '../Crest';
 import { Ticker, tickerItems } from '../Ticker';
@@ -187,7 +187,37 @@ function Prepare({ state, dispatch }: { state: GameState; dispatch: Dispatch }) 
       </p>
       <LineupEditor key={`${state.reveal}-${JSON.stringify(p.lineup)}-${p.coach.formation}`} state={state} dispatch={dispatch} bare />
       <RolesPicker state={state} dispatch={dispatch} />
+      <SetPiecesPicker state={state} dispatch={dispatch} />
     </section>
+  );
+}
+
+/** Bola parada: escanteio curto ou na área; marcação por zona ou individual. */
+function SetPiecesPicker({ state, dispatch }: { state: GameState; dispatch: Dispatch }) {
+  const sp = state.player.setPieces ?? DEFAULT_SET_PIECES;
+  return (
+    <div className="roles">
+      <p className="lineup-pos">Bola parada</p>
+      <div className="plan-selects">
+        <label>
+          <span>Escanteio</span>
+          <select value={sp.corner} onChange={(e) => dispatch({ t: 'setpieces', v: { ...sp, corner: e.target.value as SetPieces['corner'] } })}>
+            <option value="curto">Curto, trabalhado</option>
+            <option value="area">Na área, cruzado</option>
+          </select>
+        </label>
+        <label>
+          <span>Marcação</span>
+          <select value={sp.marking} onChange={(e) => dispatch({ t: 'setpieces', v: { ...sp, marking: e.target.value as SetPieces['marking'] } })}>
+            <option value="zona">Por zona</option>
+            <option value="individual">Individual</option>
+          </select>
+        </label>
+      </div>
+      <p className="muted plan-effects">
+        Na área rende mais com um zagueiro forte, mas expõe ao contra-ataque. Individual segura a bola parada deles, com um pouco mais de cartão.
+      </p>
+    </div>
   );
 }
 

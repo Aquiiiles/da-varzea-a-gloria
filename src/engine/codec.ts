@@ -77,6 +77,10 @@ export function encodeAction(a: Action): string {
     case 'talk': return `K${a.id}_${TALKS.indexOf(a.kind)}`;
     case 'halftime': return `H${a.day}${a.minute !== undefined && a.minute !== 45 ? `m${a.minute}` : ''}_${a.tactic ? TACTIC_LIST.indexOf(a.tactic) : 'n'}${a.ids ? a.ids.map((id) => `_${id}`).join('') : ''}`;
     case 'next': return 'z';
+    case 'setpieces': return `B${a.v.corner === 'area' ? 1 : 0}${a.v.marking === 'individual' ? 1 : 0}`;
+    case 'penorder': return `O${a.day}${a.ids.map((id) => `_${id}`).join('')}`;
+    case 'courted': return `U${a.choice}`;
+    case 'dilemma': return `V${a.idx}_${a.choice}`;
   }
 }
 
@@ -146,6 +150,17 @@ export function decodeAction(tok: string): Action | null {
       return m ? { t: 'talk', id: Number(m[1]), kind: TALKS[Number(m[2])] } : null;
     }
     case 'Q': return rest === '0' || rest === '1' ? { t: 'precontract', accept: rest === '1' } : null;
+    case 'B': return /^[01][01]$/.test(rest) ? { t: 'setpieces', v: { corner: rest[0] === '1' ? 'area' : 'curto', marking: rest[1] === '1' ? 'individual' : 'zona' } } : null;
+    case 'O': {
+      const [d, ...ids] = rest.split('_');
+      if (!/^\d{1,3}$/.test(d ?? '') || ids.length < 1 || ids.length > 11 || !ids.every((x) => /^\d{1,7}$/.test(x))) return null;
+      return { t: 'penorder', day: Number(d), ids: ids.map(Number) };
+    }
+    case 'U': return n === 0 || n === 1 || n === 2 ? { t: 'courted', choice: n } : null;
+    case 'V': {
+      const m = /^(\d{1,2})_(\d)$/.exec(rest);
+      return m ? { t: 'dilemma', idx: Number(m[1]), choice: Number(m[2]) } : null;
+    }
     case 'H': {
       const [dayPart, tac, ...ids] = rest.split('_');
       const dm = /^(\d{1,3})(?:m(\d{1,2}))?$/.exec(dayPart ?? '');
